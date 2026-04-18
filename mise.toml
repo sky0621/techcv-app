@@ -45,6 +45,11 @@ description = "Generate repository code from sqlc queries"
 run = "go tool sqlc generate"
 dir = "backend"
 
+[tasks.backend-fmt]
+description = "Run gofmt on backend Go files"
+run = "find . -name '*.go' -print0 | xargs -0 gofmt -w"
+dir = "backend"
+
 [tasks.oapi-generate]
 description = "Generate HTTP server/models from the OpenAPI schema"
 run = "go tool oapi-codegen --config openapi/oapi-codegen.yaml openapi/openapi.yaml"

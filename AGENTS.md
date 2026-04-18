@@ -21,3 +21,4 @@
 ## 作業スタイル
 - 初期実装は最小限に留め、あとから拡張しやすい形を保ってください。
 - framework の暗黙的な magic よりも、レイヤ間の明示的な mapping を優先してください。
+- backend の Go コードを変更した場合は、作業完了前に `techcv-app` ルートで必ず `mise run backend-fmt` を実行してください。
