@@ -1,0 +1,15 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "Asia/Tokyo",
+  "labels": ["dependencies"],
+  "enabledManagers": ["gomod", "npm", "docker-compose", "mise"],
+  "dependencyDashboard": true,
+  "packageRules": [
+    {
+      "description": "Group routine non-major updates together to keep PR volume manageable.",
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "non-major dependencies"
+    }
+  ]
+}

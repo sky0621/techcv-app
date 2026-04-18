@@ -106,3 +106,8 @@ Backend server/models are generated from that file with `oapi-codegen`.
 ```sh
 mise run oapi-generate
 ```
+
+## Dependency updates
+
+This repository includes [renovate.json](air-file://74mpjbg0chpcohbk3d4o/Users/sky0621/work/github.com/sky0621/techcv-products/techcv-app/renovate.json?type=file&root=%252F) for automated dependency updates.
+Enable the Renovate GitHub App for the repository to start receiving update PRs for Go modules, npm packages, Docker Compose images, and mise-managed tools.
