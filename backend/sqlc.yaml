@@ -1,0 +1,11 @@
+version: "2"
+
+sql:
+  - engine: "mysql"
+    schema: "migrations/schema.sql"
+    queries: "internal/profile/repository/queries"
+    gen:
+      go:
+        package: "profiledb"
+        out: "internal/profile/repository/profiledb"
+        sql_package: "database/sql"

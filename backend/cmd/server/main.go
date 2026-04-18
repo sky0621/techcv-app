@@ -1,11 +1,12 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
 
-	"github.com/sky0621/techcv-app/backend/internal/shared/httpserver"
+	"github.com/sky0621/techcv-app/backend/internal/shared/app"
 )
 
 func main() {
@@ -14,9 +15,19 @@ func main() {
 		port = "8080"
 	}
 
+	application, err := app.New(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := application.Close(); err != nil {
+			log.Printf("close app: %v", err)
+		}
+	}()
+
 	server := &http.Server{
 		Addr:    ":" + port,
-		Handler: httpserver.NewRouter(),
+		Handler: application.Handler,
 	}
 
 	log.Printf("server listening on :%s", port)

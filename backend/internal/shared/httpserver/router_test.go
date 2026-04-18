@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	profilerepository "github.com/sky0621/techcv-app/backend/internal/profile/repository"
 )
 
 func TestProfileRoutes(t *testing.T) {
-	router := NewRouter()
+	router := NewRouter(profilerepository.NewMemoryRepository())
 
 	getReq := httptest.NewRequest(http.MethodGet, "/api/profile", nil)
 	getRec := httptest.NewRecorder()

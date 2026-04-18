@@ -9,11 +9,11 @@ import (
 	profileusecase "github.com/sky0621/techcv-app/backend/internal/profile/usecase"
 )
 
-func NewRouter() http.Handler {
+func NewRouter(profileRepository profilerepository.Repository) http.Handler {
 	r := chi.NewRouter()
 	profileHandler := handler.New(
 		profileusecase.New(
-			profilerepository.NewMemoryRepository(),
+			profileRepository,
 		),
 	)
 
