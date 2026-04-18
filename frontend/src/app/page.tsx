@@ -111,17 +111,17 @@ async function saveProfile(form: ProfileForm) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      fullName: form.fullName,
-      nickname: form.nickname,
-      location: form.location,
-      email: form.email,
-      phone: form.phone,
-      summary: form.summary,
-      githubUrl: form.githubUrl,
-      zennUrl: form.zennUrl,
-      qiitaUrl: form.qiitaUrl,
-      websiteUrl: form.websiteUrl,
-      preferredWorkStyle: form.preferredWorkStyle,
+      fullName: optionalValue(form.fullName),
+      nickname: optionalValue(form.nickname),
+      location: optionalValue(form.location),
+      email: optionalValue(form.email),
+      phone: optionalValue(form.phone),
+      summary: optionalValue(form.summary),
+      githubUrl: optionalValue(form.githubUrl),
+      zennUrl: optionalValue(form.zennUrl),
+      qiitaUrl: optionalValue(form.qiitaUrl),
+      websiteUrl: optionalValue(form.websiteUrl),
+      preferredWorkStyle: optionalValue(form.preferredWorkStyle),
       visibilitySettings: {
         email: form.showEmail,
         phone: form.showPhone
@@ -134,6 +134,10 @@ async function saveProfile(form: ProfileForm) {
   }
 
   return (await response.json()) as ProfileResponse;
+}
+
+function optionalValue(value: string) {
+  return value.trim() === "" ? undefined : value;
 }
 
 export default function HomePage() {

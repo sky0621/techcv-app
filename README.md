@@ -97,3 +97,13 @@ Repository SQL is managed with `sqlc`.
 cd backend
 make sqlc-generate
 ```
+
+### OpenAPI management
+
+Profile API schema is extracted from `techcv-design/openapi.yaml` and maintained under `backend/openapi/openapi.yaml`.
+Backend server/models are generated from that file with `oapi-codegen`.
+
+```sh
+cd backend
+make oapi-generate
+```

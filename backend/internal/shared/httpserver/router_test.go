@@ -22,14 +22,14 @@ func TestProfileRoutes(t *testing.T) {
 	}
 
 	var getResp struct {
-		Profile map[string]any `json:"profile"`
+		Profile Profile `json:"profile"`
 	}
 	if err := json.Unmarshal(getRec.Body.Bytes(), &getResp); err != nil {
 		t.Fatalf("failed to decode get response: %v", err)
 	}
 
-	if getResp.Profile["id"] != "profile_01" {
-		t.Fatalf("expected profile id profile_01, got %v", getResp.Profile["id"])
+	if getResp.Profile.Id != "profile_01" {
+		t.Fatalf("expected profile id profile_01, got %v", getResp.Profile.Id)
 	}
 
 	body := []byte(`{
@@ -53,14 +53,14 @@ func TestProfileRoutes(t *testing.T) {
 	}
 
 	var putResp struct {
-		Profile map[string]any `json:"profile"`
+		Profile Profile `json:"profile"`
 	}
 	if err := json.Unmarshal(putRec.Body.Bytes(), &putResp); err != nil {
 		t.Fatalf("failed to decode put response: %v", err)
 	}
 
-	if putResp.Profile["fullName"] != "Sky Sample" {
-		t.Fatalf("expected updated fullName, got %v", putResp.Profile["fullName"])
+	if putResp.Profile.FullName == nil || *putResp.Profile.FullName != "Sky Sample" {
+		t.Fatalf("expected updated fullName, got %v", putResp.Profile.FullName)
 	}
 
 	getUpdatedReq := httptest.NewRequest(http.MethodGet, "/api/profile", nil)
@@ -68,13 +68,13 @@ func TestProfileRoutes(t *testing.T) {
 	router.ServeHTTP(getUpdatedRec, getUpdatedReq)
 
 	var getUpdatedResp struct {
-		Profile map[string]any `json:"profile"`
+		Profile Profile `json:"profile"`
 	}
 	if err := json.Unmarshal(getUpdatedRec.Body.Bytes(), &getUpdatedResp); err != nil {
 		t.Fatalf("failed to decode updated get response: %v", err)
 	}
 
-	if getUpdatedResp.Profile["fullName"] != "Sky Sample" {
-		t.Fatalf("expected persisted fullName, got %v", getUpdatedResp.Profile["fullName"])
+	if getUpdatedResp.Profile.FullName == nil || *getUpdatedResp.Profile.FullName != "Sky Sample" {
+		t.Fatalf("expected persisted fullName, got %v", getUpdatedResp.Profile.FullName)
 	}
 }
