@@ -1,0 +1,58 @@
+[env]
+MYSQL_HOST = "127.0.0.1"
+MYSQL_PORT = "3306"
+MYSQL_USER = "root"
+MYSQL_PASSWORD = ""
+MYSQL_DATABASE = "techcv_app"
+BACKEND_APP_PORT = "8080"
+FRONTEND_APP_PORT = "3000"
+BACKEND_LOG = "/tmp/techcv-backend.log"
+FRONTEND_LOG = "/tmp/techcv-frontend.log"
+MYSQL_DSN = "root:password@tcp(127.0.0.1:3306)/techcv_app?parseTime=true"
+
+[tasks.frontend-up]
+description = "Start the frontend dev server in the background"
+run = "nohup pnpm --dir frontend dev > \"$FRONTEND_LOG\" 2>&1 &"
+
+[tasks.frontend-down]
+description = "Stop the frontend dev server"
+run = "lsof -ti tcp:$FRONTEND_APP_PORT | xargs kill -9 2>/dev/null || true"
+
+[tasks.backend-up]
+description = "Start the backend server in the background"
+run = "nohup env MYSQL_DSN=\"$MYSQL_DSN\" PORT=\"$BACKEND_APP_PORT\" go run ./cmd/server > \"$BACKEND_LOG\" 2>&1 &"
+dir = "backend"
+
+[tasks.backend-down]
+description = "Stop the backend server"
+run = "lsof -ti tcp:$BACKEND_APP_PORT | xargs kill -9 2>/dev/null || true"
+
+[tasks.mysql-up]
+description = "Start the local MySQL container"
+run = "docker compose up -d mysql"
+dir = "."
+
+[tasks.mysql-down]
+description = "Stop the local MySQL container"
+run = "docker compose stop mysql"
+dir = "."
+
+[tasks.sqlc-generate]
+description = "Generate repository code from sqlc queries"
+run = "go tool sqlc generate"
+dir = "backend"
+
+[tasks.oapi-generate]
+description = "Generate HTTP server/models from the OpenAPI schema"
+run = "go tool oapi-codegen --config openapi/oapi-codegen.yaml openapi/openapi.yaml"
+dir = "backend"
+
+[tasks.schema-dry-run]
+description = "Preview MySQL schema changes with mysqldef"
+run = "mysqldef -u \"$MYSQL_USER\" -p\"$MYSQL_PASSWORD\" -h \"$MYSQL_HOST\" -P \"$MYSQL_PORT\" \"$MYSQL_DATABASE\" --dry-run < migrations/schema.sql"
+dir = "backend"
+
+[tasks.schema-apply]
+description = "Apply MySQL schema changes with mysqldef"
+run = "mysqldef -u \"$MYSQL_USER\" -p\"$MYSQL_PASSWORD\" -h \"$MYSQL_HOST\" -P \"$MYSQL_PORT\" \"$MYSQL_DATABASE\" < migrations/schema.sql"
+dir = "backend"

@@ -38,25 +38,26 @@ By default, the backend serves `GET /healthz` on port `8080`.
 
 ## Local development
 
+Trust the project config once before running tasks:
+
+```sh
+mise trust
+```
+
 Start MySQL with Docker Compose. The schema is loaded from `backend/migrations/schema.sql` on first boot.
 
 ```sh
-cd backend
-make mysql-up
+mise run mysql-up
 ```
 
 Then start the backend and frontend in separate terminals:
 
 ```sh
-cd backend
-export MYSQL_DSN="root:password@tcp(127.0.0.1:3306)/techcv_app?parseTime=true"
-go run ./cmd/server
+mise run backend-up
 ```
 
 ```sh
-cd frontend
-pnpm install
-pnpm dev
+mise run frontend-up
 ```
 
 Open `http://127.0.0.1:3000`. The profile screen now:
@@ -68,8 +69,9 @@ Open `http://127.0.0.1:3000`. The profile screen now:
 Stop MySQL when you are done:
 
 ```sh
-cd backend
-make mysql-down
+mise run frontend-down
+mise run backend-down
+mise run mysql-down
 ```
 
 This stops only the `mysql` service defined in `docker-compose.yml`.
@@ -79,14 +81,13 @@ This stops only the `mysql` service defined in `docker-compose.yml`.
 The backend schema is managed with `mysqldef` using `backend/migrations/schema.sql`.
 
 ```sh
-cd backend
 export MYSQL_HOST=127.0.0.1
 export MYSQL_PORT=3306
 export MYSQL_USER=root
 export MYSQL_PASSWORD=password
 export MYSQL_DATABASE=techcv_app
-make schema-dry-run
-make schema-apply
+mise run schema-dry-run
+mise run schema-apply
 ```
 
 ### SQL management
@@ -94,8 +95,7 @@ make schema-apply
 Repository SQL is managed with `sqlc`.
 
 ```sh
-cd backend
-make sqlc-generate
+mise run sqlc-generate
 ```
 
 ### OpenAPI management
@@ -104,6 +104,5 @@ Profile API schema is extracted from `techcv-design/openapi.yaml` and maintained
 Backend server/models are generated from that file with `oapi-codegen`.
 
 ```sh
-cd backend
-make oapi-generate
+mise run oapi-generate
 ```
