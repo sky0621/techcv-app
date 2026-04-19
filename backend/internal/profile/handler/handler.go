@@ -1,142 +1,141 @@
 package handler
 
 import (
-	"encoding/json"
-	"net/http"
-	"time"
+	"context"
 
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/sky0621/techcv-app/backend/internal/profile/domain"
 	"github.com/sky0621/techcv-app/backend/internal/profile/usecase"
+	sharedopenapi "github.com/sky0621/techcv-app/backend/internal/shared/openapi"
 )
 
 type Handler struct {
 	usecase *usecase.UseCase
 }
 
-type updateProfileRequest struct {
-	FullName           string         `json:"fullName"`
-	Nickname           string         `json:"nickname"`
-	Location           string         `json:"location"`
-	Email              string         `json:"email"`
-	Phone              string         `json:"phone"`
-	Summary            string         `json:"summary"`
-	GitHubURL          string         `json:"githubUrl"`
-	ZennURL            string         `json:"zennUrl"`
-	QiitaURL           string         `json:"qiitaUrl"`
-	WebsiteURL         string         `json:"websiteUrl"`
-	PreferredWorkStyle string         `json:"preferredWorkStyle"`
-	VisibilitySettings map[string]any `json:"visibilitySettings"`
-}
-
-type profileResponse struct {
-	ID                 string         `json:"id"`
-	UserID             string         `json:"userId"`
-	FullName           string         `json:"fullName"`
-	Nickname           string         `json:"nickname"`
-	Location           string         `json:"location"`
-	Email              string         `json:"email"`
-	Phone              string         `json:"phone"`
-	Summary            string         `json:"summary"`
-	GitHubURL          string         `json:"githubUrl"`
-	ZennURL            string         `json:"zennUrl"`
-	QiitaURL           string         `json:"qiitaUrl"`
-	WebsiteURL         string         `json:"websiteUrl"`
-	PreferredWorkStyle string         `json:"preferredWorkStyle"`
-	VisibilitySettings map[string]any `json:"visibilitySettings"`
-	CreatedAt          time.Time      `json:"createdAt"`
-	UpdatedAt          time.Time      `json:"updatedAt"`
-}
-
-type getProfileResponse struct {
-	Profile profileResponse `json:"profile"`
-}
-
-type updateProfileResponse struct {
-	Profile profileResponse `json:"profile"`
-}
-
-type errorResponse struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
-
 func New(usecase *usecase.UseCase) *Handler {
 	return &Handler{usecase: usecase}
 }
 
-func (h *Handler) GetProfile(w http.ResponseWriter, r *http.Request) {
-	profile, err := h.usecase.Get(r.Context())
+func (h *Handler) GetProfile(ctx context.Context, _ sharedopenapi.GetProfileRequestObject) (sharedopenapi.GetProfileResponseObject, error) {
+	profile, err := h.usecase.Get(ctx)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_server_error", "failed to load profile")
-		return
+		return nil, err
 	}
 
-	writeJSON(w, http.StatusOK, getProfileResponse{
-		Profile: newProfileResponse(profile),
-	})
+	return sharedopenapi.GetProfile200JSONResponse{
+		Profile: toOpenAPIProfile(profile),
+	}, nil
 }
 
-func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
-	var request updateProfileRequest
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		writeError(w, http.StatusBadRequest, "bad_request", "invalid request body")
-		return
+func (h *Handler) UpdateProfile(ctx context.Context, request sharedopenapi.UpdateProfileRequestObject) (sharedopenapi.UpdateProfileResponseObject, error) {
+	if request.Body == nil {
+		return sharedopenapi.UpdateProfile400JSONResponse{
+			BadRequestJSONResponse: sharedopenapi.BadRequestJSONResponse{
+				Code:    "bad_request",
+				Message: "invalid request body",
+			},
+		}, nil
 	}
 
-	profile, err := h.usecase.Update(r.Context(), usecase.ProfileInput{
-		FullName:           request.FullName,
-		Nickname:           request.Nickname,
-		Location:           request.Location,
-		Email:              request.Email,
-		Phone:              request.Phone,
-		Summary:            request.Summary,
-		GitHubURL:          request.GitHubURL,
-		ZennURL:            request.ZennURL,
-		QiitaURL:           request.QiitaURL,
-		WebsiteURL:         request.WebsiteURL,
-		PreferredWorkStyle: request.PreferredWorkStyle,
-		VisibilitySettings: request.VisibilitySettings,
+	profile, err := h.usecase.Update(ctx, usecase.ProfileInput{
+		FullName:           stringValue(request.Body.FullName),
+		Nickname:           stringValue(request.Body.Nickname),
+		Location:           stringValue(request.Body.Location),
+		Email:              emailValue(request.Body.Email),
+		Phone:              stringValue(request.Body.Phone),
+		Summary:            stringValue(request.Body.Summary),
+		GitHubURL:          stringValue(request.Body.GithubUrl),
+		ZennURL:            stringValue(request.Body.ZennUrl),
+		QiitaURL:           stringValue(request.Body.QiitaUrl),
+		WebsiteURL:         stringValue(request.Body.WebsiteUrl),
+		PreferredWorkStyle: stringValue(request.Body.PreferredWorkStyle),
+		VisibilitySettings: toUseCaseVisibilitySettings(request.Body.VisibilitySettings),
 	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_server_error", "failed to update profile")
-		return
+		return nil, err
 	}
 
-	writeJSON(w, http.StatusOK, updateProfileResponse{
-		Profile: newProfileResponse(profile),
-	})
+	return sharedopenapi.UpdateProfile200JSONResponse{
+		Profile: toOpenAPIProfile(profile),
+	}, nil
 }
 
-func writeJSON(w http.ResponseWriter, status int, payload any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
-}
-
-func writeError(w http.ResponseWriter, status int, code, message string) {
-	writeJSON(w, status, errorResponse{
-		Code:    code,
-		Message: message,
-	})
-}
-
-func newProfileResponse(profile *domain.Profile) profileResponse {
-	return profileResponse{
-		ID:                 profile.ID,
-		UserID:             profile.UserID,
-		FullName:           profile.FullName,
-		Nickname:           profile.Nickname,
-		Location:           profile.Location,
-		Email:              profile.Email,
-		Phone:              profile.Phone,
-		Summary:            profile.Summary,
-		GitHubURL:          profile.GitHubURL,
-		ZennURL:            profile.ZennURL,
-		QiitaURL:           profile.QiitaURL,
-		WebsiteURL:         profile.WebsiteURL,
-		PreferredWorkStyle: profile.PreferredWorkStyle,
-		VisibilitySettings: profile.VisibilitySettings,
+func toOpenAPIProfile(profile *domain.Profile) sharedopenapi.Profile {
+	return sharedopenapi.Profile{
+		Id:                 profile.ID,
+		UserId:             profile.UserID,
+		FullName:           stringPointer(profile.FullName),
+		Nickname:           stringPointer(profile.Nickname),
+		Location:           stringPointer(profile.Location),
+		Email:              emailPointer(profile.Email),
+		Phone:              stringPointer(profile.Phone),
+		Summary:            stringPointer(profile.Summary),
+		GithubUrl:          stringPointer(profile.GitHubURL),
+		ZennUrl:            stringPointer(profile.ZennURL),
+		QiitaUrl:           stringPointer(profile.QiitaURL),
+		WebsiteUrl:         stringPointer(profile.WebsiteURL),
+		PreferredWorkStyle: stringPointer(profile.PreferredWorkStyle),
+		VisibilitySettings: toOpenAPIVisibilitySettings(profile.VisibilitySettings),
 		CreatedAt:          profile.CreatedAt,
 		UpdatedAt:          profile.UpdatedAt,
 	}
+}
+
+func toOpenAPIVisibilitySettings(values map[string]any) sharedopenapi.VisibilitySettings {
+	result := sharedopenapi.VisibilitySettings{}
+	for key, value := range values {
+		booleanValue, ok := value.(bool)
+		if ok {
+			result[key] = booleanValue
+		}
+	}
+
+	return result
+}
+
+func toUseCaseVisibilitySettings(values *sharedopenapi.VisibilitySettings) map[string]any {
+	if values == nil {
+		return nil
+	}
+
+	result := make(map[string]any, len(*values))
+	for key, value := range *values {
+		result[key] = value
+	}
+
+	return result
+}
+
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+
+	return *value
+}
+
+func stringPointer(value string) *string {
+	if value == "" {
+		return nil
+	}
+
+	return &value
+}
+
+func emailValue(value *openapi_types.Email) string {
+	if value == nil {
+		return ""
+	}
+
+	return string(*value)
+}
+
+func emailPointer(value string) *openapi_types.Email {
+	if value == "" {
+		return nil
+	}
+
+	email := openapi_types.Email(value)
+	return &email
 }

@@ -52,7 +52,7 @@ dir = "backend"
 
 [tasks.oapi-generate]
 description = "Generate HTTP server/models from the OpenAPI schema"
-run = "go tool oapi-codegen --config openapi/oapi-codegen.yaml openapi/openapi.yaml"
+run = "/usr/local/go/bin/go tool oapi-codegen --config openapi/oapi-codegen.yaml openapi/openapi.yaml"
 dir = "backend"
 
 [tasks.schema-dry-run]

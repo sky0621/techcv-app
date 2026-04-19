@@ -1,4 +1,4 @@
-package httpserver
+package handler
 
 import (
 	"context"
@@ -8,9 +8,10 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/sky0621/techcv-app/backend/internal/profile/domain"
 	"github.com/sky0621/techcv-app/backend/internal/profile/usecase"
+	sharedopenapi "github.com/sky0621/techcv-app/backend/internal/shared/openapi"
 )
 
-func TestProfileServerGetProfileMapsDomainToOpenAPI(t *testing.T) {
+func TestGetProfileMapsDomainToOpenAPI(t *testing.T) {
 	now := time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC)
 	repo := &profileRepositoryStub{
 		profile: &domain.Profile{
@@ -24,13 +25,13 @@ func TestProfileServerGetProfileMapsDomainToOpenAPI(t *testing.T) {
 		},
 	}
 
-	server := NewProfileServer(usecase.New(repo))
-	resp, err := server.GetProfile(context.Background(), GetProfileRequestObject{})
+	handler := New(usecase.New(repo))
+	resp, err := handler.GetProfile(context.Background(), sharedopenapi.GetProfileRequestObject{})
 	if err != nil {
 		t.Fatalf("GetProfile() error = %v", err)
 	}
 
-	okResp, ok := resp.(GetProfile200JSONResponse)
+	okResp, ok := resp.(sharedopenapi.GetProfile200JSONResponse)
 	if !ok {
 		t.Fatalf("expected GetProfile200JSONResponse, got %T", resp)
 	}
@@ -52,15 +53,15 @@ func TestProfileServerGetProfileMapsDomainToOpenAPI(t *testing.T) {
 	}
 }
 
-func TestProfileServerUpdateProfileHandlesNilBody(t *testing.T) {
-	server := NewProfileServer(usecase.New(&profileRepositoryStub{}))
+func TestUpdateProfileHandlesNilBody(t *testing.T) {
+	handler := New(usecase.New(&profileRepositoryStub{}))
 
-	resp, err := server.UpdateProfile(context.Background(), UpdateProfileRequestObject{})
+	resp, err := handler.UpdateProfile(context.Background(), sharedopenapi.UpdateProfileRequestObject{})
 	if err != nil {
 		t.Fatalf("UpdateProfile() error = %v", err)
 	}
 
-	badReqResp, ok := resp.(UpdateProfile400JSONResponse)
+	badReqResp, ok := resp.(sharedopenapi.UpdateProfile400JSONResponse)
 	if !ok {
 		t.Fatalf("expected UpdateProfile400JSONResponse, got %T", resp)
 	}
@@ -70,7 +71,7 @@ func TestProfileServerUpdateProfileHandlesNilBody(t *testing.T) {
 	}
 }
 
-func TestProfileServerUpdateProfileMapsOpenAPIInputToUseCase(t *testing.T) {
+func TestUpdateProfileMapsOpenAPIInputToUseCase(t *testing.T) {
 	now := time.Date(2026, 4, 19, 12, 30, 0, 0, time.UTC)
 	repo := &profileRepositoryStub{
 		profile: &domain.Profile{
@@ -82,13 +83,13 @@ func TestProfileServerUpdateProfileMapsOpenAPIInputToUseCase(t *testing.T) {
 		},
 	}
 
-	server := NewProfileServer(usecase.New(repo))
+	handler := New(usecase.New(repo))
 
 	fullName := "Sky Sample"
 	email := openapi_types.Email("me@example.com")
-	visibility := VisibilitySettings{"email": false, "phone": true}
-	resp, err := server.UpdateProfile(context.Background(), UpdateProfileRequestObject{
-		Body: &UpdateProfileJSONRequestBody{
+	visibility := sharedopenapi.VisibilitySettings{"email": false, "phone": true}
+	resp, err := handler.UpdateProfile(context.Background(), sharedopenapi.UpdateProfileRequestObject{
+		Body: &sharedopenapi.UpdateProfileJSONRequestBody{
 			FullName:           &fullName,
 			Email:              &email,
 			PreferredWorkStyle: stringRef("Full remote"),
@@ -99,7 +100,7 @@ func TestProfileServerUpdateProfileMapsOpenAPIInputToUseCase(t *testing.T) {
 		t.Fatalf("UpdateProfile() error = %v", err)
 	}
 
-	okResp, ok := resp.(UpdateProfile200JSONResponse)
+	okResp, ok := resp.(sharedopenapi.UpdateProfile200JSONResponse)
 	if !ok {
 		t.Fatalf("expected UpdateProfile200JSONResponse, got %T", resp)
 	}

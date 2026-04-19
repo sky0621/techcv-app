@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/sky0621/techcv-app/backend/internal/profile/domain"
+	sharedopenapi "github.com/sky0621/techcv-app/backend/internal/shared/openapi"
 )
 
 func TestProfileRoutes(t *testing.T) {
@@ -25,7 +26,7 @@ func TestProfileRoutes(t *testing.T) {
 	}
 
 	var getResp struct {
-		Profile Profile `json:"profile"`
+		Profile sharedopenapi.Profile `json:"profile"`
 	}
 	if err := json.Unmarshal(getRec.Body.Bytes(), &getResp); err != nil {
 		t.Fatalf("failed to decode get response: %v", err)
@@ -56,7 +57,7 @@ func TestProfileRoutes(t *testing.T) {
 	}
 
 	var putResp struct {
-		Profile Profile `json:"profile"`
+		Profile sharedopenapi.Profile `json:"profile"`
 	}
 	if err := json.Unmarshal(putRec.Body.Bytes(), &putResp); err != nil {
 		t.Fatalf("failed to decode put response: %v", err)
@@ -71,7 +72,7 @@ func TestProfileRoutes(t *testing.T) {
 	router.ServeHTTP(getUpdatedRec, getUpdatedReq)
 
 	var getUpdatedResp struct {
-		Profile Profile `json:"profile"`
+		Profile sharedopenapi.Profile `json:"profile"`
 	}
 	if err := json.Unmarshal(getUpdatedRec.Body.Bytes(), &getUpdatedResp); err != nil {
 		t.Fatalf("failed to decode updated get response: %v", err)
