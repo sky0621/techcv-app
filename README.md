@@ -107,6 +107,14 @@ Backend server/models are generated from that file with `oapi-codegen`.
 mise run oapi-generate
 ```
 
+### Backend tests
+
+Run backend Go tests with:
+
+```sh
+mise run backend-test
+```
+
 ## Backend internal layout
 
 `backend/internal` is organized by technical layer, not by assumed domain boundaries.

@@ -50,6 +50,11 @@ description = "Run gofmt on backend Go files"
 run = "find . -name '*.go' -print0 | xargs -0 gofmt -w"
 dir = "backend"
 
+[tasks.backend-test]
+description = "Run Go tests for the backend"
+run = "go test ./..."
+dir = "backend"
+
 [tasks.oapi-generate]
 description = "Generate HTTP server/models from the OpenAPI schema"
 run = "/usr/local/go/bin/go tool oapi-codegen --config openapi/oapi-codegen.yaml openapi/openapi.yaml"
