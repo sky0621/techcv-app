@@ -2,16 +2,19 @@ package httpserver
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+	"time"
 
-	profilerepository "github.com/sky0621/techcv-app/backend/internal/profile/repository"
+	"github.com/sky0621/techcv-app/backend/internal/profile/domain"
 )
 
 func TestProfileRoutes(t *testing.T) {
-	router := NewRouter(profilerepository.NewMemoryRepository())
+	router := NewRouter(newTestProfileRepository())
 
 	getReq := httptest.NewRequest(http.MethodGet, "/api/profile", nil)
 	getRec := httptest.NewRecorder()
@@ -77,4 +80,47 @@ func TestProfileRoutes(t *testing.T) {
 	if getUpdatedResp.Profile.FullName == nil || *getUpdatedResp.Profile.FullName != "Sky Sample" {
 		t.Fatalf("expected persisted fullName, got %v", getUpdatedResp.Profile.FullName)
 	}
+}
+
+type testProfileRepository struct {
+	mu      sync.RWMutex
+	profile *domain.Profile
+}
+
+func newTestProfileRepository() *testProfileRepository {
+	now := time.Now().UTC()
+
+	return &testProfileRepository{
+		profile: &domain.Profile{
+			ID:                 "profile_01",
+			UserID:             "user_01",
+			VisibilitySettings: map[string]any{"email": false, "phone": false},
+			CreatedAt:          now,
+			UpdatedAt:          now,
+		},
+	}
+}
+
+func (r *testProfileRepository) Get(_ context.Context) (*domain.Profile, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	profileCopy := *r.profile
+	return &profileCopy, nil
+}
+
+func (r *testProfileRepository) Save(_ context.Context, profile *domain.Profile) (*domain.Profile, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	profileCopy := *profile
+	profileCopy.UpdatedAt = time.Now().UTC()
+	if profileCopy.CreatedAt.IsZero() {
+		profileCopy.CreatedAt = profileCopy.UpdatedAt
+	}
+
+	r.profile = &profileCopy
+
+	savedCopy := *r.profile
+	return &savedCopy, nil
 }
