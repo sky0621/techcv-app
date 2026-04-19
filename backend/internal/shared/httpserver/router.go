@@ -4,15 +4,15 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	profilehandler "github.com/sky0621/techcv-app/backend/internal/profile/handler"
-	profilerepository "github.com/sky0621/techcv-app/backend/internal/profile/repository"
-	profileusecase "github.com/sky0621/techcv-app/backend/internal/profile/usecase"
+	"github.com/sky0621/techcv-app/backend/internal/handler"
+	"github.com/sky0621/techcv-app/backend/internal/repository"
 	sharedopenapi "github.com/sky0621/techcv-app/backend/internal/shared/openapi"
+	"github.com/sky0621/techcv-app/backend/internal/usecase"
 )
 
-func NewRouter(profileRepository profilerepository.Repository) http.Handler {
+func NewRouter(profileRepository repository.ProfileRepository) http.Handler {
 	r := chi.NewRouter()
-	profileServer := profilehandler.New(profileusecase.New(profileRepository))
+	profileServer := handler.NewProfileHandler(usecase.NewProfileUseCase(profileRepository))
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)

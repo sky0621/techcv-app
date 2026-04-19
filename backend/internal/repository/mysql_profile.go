@@ -9,28 +9,28 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/sky0621/techcv-app/backend/internal/profile/domain"
-	"github.com/sky0621/techcv-app/backend/internal/profile/repository/profiledb"
+	"github.com/sky0621/techcv-app/backend/internal/domain"
+	dbgen "github.com/sky0621/techcv-app/backend/internal/repository/db"
 )
 
-type MySQLRepository struct {
+type MySQLProfileRepository struct {
 	db      *sql.DB
-	queries *profiledb.Queries
+	queries *dbgen.Queries
 }
 
-func NewMySQLRepository(dsn string) (*MySQLRepository, error) {
+func NewMySQLProfileRepository(dsn string) (*MySQLProfileRepository, error) {
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	return &MySQLRepository{
+	return &MySQLProfileRepository{
 		db:      db,
-		queries: profiledb.New(db),
+		queries: dbgen.New(db),
 	}, nil
 }
 
-func (r *MySQLRepository) Close() error {
+func (r *MySQLProfileRepository) Close() error {
 	if r.db == nil {
 		return nil
 	}
@@ -38,11 +38,11 @@ func (r *MySQLRepository) Close() error {
 	return r.db.Close()
 }
 
-func (r *MySQLRepository) Ping(ctx context.Context) error {
+func (r *MySQLProfileRepository) Ping(ctx context.Context) error {
 	return r.db.PingContext(ctx)
 }
 
-func (r *MySQLRepository) Get(ctx context.Context) (*domain.Profile, error) {
+func (r *MySQLProfileRepository) Get(ctx context.Context) (*domain.Profile, error) {
 	row, err := r.queries.GetProfileByUserID(ctx, "user_01")
 	if err == nil {
 		return toDomainProfile(row)
@@ -64,7 +64,7 @@ func (r *MySQLRepository) Get(ctx context.Context) (*domain.Profile, error) {
 	return r.Save(ctx, &profile)
 }
 
-func (r *MySQLRepository) Save(ctx context.Context, profile *domain.Profile) (*domain.Profile, error) {
+func (r *MySQLProfileRepository) Save(ctx context.Context, profile *domain.Profile) (*domain.Profile, error) {
 	visibilitySettings := profile.VisibilitySettings
 	if visibilitySettings == nil {
 		visibilitySettings = map[string]any{}
@@ -81,7 +81,7 @@ func (r *MySQLRepository) Save(ctx context.Context, profile *domain.Profile) (*d
 		createdAt = now
 	}
 
-	err = r.queries.UpsertProfile(ctx, profiledb.UpsertProfileParams{
+	err = r.queries.UpsertProfile(ctx, dbgen.UpsertProfileParams{
 		ID:                 profile.ID,
 		UserID:             profile.UserID,
 		FullName:           profile.FullName,
@@ -111,7 +111,7 @@ func (r *MySQLRepository) Save(ctx context.Context, profile *domain.Profile) (*d
 	return toDomainProfile(row)
 }
 
-func toDomainProfile(row profiledb.Profile) (*domain.Profile, error) {
+func toDomainProfile(row dbgen.Profile) (*domain.Profile, error) {
 	profile := &domain.Profile{
 		ID:                 row.ID,
 		UserID:             row.UserID,

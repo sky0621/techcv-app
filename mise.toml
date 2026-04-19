@@ -5,7 +5,7 @@ go = "1.26.2"
 MYSQL_HOST = "127.0.0.1"
 MYSQL_PORT = "3306"
 MYSQL_USER = "root"
-MYSQL_PASSWORD = ""
+MYSQL_PASSWORD = "password"
 MYSQL_DATABASE = "techcv_app"
 BACKEND_APP_PORT = "8080"
 FRONTEND_APP_PORT = "3000"
@@ -42,7 +42,7 @@ dir = "."
 
 [tasks.sqlc-generate]
 description = "Generate repository code from sqlc queries"
-run = "go tool sqlc generate"
+run = "sqlc generate"
 dir = "backend"
 
 [tasks.backend-fmt]
@@ -57,10 +57,10 @@ dir = "backend"
 
 [tasks.schema-dry-run]
 description = "Preview MySQL schema changes with mysqldef"
-run = "mysqldef -u \"$MYSQL_USER\" -p\"$MYSQL_PASSWORD\" -h \"$MYSQL_HOST\" -P \"$MYSQL_PORT\" \"$MYSQL_DATABASE\" --dry-run < migrations/schema.sql"
+run = "mysqldef --user=\"$MYSQL_USER\" --password=\"$MYSQL_PASSWORD\" --host=\"$MYSQL_HOST\" --port=\"$MYSQL_PORT\" \"$MYSQL_DATABASE\" --dry-run < migrations/schema.sql"
 dir = "backend"
 
 [tasks.schema-apply]
 description = "Apply MySQL schema changes with mysqldef"
-run = "mysqldef -u \"$MYSQL_USER\" -p\"$MYSQL_PASSWORD\" -h \"$MYSQL_HOST\" -P \"$MYSQL_PORT\" \"$MYSQL_DATABASE\" < migrations/schema.sql"
+run = "mysqldef --user=\"$MYSQL_USER\" --password=\"$MYSQL_PASSWORD\" --host=\"$MYSQL_HOST\" --port=\"$MYSQL_PORT\" \"$MYSQL_DATABASE\" < migrations/schema.sql"
 dir = "backend"

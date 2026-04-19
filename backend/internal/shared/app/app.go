@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	profilerepository "github.com/sky0621/techcv-app/backend/internal/profile/repository"
+	"github.com/sky0621/techcv-app/backend/internal/repository"
 	"github.com/sky0621/techcv-app/backend/internal/shared/httpserver"
 )
 
@@ -25,7 +25,7 @@ func New(ctx context.Context) (*App, error) {
 		return nil, fmt.Errorf("MYSQL_DSN is required")
 	}
 
-	profileRepository, err := profilerepository.NewMySQLRepository(mysqlDSN)
+	profileRepository, err := repository.NewMySQLProfileRepository(mysqlDSN)
 	if err != nil {
 		return nil, err
 	}

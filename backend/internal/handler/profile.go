@@ -4,20 +4,20 @@ import (
 	"context"
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
-	"github.com/sky0621/techcv-app/backend/internal/profile/domain"
-	"github.com/sky0621/techcv-app/backend/internal/profile/usecase"
+	"github.com/sky0621/techcv-app/backend/internal/domain"
 	sharedopenapi "github.com/sky0621/techcv-app/backend/internal/shared/openapi"
+	"github.com/sky0621/techcv-app/backend/internal/usecase"
 )
 
-type Handler struct {
-	usecase *usecase.UseCase
+type ProfileHandler struct {
+	usecase *usecase.ProfileUseCase
 }
 
-func New(usecase *usecase.UseCase) *Handler {
-	return &Handler{usecase: usecase}
+func NewProfileHandler(usecase *usecase.ProfileUseCase) *ProfileHandler {
+	return &ProfileHandler{usecase: usecase}
 }
 
-func (h *Handler) GetProfile(ctx context.Context, _ sharedopenapi.GetProfileRequestObject) (sharedopenapi.GetProfileResponseObject, error) {
+func (h *ProfileHandler) GetProfile(ctx context.Context, _ sharedopenapi.GetProfileRequestObject) (sharedopenapi.GetProfileResponseObject, error) {
 	profile, err := h.usecase.Get(ctx)
 	if err != nil {
 		return nil, err
@@ -28,7 +28,7 @@ func (h *Handler) GetProfile(ctx context.Context, _ sharedopenapi.GetProfileRequ
 	}, nil
 }
 
-func (h *Handler) UpdateProfile(ctx context.Context, request sharedopenapi.UpdateProfileRequestObject) (sharedopenapi.UpdateProfileResponseObject, error) {
+func (h *ProfileHandler) UpdateProfile(ctx context.Context, request sharedopenapi.UpdateProfileRequestObject) (sharedopenapi.UpdateProfileResponseObject, error) {
 	if request.Body == nil {
 		return sharedopenapi.UpdateProfile400JSONResponse{
 			BadRequestJSONResponse: sharedopenapi.BadRequestJSONResponse{

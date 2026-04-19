@@ -3,9 +3,9 @@ version: "2"
 sql:
   - engine: "mysql"
     schema: "migrations/schema.sql"
-    queries: "internal/profile/repository/queries"
+    queries: "internal/repository/queries"
     gen:
       go:
-        package: "profiledb"
-        out: "internal/profile/repository/profiledb"
+        package: "db"
+        out: "internal/repository/db"
         sql_package: "database/sql"

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sky0621/techcv-app/backend/internal/profile/domain"
+	"github.com/sky0621/techcv-app/backend/internal/domain"
 )
 
 func TestUpdateReplacesFieldsAndPreservesVisibilityWhenInputIsNil(t *testing.T) {
@@ -33,7 +33,7 @@ func TestUpdateReplacesFieldsAndPreservesVisibilityWhenInputIsNil(t *testing.T) 
 		},
 	}
 
-	uc := New(repo)
+	uc := NewProfileUseCase(repo)
 	got, err := uc.Update(context.Background(), ProfileInput{
 		FullName:           "After",
 		Nickname:           "after",
@@ -89,7 +89,7 @@ func TestUpdateReplacesVisibilityWhenInputIsProvided(t *testing.T) {
 		},
 	}
 
-	uc := New(repo)
+	uc := NewProfileUseCase(repo)
 	got, err := uc.Update(context.Background(), ProfileInput{
 		VisibilitySettings: map[string]any{"email": false, "github": true},
 	})

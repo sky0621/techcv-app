@@ -3,8 +3,8 @@ package usecase
 import (
 	"context"
 
-	"github.com/sky0621/techcv-app/backend/internal/profile/domain"
-	"github.com/sky0621/techcv-app/backend/internal/profile/repository"
+	"github.com/sky0621/techcv-app/backend/internal/domain"
+	"github.com/sky0621/techcv-app/backend/internal/repository"
 )
 
 type ProfileInput struct {
@@ -22,19 +22,19 @@ type ProfileInput struct {
 	VisibilitySettings map[string]any
 }
 
-type UseCase struct {
-	repository repository.Repository
+type ProfileUseCase struct {
+	repository repository.ProfileRepository
 }
 
-func New(repository repository.Repository) *UseCase {
-	return &UseCase{repository: repository}
+func NewProfileUseCase(repository repository.ProfileRepository) *ProfileUseCase {
+	return &ProfileUseCase{repository: repository}
 }
 
-func (u *UseCase) Get(ctx context.Context) (*domain.Profile, error) {
+func (u *ProfileUseCase) Get(ctx context.Context) (*domain.Profile, error) {
 	return u.repository.Get(ctx)
 }
 
-func (u *UseCase) Update(ctx context.Context, input ProfileInput) (*domain.Profile, error) {
+func (u *ProfileUseCase) Update(ctx context.Context, input ProfileInput) (*domain.Profile, error) {
 	current, err := u.repository.Get(ctx)
 	if err != nil {
 		return nil, err

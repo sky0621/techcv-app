@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sky0621/techcv-app/backend/internal/profile/domain"
+	"github.com/sky0621/techcv-app/backend/internal/domain"
 	sharedopenapi "github.com/sky0621/techcv-app/backend/internal/shared/openapi"
 )
 

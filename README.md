@@ -107,6 +107,16 @@ Backend server/models are generated from that file with `oapi-codegen`.
 mise run oapi-generate
 ```
 
+## Backend internal layout
+
+`backend/internal` is organized by technical layer, not by assumed domain boundaries.
+
+- `internal/domain`
+- `internal/handler`
+- `internal/repository`
+- `internal/usecase`
+- `internal/shared`
+
 ## Dependency updates
 
 This repository includes [renovate.json](air-file://74mpjbg0chpcohbk3d4o/Users/sky0621/work/github.com/sky0621/techcv-products/techcv-app/renovate.json?type=file&root=%252F) for automated dependency updates.

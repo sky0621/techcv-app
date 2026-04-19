@@ -3,10 +3,10 @@ package repository
 import (
 	"context"
 
-	"github.com/sky0621/techcv-app/backend/internal/profile/domain"
+	"github.com/sky0621/techcv-app/backend/internal/domain"
 )
 
-type Repository interface {
+type ProfileRepository interface {
 	Get(ctx context.Context) (*domain.Profile, error)
 	Save(ctx context.Context, profile *domain.Profile) (*domain.Profile, error)
 }

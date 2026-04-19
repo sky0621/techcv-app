@@ -6,9 +6,9 @@ import (
 	"time"
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
-	"github.com/sky0621/techcv-app/backend/internal/profile/domain"
-	"github.com/sky0621/techcv-app/backend/internal/profile/usecase"
+	"github.com/sky0621/techcv-app/backend/internal/domain"
 	sharedopenapi "github.com/sky0621/techcv-app/backend/internal/shared/openapi"
+	"github.com/sky0621/techcv-app/backend/internal/usecase"
 )
 
 func TestGetProfileMapsDomainToOpenAPI(t *testing.T) {
@@ -25,7 +25,7 @@ func TestGetProfileMapsDomainToOpenAPI(t *testing.T) {
 		},
 	}
 
-	handler := New(usecase.New(repo))
+	handler := NewProfileHandler(usecase.NewProfileUseCase(repo))
 	resp, err := handler.GetProfile(context.Background(), sharedopenapi.GetProfileRequestObject{})
 	if err != nil {
 		t.Fatalf("GetProfile() error = %v", err)
@@ -54,7 +54,7 @@ func TestGetProfileMapsDomainToOpenAPI(t *testing.T) {
 }
 
 func TestUpdateProfileHandlesNilBody(t *testing.T) {
-	handler := New(usecase.New(&profileRepositoryStub{}))
+	handler := NewProfileHandler(usecase.NewProfileUseCase(&profileRepositoryStub{}))
 
 	resp, err := handler.UpdateProfile(context.Background(), sharedopenapi.UpdateProfileRequestObject{})
 	if err != nil {
@@ -83,7 +83,7 @@ func TestUpdateProfileMapsOpenAPIInputToUseCase(t *testing.T) {
 		},
 	}
 
-	handler := New(usecase.New(repo))
+	handler := NewProfileHandler(usecase.NewProfileUseCase(repo))
 
 	fullName := "Sky Sample"
 	email := openapi_types.Email("me@example.com")
