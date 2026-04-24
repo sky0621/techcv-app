@@ -9,7 +9,6 @@ type Profile struct {
 	Nickname           string
 	Location           string
 	Email              string
-	Phone              string
 	Summary            string
 	GitHubURL          string
 	ZennURL            string

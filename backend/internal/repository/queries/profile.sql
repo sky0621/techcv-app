@@ -6,7 +6,6 @@ SELECT
   nickname,
   location,
   email,
-  phone,
   summary,
   github_url,
   zenn_url,
@@ -28,7 +27,6 @@ INSERT INTO profiles (
   nickname,
   location,
   email,
-  phone,
   summary,
   github_url,
   zenn_url,
@@ -40,19 +38,18 @@ INSERT INTO profiles (
   updated_at
 ) VALUES (
   ?, ?, ?, ?, ?, ?, ?, ?,
-  ?, ?, ?, ?, ?, ?, ?, ?
+  ?, ?, ?, ?, ?, ?, ?
 )
-ON DUPLICATE KEY UPDATE
-  full_name = VALUES(full_name),
-  nickname = VALUES(nickname),
-  location = VALUES(location),
-  email = VALUES(email),
-  phone = VALUES(phone),
-  summary = VALUES(summary),
-  github_url = VALUES(github_url),
-  zenn_url = VALUES(zenn_url),
-  qiita_url = VALUES(qiita_url),
-  website_url = VALUES(website_url),
-  preferred_work_style = VALUES(preferred_work_style),
-  visibility_settings = VALUES(visibility_settings),
-  updated_at = VALUES(updated_at);
+ON CONFLICT(user_id) DO UPDATE SET
+  full_name = excluded.full_name,
+  nickname = excluded.nickname,
+  location = excluded.location,
+  email = excluded.email,
+  summary = excluded.summary,
+  github_url = excluded.github_url,
+  zenn_url = excluded.zenn_url,
+  qiita_url = excluded.qiita_url,
+  website_url = excluded.website_url,
+  preferred_work_style = excluded.preferred_work_style,
+  visibility_settings = excluded.visibility_settings,
+  updated_at = excluded.updated_at;

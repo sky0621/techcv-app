@@ -6,7 +6,6 @@ import {
   FolderKanban,
   Code,
   FileText,
-  LogOut,
   Settings
 } from "lucide-react";
 import { Button } from "../ui/button";
@@ -58,10 +57,6 @@ export function MainLayout() {
           <Button variant="ghost" className="w-full justify-start gap-3">
             <Settings className="w-5 h-5" />
             <span>設定</span>
-          </Button>
-          <Button variant="ghost" className="w-full justify-start gap-3 text-red-600 hover:text-red-700 hover:bg-red-50">
-            <LogOut className="w-5 h-5" />
-            <span>ログアウト</span>
           </Button>
         </div>
       </aside>

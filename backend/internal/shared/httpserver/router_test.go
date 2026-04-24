@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/sky0621/techcv-app/backend/internal/domain"
-	sharedopenapi "github.com/sky0621/techcv-app/backend/internal/shared/openapi"
 )
 
 func TestProfileRoutes(t *testing.T) {
@@ -26,14 +25,16 @@ func TestProfileRoutes(t *testing.T) {
 	}
 
 	var getResp struct {
-		Profile sharedopenapi.Profile `json:"profile"`
+		Profile struct {
+			ID string `json:"id"`
+		} `json:"profile"`
 	}
 	if err := json.Unmarshal(getRec.Body.Bytes(), &getResp); err != nil {
 		t.Fatalf("failed to decode get response: %v", err)
 	}
 
-	if getResp.Profile.Id != "profile_01" {
-		t.Fatalf("expected profile id profile_01, got %v", getResp.Profile.Id)
+	if getResp.Profile.ID != "profile_01" {
+		t.Fatalf("expected profile id profile_01, got %v", getResp.Profile.ID)
 	}
 
 	body := []byte(`{
@@ -41,11 +42,10 @@ func TestProfileRoutes(t *testing.T) {
 		"nickname":"sky0621",
 		"location":"Tokyo",
 		"email":"me@example.com",
-		"phone":"090-0000-0000",
 		"summary":"Backend engineer",
 		"githubUrl":"https://github.com/sky0621",
 		"preferredWorkStyle":"Full remote",
-		"visibilitySettings":{"email":false,"phone":false}
+		"visibilitySettings":{"email":false}
 	}`)
 
 	putReq := httptest.NewRequest(http.MethodPut, "/api/profile", bytes.NewReader(body))
@@ -57,7 +57,9 @@ func TestProfileRoutes(t *testing.T) {
 	}
 
 	var putResp struct {
-		Profile sharedopenapi.Profile `json:"profile"`
+		Profile struct {
+			FullName *string `json:"fullName"`
+		} `json:"profile"`
 	}
 	if err := json.Unmarshal(putRec.Body.Bytes(), &putResp); err != nil {
 		t.Fatalf("failed to decode put response: %v", err)
@@ -72,7 +74,9 @@ func TestProfileRoutes(t *testing.T) {
 	router.ServeHTTP(getUpdatedRec, getUpdatedReq)
 
 	var getUpdatedResp struct {
-		Profile sharedopenapi.Profile `json:"profile"`
+		Profile struct {
+			FullName *string `json:"fullName"`
+		} `json:"profile"`
 	}
 	if err := json.Unmarshal(getUpdatedRec.Body.Bytes(), &getUpdatedResp); err != nil {
 		t.Fatalf("failed to decode updated get response: %v", err)
@@ -95,7 +99,7 @@ func newTestProfileRepository() *testProfileRepository {
 		profile: &domain.Profile{
 			ID:                 "profile_01",
 			UserID:             "user_01",
-			VisibilitySettings: map[string]any{"email": false, "phone": false},
+			VisibilitySettings: map[string]any{"email": false},
 			CreatedAt:          now,
 			UpdatedAt:          now,
 		},

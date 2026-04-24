@@ -1,8 +1,5 @@
-import { createBrowserRouter } from "react-router";
-import { AuthLayout } from "./components/layouts/AuthLayout";
+import { createBrowserRouter, Navigate } from "react-router";
 import { MainLayout } from "./components/layouts/MainLayout";
-import { LoginPage } from "./components/pages/LoginPage";
-import { SignupPage } from "./components/pages/SignupPage";
 import { DashboardPage } from "./components/pages/DashboardPage";
 import { ProfilePage } from "./components/pages/ProfilePage";
 import { JobHistoryPage } from "./components/pages/JobHistoryPage";
@@ -13,14 +10,7 @@ import { ResumePreviewPage } from "./components/pages/ResumePreviewPage";
 import { NotFoundPage } from "./components/pages/NotFoundPage";
 
 export const router = createBrowserRouter([
-  {
-    path: "/",
-    Component: AuthLayout,
-    children: [
-      { index: true, Component: LoginPage },
-      { path: "signup", Component: SignupPage },
-    ],
-  },
+  { path: "/", element: <Navigate to="/app" replace /> },
   {
     path: "/app",
     Component: MainLayout,

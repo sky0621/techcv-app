@@ -20,14 +20,13 @@ func TestUpdateReplacesFieldsAndPreservesVisibilityWhenInputIsNil(t *testing.T) 
 			Nickname:           "before",
 			Location:           "Osaka",
 			Email:              "before@example.com",
-			Phone:              "000",
 			Summary:            "old summary",
 			GitHubURL:          "https://github.com/before",
 			ZennURL:            "https://zenn.dev/before",
 			QiitaURL:           "https://qiita.com/before",
 			WebsiteURL:         "https://before.example.com",
 			PreferredWorkStyle: "Hybrid",
-			VisibilitySettings: map[string]any{"email": true, "phone": false},
+			VisibilitySettings: map[string]any{"email": true},
 			CreatedAt:          now,
 			UpdatedAt:          now,
 		},
@@ -39,7 +38,6 @@ func TestUpdateReplacesFieldsAndPreservesVisibilityWhenInputIsNil(t *testing.T) 
 		Nickname:           "after",
 		Location:           "Tokyo",
 		Email:              "after@example.com",
-		Phone:              "111",
 		Summary:            "new summary",
 		GitHubURL:          "https://github.com/after",
 		ZennURL:            "https://zenn.dev/after",
@@ -62,7 +60,7 @@ func TestUpdateReplacesFieldsAndPreservesVisibilityWhenInputIsNil(t *testing.T) 
 	if got.FullName != "After" || got.Nickname != "after" || got.Location != "Tokyo" {
 		t.Fatalf("unexpected basic fields: %+v", got)
 	}
-	if got.Email != "after@example.com" || got.Phone != "111" || got.Summary != "new summary" {
+	if got.Email != "after@example.com" || got.Summary != "new summary" {
 		t.Fatalf("unexpected contact fields: %+v", got)
 	}
 	if got.GitHubURL != "https://github.com/after" || got.ZennURL != "https://zenn.dev/after" {
@@ -85,7 +83,7 @@ func TestUpdateReplacesVisibilityWhenInputIsProvided(t *testing.T) {
 		profile: &domain.Profile{
 			ID:                 "profile_01",
 			UserID:             "user_01",
-			VisibilitySettings: map[string]any{"email": true, "phone": false},
+			VisibilitySettings: map[string]any{"email": true},
 		},
 	}
 

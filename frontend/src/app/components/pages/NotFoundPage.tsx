@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { Home, ArrowLeft } from "lucide-react";
+import { Home } from "lucide-react";
 import { Button } from "../ui/button";
 
 export function NotFoundPage() {
@@ -13,13 +13,7 @@ export function NotFoundPage() {
         <p className="text-gray-500">
           お探しのページは存在しないか、移動した可能性があります。
         </p>
-        <div className="flex gap-3 justify-center">
-          <Button asChild variant="outline">
-            <Link to="/">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              ログインページへ
-            </Link>
-          </Button>
+        <div className="flex justify-center">
           <Button asChild>
             <Link to="/app">
               <Home className="w-4 h-4 mr-2" />

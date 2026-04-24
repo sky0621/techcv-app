@@ -1,17 +1,19 @@
 package handler
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
-	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/sky0621/techcv-app/backend/internal/domain"
-	sharedopenapi "github.com/sky0621/techcv-app/backend/internal/shared/openapi"
 	"github.com/sky0621/techcv-app/backend/internal/usecase"
 )
 
-func TestGetProfileMapsDomainToOpenAPI(t *testing.T) {
+func TestGetProfileMapsDomainToResponse(t *testing.T) {
 	now := time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC)
 	repo := &profileRepositoryStub{
 		profile: &domain.Profile{
@@ -19,59 +21,64 @@ func TestGetProfileMapsDomainToOpenAPI(t *testing.T) {
 			UserID:             "user_01",
 			FullName:           "Sky Sample",
 			Email:              "me@example.com",
-			VisibilitySettings: map[string]any{"email": false, "phone": true, "nickname": "public"},
+			VisibilitySettings: map[string]any{"email": false, "github": true, "nickname": "public"},
 			CreatedAt:          now,
 			UpdatedAt:          now,
 		},
 	}
 
 	handler := NewProfileHandler(usecase.NewProfileUseCase(repo))
-	resp, err := handler.GetProfile(context.Background(), sharedopenapi.GetProfileRequestObject{})
-	if err != nil {
-		t.Fatalf("GetProfile() error = %v", err)
+	req := httptest.NewRequest(http.MethodGet, "/api/profile", nil)
+	rec := httptest.NewRecorder()
+	handler.GetProfile(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
 	}
 
-	okResp, ok := resp.(sharedopenapi.GetProfile200JSONResponse)
-	if !ok {
-		t.Fatalf("expected GetProfile200JSONResponse, got %T", resp)
+	var resp profileResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if okResp.Profile.Id != "profile_01" || okResp.Profile.UserId != "user_01" {
-		t.Fatalf("unexpected IDs: %+v", okResp.Profile)
+	if resp.Profile.ID != "profile_01" || resp.Profile.UserID != "user_01" {
+		t.Fatalf("unexpected IDs: %+v", resp.Profile)
 	}
-	if okResp.Profile.FullName == nil || *okResp.Profile.FullName != "Sky Sample" {
-		t.Fatalf("unexpected FullName: %+v", okResp.Profile.FullName)
+	if resp.Profile.FullName == nil || *resp.Profile.FullName != "Sky Sample" {
+		t.Fatalf("unexpected FullName: %+v", resp.Profile.FullName)
 	}
-	if okResp.Profile.Email == nil || string(*okResp.Profile.Email) != "me@example.com" {
-		t.Fatalf("unexpected Email: %+v", okResp.Profile.Email)
+	if resp.Profile.Email == nil || *resp.Profile.Email != "me@example.com" {
+		t.Fatalf("unexpected Email: %+v", resp.Profile.Email)
 	}
-	if len(okResp.Profile.VisibilitySettings) != 2 {
-		t.Fatalf("expected only boolean visibility settings, got %#v", okResp.Profile.VisibilitySettings)
+	if len(resp.Profile.VisibilitySettings) != 2 {
+		t.Fatalf("expected only boolean visibility settings, got %#v", resp.Profile.VisibilitySettings)
 	}
-	if okResp.Profile.VisibilitySettings["email"] != false || okResp.Profile.VisibilitySettings["phone"] != true {
-		t.Fatalf("unexpected visibility settings: %#v", okResp.Profile.VisibilitySettings)
+	if resp.Profile.VisibilitySettings["email"] != false || resp.Profile.VisibilitySettings["github"] != true {
+		t.Fatalf("unexpected visibility settings: %#v", resp.Profile.VisibilitySettings)
 	}
 }
 
-func TestUpdateProfileHandlesNilBody(t *testing.T) {
+func TestUpdateProfileHandlesInvalidBody(t *testing.T) {
 	handler := NewProfileHandler(usecase.NewProfileUseCase(&profileRepositoryStub{}))
 
-	resp, err := handler.UpdateProfile(context.Background(), sharedopenapi.UpdateProfileRequestObject{})
-	if err != nil {
-		t.Fatalf("UpdateProfile() error = %v", err)
+	req := httptest.NewRequest(http.MethodPut, "/api/profile", nil)
+	rec := httptest.NewRecorder()
+	handler.UpdateProfile(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", rec.Code)
 	}
 
-	badReqResp, ok := resp.(sharedopenapi.UpdateProfile400JSONResponse)
-	if !ok {
-		t.Fatalf("expected UpdateProfile400JSONResponse, got %T", resp)
+	var resp errorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
 	}
-
-	if badReqResp.Code != "bad_request" || badReqResp.Message != "invalid request body" {
-		t.Fatalf("unexpected bad request response: %+v", badReqResp)
+	if resp.Code != "bad_request" || resp.Message != "invalid request body" {
+		t.Fatalf("unexpected bad request response: %+v", resp)
 	}
 }
 
-func TestUpdateProfileMapsOpenAPIInputToUseCase(t *testing.T) {
+func TestUpdateProfileMapsRequestToUseCase(t *testing.T) {
 	now := time.Date(2026, 4, 19, 12, 30, 0, 0, time.UTC)
 	repo := &profileRepositoryStub{
 		profile: &domain.Profile{
@@ -86,36 +93,42 @@ func TestUpdateProfileMapsOpenAPIInputToUseCase(t *testing.T) {
 	handler := NewProfileHandler(usecase.NewProfileUseCase(repo))
 
 	fullName := "Sky Sample"
-	email := openapi_types.Email("me@example.com")
-	visibility := sharedopenapi.VisibilitySettings{"email": false, "phone": true}
-	resp, err := handler.UpdateProfile(context.Background(), sharedopenapi.UpdateProfileRequestObject{
-		Body: &sharedopenapi.UpdateProfileJSONRequestBody{
-			FullName:           &fullName,
-			Email:              &email,
-			PreferredWorkStyle: stringRef("Full remote"),
-			VisibilitySettings: &visibility,
-		},
+	email := "me@example.com"
+	visibility := map[string]bool{"email": false, "github": true}
+	body, err := json.Marshal(profileUpdateRequest{
+		FullName:           &fullName,
+		Email:              &email,
+		PreferredWorkStyle: stringRef("Full remote"),
+		VisibilitySettings: &visibility,
 	})
 	if err != nil {
-		t.Fatalf("UpdateProfile() error = %v", err)
+		t.Fatalf("failed to encode request: %v", err)
 	}
 
-	okResp, ok := resp.(sharedopenapi.UpdateProfile200JSONResponse)
-	if !ok {
-		t.Fatalf("expected UpdateProfile200JSONResponse, got %T", resp)
+	req := httptest.NewRequest(http.MethodPut, "/api/profile", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	handler.UpdateProfile(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
 	}
 
-	if okResp.Profile.FullName == nil || *okResp.Profile.FullName != "Sky Sample" {
-		t.Fatalf("unexpected FullName: %+v", okResp.Profile.FullName)
+	var resp profileResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
 	}
-	if okResp.Profile.Email == nil || string(*okResp.Profile.Email) != "me@example.com" {
-		t.Fatalf("unexpected Email: %+v", okResp.Profile.Email)
+
+	if resp.Profile.FullName == nil || *resp.Profile.FullName != "Sky Sample" {
+		t.Fatalf("unexpected FullName: %+v", resp.Profile.FullName)
 	}
-	if okResp.Profile.PreferredWorkStyle == nil || *okResp.Profile.PreferredWorkStyle != "Full remote" {
-		t.Fatalf("unexpected PreferredWorkStyle: %+v", okResp.Profile.PreferredWorkStyle)
+	if resp.Profile.Email == nil || *resp.Profile.Email != "me@example.com" {
+		t.Fatalf("unexpected Email: %+v", resp.Profile.Email)
 	}
-	if okResp.Profile.VisibilitySettings["email"] != false || okResp.Profile.VisibilitySettings["phone"] != true {
-		t.Fatalf("unexpected visibility settings: %#v", okResp.Profile.VisibilitySettings)
+	if resp.Profile.PreferredWorkStyle == nil || *resp.Profile.PreferredWorkStyle != "Full remote" {
+		t.Fatalf("unexpected PreferredWorkStyle: %+v", resp.Profile.PreferredWorkStyle)
+	}
+	if resp.Profile.VisibilitySettings["email"] != false || resp.Profile.VisibilitySettings["github"] != true {
+		t.Fatalf("unexpected visibility settings: %#v", resp.Profile.VisibilitySettings)
 	}
 }
 

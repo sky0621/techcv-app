@@ -1,5 +1,5 @@
 import { useParams, Link } from "react-router";
-import { ArrowLeft, Download, FileText, Github, Globe, Mail, MapPin, Phone } from "lucide-react";
+import { ArrowLeft, Download, FileText, Github, Globe, Mail, MapPin } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -8,7 +8,6 @@ import { Separator } from "../ui/separator";
 const mockProfile = {
   name: "山田 太郎",
   email: "yamada@example.com",
-  phone: "090-1234-5678",
   location: "東京都",
   github: "https://github.com/username",
   website: "https://example.com",
@@ -98,10 +97,6 @@ export function ResumePreviewPage() {
                 <div className="flex items-center gap-2 text-gray-700">
                   <Mail className="w-4 h-4" />
                   {mockProfile.email}
-                </div>
-                <div className="flex items-center gap-2 text-gray-700">
-                  <Phone className="w-4 h-4" />
-                  {mockProfile.phone}
                 </div>
                 <div className="flex items-center gap-2 text-gray-700">
                   <MapPin className="w-4 h-4" />

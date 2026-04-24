@@ -1,11 +1,11 @@
 package handler
 
 import (
-	"context"
+	"encoding/json"
+	"net/http"
+	"time"
 
-	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/sky0621/techcv-app/backend/internal/domain"
-	sharedopenapi "github.com/sky0621/techcv-app/backend/internal/shared/openapi"
 	"github.com/sky0621/techcv-app/backend/internal/usecase"
 )
 
@@ -17,73 +17,111 @@ func NewProfileHandler(usecase *usecase.ProfileUseCase) *ProfileHandler {
 	return &ProfileHandler{usecase: usecase}
 }
 
-func (h *ProfileHandler) GetProfile(ctx context.Context, _ sharedopenapi.GetProfileRequestObject) (sharedopenapi.GetProfileResponseObject, error) {
-	profile, err := h.usecase.Get(ctx)
+func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
+	profile, err := h.usecase.Get(r.Context())
 	if err != nil {
-		return nil, err
+		writeJSONError(w, http.StatusInternalServerError, "internal_server_error", err.Error())
+		return
 	}
 
-	return sharedopenapi.GetProfile200JSONResponse{
-		Profile: toOpenAPIProfile(profile),
-	}, nil
+	writeJSON(w, http.StatusOK, profileResponse{
+		Profile: toProfileResponse(profile),
+	})
 }
 
-func (h *ProfileHandler) UpdateProfile(ctx context.Context, request sharedopenapi.UpdateProfileRequestObject) (sharedopenapi.UpdateProfileResponseObject, error) {
-	if request.Body == nil {
-		return sharedopenapi.UpdateProfile400JSONResponse{
-			BadRequestJSONResponse: sharedopenapi.BadRequestJSONResponse{
-				Code:    "bad_request",
-				Message: "invalid request body",
-			},
-		}, nil
+func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	var request profileUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
 	}
 
-	profile, err := h.usecase.Update(ctx, usecase.ProfileInput{
-		FullName:           stringValue(request.Body.FullName),
-		Nickname:           stringValue(request.Body.Nickname),
-		Location:           stringValue(request.Body.Location),
-		Email:              emailValue(request.Body.Email),
-		Phone:              stringValue(request.Body.Phone),
-		Summary:            stringValue(request.Body.Summary),
-		GitHubURL:          stringValue(request.Body.GithubUrl),
-		ZennURL:            stringValue(request.Body.ZennUrl),
-		QiitaURL:           stringValue(request.Body.QiitaUrl),
-		WebsiteURL:         stringValue(request.Body.WebsiteUrl),
-		PreferredWorkStyle: stringValue(request.Body.PreferredWorkStyle),
-		VisibilitySettings: toUseCaseVisibilitySettings(request.Body.VisibilitySettings),
+	profile, err := h.usecase.Update(r.Context(), usecase.ProfileInput{
+		FullName:           stringValue(request.FullName),
+		Nickname:           stringValue(request.Nickname),
+		Location:           stringValue(request.Location),
+		Email:              stringValue(request.Email),
+		Summary:            stringValue(request.Summary),
+		GitHubURL:          stringValue(request.GithubUrl),
+		ZennURL:            stringValue(request.ZennUrl),
+		QiitaURL:           stringValue(request.QiitaUrl),
+		WebsiteURL:         stringValue(request.WebsiteUrl),
+		PreferredWorkStyle: stringValue(request.PreferredWorkStyle),
+		VisibilitySettings: toUseCaseVisibilitySettings(request.VisibilitySettings),
 	})
 	if err != nil {
-		return nil, err
+		writeJSONError(w, http.StatusInternalServerError, "internal_server_error", err.Error())
+		return
 	}
 
-	return sharedopenapi.UpdateProfile200JSONResponse{
-		Profile: toOpenAPIProfile(profile),
-	}, nil
+	writeJSON(w, http.StatusOK, profileResponse{
+		Profile: toProfileResponse(profile),
+	})
 }
 
-func toOpenAPIProfile(profile *domain.Profile) sharedopenapi.Profile {
-	return sharedopenapi.Profile{
-		Id:                 profile.ID,
-		UserId:             profile.UserID,
+type profileResponse struct {
+	Profile profilePayload `json:"profile"`
+}
+
+type profilePayload struct {
+	ID                 string          `json:"id"`
+	UserID             string          `json:"userId"`
+	FullName           *string         `json:"fullName,omitempty"`
+	Nickname           *string         `json:"nickname,omitempty"`
+	Location           *string         `json:"location,omitempty"`
+	Email              *string         `json:"email,omitempty"`
+	Summary            *string         `json:"summary,omitempty"`
+	GithubUrl          *string         `json:"githubUrl,omitempty"`
+	ZennUrl            *string         `json:"zennUrl,omitempty"`
+	QiitaUrl           *string         `json:"qiitaUrl,omitempty"`
+	WebsiteUrl         *string         `json:"websiteUrl,omitempty"`
+	PreferredWorkStyle *string         `json:"preferredWorkStyle,omitempty"`
+	VisibilitySettings map[string]bool `json:"visibilitySettings"`
+	CreatedAt          time.Time       `json:"createdAt"`
+	UpdatedAt          time.Time       `json:"updatedAt"`
+}
+
+type profileUpdateRequest struct {
+	FullName           *string          `json:"fullName,omitempty"`
+	Nickname           *string          `json:"nickname,omitempty"`
+	Location           *string          `json:"location,omitempty"`
+	Email              *string          `json:"email,omitempty"`
+	Summary            *string          `json:"summary,omitempty"`
+	GithubUrl          *string          `json:"githubUrl,omitempty"`
+	ZennUrl            *string          `json:"zennUrl,omitempty"`
+	QiitaUrl           *string          `json:"qiitaUrl,omitempty"`
+	WebsiteUrl         *string          `json:"websiteUrl,omitempty"`
+	PreferredWorkStyle *string          `json:"preferredWorkStyle,omitempty"`
+	VisibilitySettings *map[string]bool `json:"visibilitySettings,omitempty"`
+}
+
+type errorResponse struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+func toProfileResponse(profile *domain.Profile) profilePayload {
+	return profilePayload{
+		ID:                 profile.ID,
+		UserID:             profile.UserID,
 		FullName:           stringPointer(profile.FullName),
 		Nickname:           stringPointer(profile.Nickname),
 		Location:           stringPointer(profile.Location),
-		Email:              emailPointer(profile.Email),
-		Phone:              stringPointer(profile.Phone),
+		Email:              stringPointer(profile.Email),
 		Summary:            stringPointer(profile.Summary),
 		GithubUrl:          stringPointer(profile.GitHubURL),
 		ZennUrl:            stringPointer(profile.ZennURL),
 		QiitaUrl:           stringPointer(profile.QiitaURL),
 		WebsiteUrl:         stringPointer(profile.WebsiteURL),
 		PreferredWorkStyle: stringPointer(profile.PreferredWorkStyle),
-		VisibilitySettings: toOpenAPIVisibilitySettings(profile.VisibilitySettings),
+		VisibilitySettings: toVisibilitySettingsResponse(profile.VisibilitySettings),
 		CreatedAt:          profile.CreatedAt,
 		UpdatedAt:          profile.UpdatedAt,
 	}
 }
 
-func toOpenAPIVisibilitySettings(values map[string]any) sharedopenapi.VisibilitySettings {
-	result := sharedopenapi.VisibilitySettings{}
+func toVisibilitySettingsResponse(values map[string]any) map[string]bool {
+	result := map[string]bool{}
 	for key, value := range values {
 		booleanValue, ok := value.(bool)
 		if ok {
@@ -94,7 +132,7 @@ func toOpenAPIVisibilitySettings(values map[string]any) sharedopenapi.Visibility
 	return result
 }
 
-func toUseCaseVisibilitySettings(values *sharedopenapi.VisibilitySettings) map[string]any {
+func toUseCaseVisibilitySettings(values *map[string]bool) map[string]any {
 	if values == nil {
 		return nil
 	}
@@ -123,19 +161,15 @@ func stringPointer(value string) *string {
 	return &value
 }
 
-func emailValue(value *openapi_types.Email) string {
-	if value == nil {
-		return ""
-	}
-
-	return string(*value)
+func writeJSON(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(value)
 }
 
-func emailPointer(value string) *openapi_types.Email {
-	if value == "" {
-		return nil
-	}
-
-	email := openapi_types.Email(value)
-	return &email
+func writeJSONError(w http.ResponseWriter, status int, code, message string) {
+	writeJSON(w, status, errorResponse{
+		Code:    code,
+		Message: message,
+	})
 }

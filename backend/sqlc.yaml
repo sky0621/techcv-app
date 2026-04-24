@@ -1,7 +1,7 @@
 version: "2"
 
 sql:
-  - engine: "mysql"
+  - engine: "sqlite"
     schema: "migrations/schema.sql"
     queries: "internal/repository/queries"
     gen:

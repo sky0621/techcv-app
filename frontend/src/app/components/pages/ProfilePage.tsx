@@ -13,7 +13,6 @@ export function ProfilePage() {
     displayName: "山田 太郎",
     email: "yamada@example.com",
     location: "東京都",
-    phone: "090-1234-5678",
     bio: "Webエンジニアとして5年以上の経験があります。",
     githubUrl: "https://github.com/username",
     zennUrl: "https://zenn.dev/username",
@@ -24,7 +23,6 @@ export function ProfilePage() {
   });
 
   const [visibility, setVisibility] = useState({
-    phone: true,
     location: true,
     email: true,
   });
@@ -80,27 +78,15 @@ export function ProfilePage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="location">居住地</Label>
-                    <Input
-                      id="location"
-                      value={profile.location}
-                      onChange={(e) =>
-                        setProfile({ ...profile, location: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">電話番号</Label>
-                    <Input
-                      id="phone"
-                      value={profile.phone}
-                      onChange={(e) =>
-                        setProfile({ ...profile, phone: e.target.value })
-                      }
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="location">居住地</Label>
+                  <Input
+                    id="location"
+                    value={profile.location}
+                    onChange={(e) =>
+                      setProfile({ ...profile, location: e.target.value })
+                    }
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -123,16 +109,6 @@ export function ProfilePage() {
                 <CardDescription>経歴書に表示する項目を選択</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="phone-visibility">電話番号を表示</Label>
-                  <Switch
-                    id="phone-visibility"
-                    checked={visibility.phone}
-                    onCheckedChange={(checked) =>
-                      setVisibility({ ...visibility, phone: checked })
-                    }
-                  />
-                </div>
                 <div className="flex items-center justify-between">
                   <Label htmlFor="location-visibility">居住地を表示</Label>
                   <Switch

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/sky0621/techcv-app/backend/internal/repository"
 	"github.com/sky0621/techcv-app/backend/internal/shared/httpserver"
@@ -20,14 +21,14 @@ type App struct {
 }
 
 func New(ctx context.Context) (*App, error) {
-	mysqlDSN := os.Getenv("MYSQL_DSN")
-	if mysqlDSN == "" {
-		return nil, fmt.Errorf("MYSQL_DSN is required")
+	sqliteDSN := os.Getenv("SQLITE_DSN")
+	if sqliteDSN == "" {
+		sqliteDSN = filepath.Join("data", "techcv.db")
 	}
 
-	profileRepository, err := repository.NewMySQLProfileRepository(mysqlDSN)
+	profileRepository, err := repository.NewSQLiteProfileRepository(ctx, sqliteDSN, schemaPath())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create profile repository: %w", err)
 	}
 
 	if err := profileRepository.Ping(ctx); err != nil {
@@ -48,4 +49,22 @@ func (a *App) Close() error {
 	}
 
 	return nil
+}
+
+func schemaPath() string {
+	if value := os.Getenv("SQLITE_SCHEMA_PATH"); value != "" {
+		return value
+	}
+
+	candidates := []string{
+		filepath.Join("migrations", "schema.sql"),
+		filepath.Join("backend", "migrations", "schema.sql"),
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+
+	return candidates[0]
 }

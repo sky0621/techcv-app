@@ -3,26 +3,23 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/sky0621/techcv-app/backend/internal/domain"
 )
 
-func TestMySQLProfileRepositoryGetCreatesDefaultProfile(t *testing.T) {
+func TestSQLiteProfileRepositoryGetCreatesDefaultProfile(t *testing.T) {
 	t.Helper()
 
 	ctx := context.Background()
-	testDB := newMySQLProfileTestDatabase(t)
+	testDB := newSQLiteProfileTestDatabase(t)
 
-	repo, err := NewMySQLProfileRepository(testDB.dsn())
+	repo, err := NewSQLiteProfileRepository(ctx, testDB.dsn(), testSchemaPath())
 	if err != nil {
-		t.Fatalf("NewMySQLProfileRepository() error = %v", err)
+		t.Fatalf("NewSQLiteProfileRepository() error = %v", err)
 	}
 	t.Cleanup(func() {
 		_ = repo.Close()
@@ -39,7 +36,7 @@ func TestMySQLProfileRepositoryGetCreatesDefaultProfile(t *testing.T) {
 	if got.UserID != "user_01" {
 		t.Fatalf("expected default UserID user_01, got %q", got.UserID)
 	}
-	if got.VisibilitySettings["email"] != false || got.VisibilitySettings["phone"] != false {
+	if got.VisibilitySettings["email"] != false {
 		t.Fatalf("unexpected default visibility settings: %#v", got.VisibilitySettings)
 	}
 
@@ -53,15 +50,15 @@ func TestMySQLProfileRepositoryGetCreatesDefaultProfile(t *testing.T) {
 	}
 }
 
-func TestMySQLProfileRepositorySavePersistsProfile(t *testing.T) {
+func TestSQLiteProfileRepositorySavePersistsProfile(t *testing.T) {
 	t.Helper()
 
 	ctx := context.Background()
-	testDB := newMySQLProfileTestDatabase(t)
+	testDB := newSQLiteProfileTestDatabase(t)
 
-	repo, err := NewMySQLProfileRepository(testDB.dsn())
+	repo, err := NewSQLiteProfileRepository(ctx, testDB.dsn(), testSchemaPath())
 	if err != nil {
-		t.Fatalf("NewMySQLProfileRepository() error = %v", err)
+		t.Fatalf("NewSQLiteProfileRepository() error = %v", err)
 	}
 	t.Cleanup(func() {
 		_ = repo.Close()
@@ -100,90 +97,59 @@ func TestMySQLProfileRepositorySavePersistsProfile(t *testing.T) {
 	}
 }
 
-type mysqlProfileTestDatabase struct {
-	name     string
-	host     string
-	port     string
-	user     string
-	password string
-	adminDB  *sql.DB
-}
-
-func newMySQLProfileTestDatabase(t *testing.T) *mysqlProfileTestDatabase {
+func TestSQLiteProfileRepositoryMigratesProfilePhoneColumn(t *testing.T) {
 	t.Helper()
 
-	cfg := mysqlTestConfigFromEnv()
-	adminDB, err := sql.Open("mysql", cfg.adminDSN())
+	ctx := context.Background()
+	testDB := newSQLiteProfileTestDatabase(t)
+
+	rawDB, err := sql.Open("sqlite3", testDB.dsn())
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	t.Cleanup(cancel)
-
-	if err := adminDB.PingContext(ctx); err != nil {
-		_ = adminDB.Close()
-		t.Skipf("skipping MySQL integration test: cannot connect to MySQL: %v", err)
+	if _, err := rawDB.ExecContext(ctx, oldProfileSchema); err != nil {
+		_ = rawDB.Close()
+		t.Fatalf("failed to create old schema: %v", err)
+	}
+	if err := rawDB.Close(); err != nil {
+		t.Fatalf("failed to close old schema database: %v", err)
 	}
 
-	db := &mysqlProfileTestDatabase{
-		name:     fmt.Sprintf("techcv_app_test_%d", time.Now().UnixNano()),
-		host:     cfg.host,
-		port:     cfg.port,
-		user:     cfg.user,
-		password: cfg.password,
-		adminDB:  adminDB,
+	repo, err := NewSQLiteProfileRepository(ctx, testDB.dsn(), testSchemaPath())
+	if err != nil {
+		t.Fatalf("NewSQLiteProfileRepository() error = %v", err)
 	}
-
-	if _, err := adminDB.ExecContext(ctx, "CREATE DATABASE "+db.name); err != nil {
-		_ = adminDB.Close()
-		t.Fatalf("CREATE DATABASE error = %v", err)
-	}
-
 	t.Cleanup(func() {
-		dropCtx, dropCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer dropCancel()
-		_, _ = adminDB.ExecContext(dropCtx, "DROP DATABASE IF EXISTS "+db.name)
-		_ = adminDB.Close()
+		_ = repo.Close()
 	})
 
-	if err := db.applySchema(ctx); err != nil {
-		t.Fatalf("applySchema() error = %v", err)
+	if _, err := repo.Get(ctx); err != nil {
+		t.Fatalf("Get() after migration error = %v", err)
 	}
 
-	return db
+	hasPhoneColumn, err := repo.profileTableHasColumn(ctx, "phone")
+	if err != nil {
+		t.Fatalf("profileTableHasColumn() error = %v", err)
+	}
+	if hasPhoneColumn {
+		t.Fatal("expected profiles.phone column to be dropped")
+	}
 }
 
-func (d *mysqlProfileTestDatabase) dsn() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", d.user, d.password, d.host, d.port, d.name)
+type sqliteProfileTestDatabase struct {
+	path string
 }
 
-func (d *mysqlProfileTestDatabase) applySchema(ctx context.Context) error {
-	schemaPath := testSchemaPath()
-	schemaBytes, err := os.ReadFile(schemaPath)
-	if err != nil {
-		return fmt.Errorf("read schema file: %w", err)
+func newSQLiteProfileTestDatabase(t *testing.T) *sqliteProfileTestDatabase {
+	t.Helper()
+
+	return &sqliteProfileTestDatabase{
+		path: filepath.Join(t.TempDir(), "techcv-test.db"),
 	}
+}
 
-	testDB, err := sql.Open("mysql", d.dsn())
-	if err != nil {
-		return fmt.Errorf("open test database: %w", err)
-	}
-	defer testDB.Close()
-
-	statements := strings.Split(string(schemaBytes), ";")
-	for _, statement := range statements {
-		statement = strings.TrimSpace(statement)
-		if statement == "" {
-			continue
-		}
-
-		if _, err := testDB.ExecContext(ctx, statement); err != nil {
-			return fmt.Errorf("apply statement %q: %w", statement, err)
-		}
-	}
-
-	return nil
+func (d *sqliteProfileTestDatabase) dsn() string {
+	return d.path
 }
 
 func testSchemaPath() string {
@@ -195,35 +161,6 @@ func testSchemaPath() string {
 	return filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", "migrations", "schema.sql"))
 }
 
-type mysqlTestConfig struct {
-	host     string
-	port     string
-	user     string
-	password string
-}
-
-func mysqlTestConfigFromEnv() mysqlTestConfig {
-	return mysqlTestConfig{
-		host:     envOrDefault("MYSQL_HOST", "127.0.0.1"),
-		port:     envOrDefault("MYSQL_PORT", "3306"),
-		user:     envOrDefault("MYSQL_USER", "root"),
-		password: envOrDefault("MYSQL_PASSWORD", "password"),
-	}
-}
-
-func (c mysqlTestConfig) adminDSN() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%s)/?parseTime=true", c.user, c.password, c.host, c.port)
-}
-
-func envOrDefault(key, fallback string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return fallback
-	}
-
-	return value
-}
-
 func profileFixture(createdAt time.Time) domain.Profile {
 	return domain.Profile{
 		ID:                 "profile_01",
@@ -232,7 +169,6 @@ func profileFixture(createdAt time.Time) domain.Profile {
 		Nickname:           "sky0621",
 		Location:           "Tokyo",
 		Email:              "me@example.com",
-		Phone:              "090-0000-0000",
 		Summary:            "Backend engineer",
 		GitHubURL:          "https://github.com/sky0621",
 		ZennURL:            "https://zenn.dev/sky0621",
@@ -246,3 +182,23 @@ func profileFixture(createdAt time.Time) domain.Profile {
 		CreatedAt: createdAt,
 	}
 }
+
+const oldProfileSchema = `
+CREATE TABLE profiles (
+    id TEXT NOT NULL PRIMARY KEY,
+    user_id TEXT NOT NULL UNIQUE,
+    full_name TEXT NOT NULL,
+    nickname TEXT NOT NULL,
+    location TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    github_url TEXT NOT NULL,
+    zenn_url TEXT NOT NULL,
+    qiita_url TEXT NOT NULL,
+    website_url TEXT NOT NULL,
+    preferred_work_style TEXT NOT NULL,
+    visibility_settings TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);`

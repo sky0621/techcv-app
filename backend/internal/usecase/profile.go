@@ -12,7 +12,6 @@ type ProfileInput struct {
 	Nickname           string
 	Location           string
 	Email              string
-	Phone              string
 	Summary            string
 	GitHubURL          string
 	ZennURL            string
@@ -44,7 +43,6 @@ func (u *ProfileUseCase) Update(ctx context.Context, input ProfileInput) (*domai
 	current.Nickname = input.Nickname
 	current.Location = input.Location
 	current.Email = input.Email
-	current.Phone = input.Phone
 	current.Summary = input.Summary
 	current.GitHubURL = input.GitHubURL
 	current.ZennURL = input.ZennURL
