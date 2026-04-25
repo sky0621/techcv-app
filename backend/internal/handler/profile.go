@@ -62,15 +62,15 @@ type profileResponse struct {
 }
 
 type profilePayload struct {
-	DisplayName        *string         `json:"displayName,omitempty"`
-	Location           *string         `json:"location,omitempty"`
-	Email              *string         `json:"email,omitempty"`
-	Bio                *string         `json:"bio,omitempty"`
-	GithubUrl          *string         `json:"githubUrl,omitempty"`
-	ZennUrl            *string         `json:"zennUrl,omitempty"`
-	QiitaUrl           *string         `json:"qiitaUrl,omitempty"`
-	WebsiteUrl         *string         `json:"websiteUrl,omitempty"`
-	WorkStyle          *string         `json:"workStyle,omitempty"`
+	DisplayName        string          `json:"displayName"`
+	Location           string          `json:"location"`
+	Email              string          `json:"email"`
+	Bio                string          `json:"bio"`
+	GithubUrl          string          `json:"githubUrl"`
+	ZennUrl            string          `json:"zennUrl"`
+	QiitaUrl           string          `json:"qiitaUrl"`
+	WebsiteUrl         string          `json:"websiteUrl"`
+	WorkStyle          string          `json:"workStyle"`
 	VisibilitySettings map[string]bool `json:"visibilitySettings"`
 }
 
@@ -94,15 +94,15 @@ type errorResponse struct {
 
 func toProfileResponse(profile *domain.Profile) profilePayload {
 	return profilePayload{
-		DisplayName:        stringPointer(profile.FullName),
-		Location:           stringPointer(profile.Location),
-		Email:              stringPointer(profile.Email),
-		Bio:                stringPointer(profile.Summary),
-		GithubUrl:          stringPointer(profile.GitHubURL),
-		ZennUrl:            stringPointer(profile.ZennURL),
-		QiitaUrl:           stringPointer(profile.QiitaURL),
-		WebsiteUrl:         stringPointer(profile.WebsiteURL),
-		WorkStyle:          stringPointer(profile.PreferredWorkStyle),
+		DisplayName:        profile.FullName,
+		Location:           profile.Location,
+		Email:              profile.Email,
+		Bio:                profile.Summary,
+		GithubUrl:          profile.GitHubURL,
+		ZennUrl:            profile.ZennURL,
+		QiitaUrl:           profile.QiitaURL,
+		WebsiteUrl:         profile.WebsiteURL,
+		WorkStyle:          profile.PreferredWorkStyle,
 		VisibilitySettings: toVisibilitySettingsResponse(profile.VisibilitySettings),
 	}
 }
@@ -138,14 +138,6 @@ func stringValue(value *string) string {
 	}
 
 	return *value
-}
-
-func stringPointer(value string) *string {
-	if value == "" {
-		return nil
-	}
-
-	return &value
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

@@ -26,14 +26,14 @@ func TestProfileRoutes(t *testing.T) {
 
 	var getResp struct {
 		Profile struct {
-			DisplayName *string `json:"displayName"`
+			DisplayName string `json:"displayName"`
 		} `json:"profile"`
 	}
 	if err := json.Unmarshal(getRec.Body.Bytes(), &getResp); err != nil {
 		t.Fatalf("failed to decode get response: %v", err)
 	}
 
-	if getResp.Profile.DisplayName == nil || *getResp.Profile.DisplayName != "Initial User" {
+	if getResp.Profile.DisplayName != "Initial User" {
 		t.Fatalf("expected initial displayName, got %v", getResp.Profile.DisplayName)
 	}
 
@@ -57,22 +57,22 @@ func TestProfileRoutes(t *testing.T) {
 
 	var putResp struct {
 		Profile struct {
-			DisplayName *string `json:"displayName"`
-			Bio         *string `json:"bio"`
-			WorkStyle   *string `json:"workStyle"`
+			DisplayName string `json:"displayName"`
+			Bio         string `json:"bio"`
+			WorkStyle   string `json:"workStyle"`
 		} `json:"profile"`
 	}
 	if err := json.Unmarshal(putRec.Body.Bytes(), &putResp); err != nil {
 		t.Fatalf("failed to decode put response: %v", err)
 	}
 
-	if putResp.Profile.DisplayName == nil || *putResp.Profile.DisplayName != "Sky Sample" {
+	if putResp.Profile.DisplayName != "Sky Sample" {
 		t.Fatalf("expected updated displayName, got %v", putResp.Profile.DisplayName)
 	}
-	if putResp.Profile.Bio == nil || *putResp.Profile.Bio != "Backend engineer" {
+	if putResp.Profile.Bio != "Backend engineer" {
 		t.Fatalf("expected updated bio, got %v", putResp.Profile.Bio)
 	}
-	if putResp.Profile.WorkStyle == nil || *putResp.Profile.WorkStyle != "Full remote" {
+	if putResp.Profile.WorkStyle != "Full remote" {
 		t.Fatalf("expected updated workStyle, got %v", putResp.Profile.WorkStyle)
 	}
 
@@ -82,22 +82,22 @@ func TestProfileRoutes(t *testing.T) {
 
 	var getUpdatedResp struct {
 		Profile struct {
-			DisplayName *string `json:"displayName"`
-			Bio         *string `json:"bio"`
-			WorkStyle   *string `json:"workStyle"`
+			DisplayName string `json:"displayName"`
+			Bio         string `json:"bio"`
+			WorkStyle   string `json:"workStyle"`
 		} `json:"profile"`
 	}
 	if err := json.Unmarshal(getUpdatedRec.Body.Bytes(), &getUpdatedResp); err != nil {
 		t.Fatalf("failed to decode updated get response: %v", err)
 	}
 
-	if getUpdatedResp.Profile.DisplayName == nil || *getUpdatedResp.Profile.DisplayName != "Sky Sample" {
+	if getUpdatedResp.Profile.DisplayName != "Sky Sample" {
 		t.Fatalf("expected persisted displayName, got %v", getUpdatedResp.Profile.DisplayName)
 	}
-	if getUpdatedResp.Profile.Bio == nil || *getUpdatedResp.Profile.Bio != "Backend engineer" {
+	if getUpdatedResp.Profile.Bio != "Backend engineer" {
 		t.Fatalf("expected persisted bio, got %v", getUpdatedResp.Profile.Bio)
 	}
-	if getUpdatedResp.Profile.WorkStyle == nil || *getUpdatedResp.Profile.WorkStyle != "Full remote" {
+	if getUpdatedResp.Profile.WorkStyle != "Full remote" {
 		t.Fatalf("expected persisted workStyle, got %v", getUpdatedResp.Profile.WorkStyle)
 	}
 }

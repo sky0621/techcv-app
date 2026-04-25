@@ -43,16 +43,16 @@ func TestGetProfileMapsDomainToResponse(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if resp.Profile.DisplayName == nil || *resp.Profile.DisplayName != "Sky Sample" {
+	if resp.Profile.DisplayName != "Sky Sample" {
 		t.Fatalf("unexpected DisplayName: %+v", resp.Profile.DisplayName)
 	}
-	if resp.Profile.Email == nil || *resp.Profile.Email != "me@example.com" {
+	if resp.Profile.Email != "me@example.com" {
 		t.Fatalf("unexpected Email: %+v", resp.Profile.Email)
 	}
-	if resp.Profile.Bio == nil || *resp.Profile.Bio != "Backend engineer" {
+	if resp.Profile.Bio != "Backend engineer" {
 		t.Fatalf("unexpected Bio: %+v", resp.Profile.Bio)
 	}
-	if resp.Profile.WorkStyle == nil || *resp.Profile.WorkStyle != "Full remote" {
+	if resp.Profile.WorkStyle != "Full remote" {
 		t.Fatalf("unexpected WorkStyle: %+v", resp.Profile.WorkStyle)
 	}
 	if len(resp.Profile.VisibilitySettings) != 2 {
@@ -126,16 +126,16 @@ func TestUpdateProfileMapsRequestToUseCase(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if resp.Profile.DisplayName == nil || *resp.Profile.DisplayName != "Sky Sample" {
+	if resp.Profile.DisplayName != "Sky Sample" {
 		t.Fatalf("unexpected DisplayName: %+v", resp.Profile.DisplayName)
 	}
-	if resp.Profile.Email == nil || *resp.Profile.Email != "me@example.com" {
+	if resp.Profile.Email != "me@example.com" {
 		t.Fatalf("unexpected Email: %+v", resp.Profile.Email)
 	}
-	if resp.Profile.Bio == nil || *resp.Profile.Bio != "Backend engineer" {
+	if resp.Profile.Bio != "Backend engineer" {
 		t.Fatalf("unexpected Bio: %+v", resp.Profile.Bio)
 	}
-	if resp.Profile.WorkStyle == nil || *resp.Profile.WorkStyle != "Full remote" {
+	if resp.Profile.WorkStyle != "Full remote" {
 		t.Fatalf("unexpected WorkStyle: %+v", resp.Profile.WorkStyle)
 	}
 	if resp.Profile.VisibilitySettings["email"] != false || resp.Profile.VisibilitySettings["github"] != true {
