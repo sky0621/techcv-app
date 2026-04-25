@@ -21,6 +21,8 @@ func TestGetProfileMapsDomainToResponse(t *testing.T) {
 			UserID:             "user_01",
 			FullName:           "Sky Sample",
 			Email:              "me@example.com",
+			Summary:            "Backend engineer",
+			PreferredWorkStyle: "Full remote",
 			VisibilitySettings: map[string]any{"email": false, "github": true, "nickname": "public"},
 			CreatedAt:          now,
 			UpdatedAt:          now,
@@ -41,14 +43,17 @@ func TestGetProfileMapsDomainToResponse(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if resp.Profile.ID != "profile_01" || resp.Profile.UserID != "user_01" {
-		t.Fatalf("unexpected IDs: %+v", resp.Profile)
-	}
-	if resp.Profile.FullName == nil || *resp.Profile.FullName != "Sky Sample" {
-		t.Fatalf("unexpected FullName: %+v", resp.Profile.FullName)
+	if resp.Profile.DisplayName == nil || *resp.Profile.DisplayName != "Sky Sample" {
+		t.Fatalf("unexpected DisplayName: %+v", resp.Profile.DisplayName)
 	}
 	if resp.Profile.Email == nil || *resp.Profile.Email != "me@example.com" {
 		t.Fatalf("unexpected Email: %+v", resp.Profile.Email)
+	}
+	if resp.Profile.Bio == nil || *resp.Profile.Bio != "Backend engineer" {
+		t.Fatalf("unexpected Bio: %+v", resp.Profile.Bio)
+	}
+	if resp.Profile.WorkStyle == nil || *resp.Profile.WorkStyle != "Full remote" {
+		t.Fatalf("unexpected WorkStyle: %+v", resp.Profile.WorkStyle)
 	}
 	if len(resp.Profile.VisibilitySettings) != 2 {
 		t.Fatalf("expected only boolean visibility settings, got %#v", resp.Profile.VisibilitySettings)
@@ -92,13 +97,16 @@ func TestUpdateProfileMapsRequestToUseCase(t *testing.T) {
 
 	handler := NewProfileHandler(usecase.NewProfileUseCase(repo))
 
-	fullName := "Sky Sample"
+	displayName := "Sky Sample"
 	email := "me@example.com"
+	bio := "Backend engineer"
+	workStyle := "Full remote"
 	visibility := map[string]bool{"email": false, "github": true}
 	body, err := json.Marshal(profileUpdateRequest{
-		FullName:           &fullName,
+		DisplayName:        &displayName,
 		Email:              &email,
-		PreferredWorkStyle: stringRef("Full remote"),
+		Bio:                &bio,
+		WorkStyle:          &workStyle,
 		VisibilitySettings: &visibility,
 	})
 	if err != nil {
@@ -118,14 +126,17 @@ func TestUpdateProfileMapsRequestToUseCase(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if resp.Profile.FullName == nil || *resp.Profile.FullName != "Sky Sample" {
-		t.Fatalf("unexpected FullName: %+v", resp.Profile.FullName)
+	if resp.Profile.DisplayName == nil || *resp.Profile.DisplayName != "Sky Sample" {
+		t.Fatalf("unexpected DisplayName: %+v", resp.Profile.DisplayName)
 	}
 	if resp.Profile.Email == nil || *resp.Profile.Email != "me@example.com" {
 		t.Fatalf("unexpected Email: %+v", resp.Profile.Email)
 	}
-	if resp.Profile.PreferredWorkStyle == nil || *resp.Profile.PreferredWorkStyle != "Full remote" {
-		t.Fatalf("unexpected PreferredWorkStyle: %+v", resp.Profile.PreferredWorkStyle)
+	if resp.Profile.Bio == nil || *resp.Profile.Bio != "Backend engineer" {
+		t.Fatalf("unexpected Bio: %+v", resp.Profile.Bio)
+	}
+	if resp.Profile.WorkStyle == nil || *resp.Profile.WorkStyle != "Full remote" {
+		t.Fatalf("unexpected WorkStyle: %+v", resp.Profile.WorkStyle)
 	}
 	if resp.Profile.VisibilitySettings["email"] != false || resp.Profile.VisibilitySettings["github"] != true {
 		t.Fatalf("unexpected visibility settings: %#v", resp.Profile.VisibilitySettings)

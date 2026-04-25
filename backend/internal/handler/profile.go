@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"time"
 
 	"github.com/sky0621/techcv-app/backend/internal/domain"
 	"github.com/sky0621/techcv-app/backend/internal/usecase"
@@ -37,16 +36,15 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	profile, err := h.usecase.Update(r.Context(), usecase.ProfileInput{
-		FullName:           stringValue(request.FullName),
-		Nickname:           stringValue(request.Nickname),
+		FullName:           stringValue(request.DisplayName),
 		Location:           stringValue(request.Location),
 		Email:              stringValue(request.Email),
-		Summary:            stringValue(request.Summary),
+		Summary:            stringValue(request.Bio),
 		GitHubURL:          stringValue(request.GithubUrl),
 		ZennURL:            stringValue(request.ZennUrl),
 		QiitaURL:           stringValue(request.QiitaUrl),
 		WebsiteURL:         stringValue(request.WebsiteUrl),
-		PreferredWorkStyle: stringValue(request.PreferredWorkStyle),
+		PreferredWorkStyle: stringValue(request.WorkStyle),
 		VisibilitySettings: toUseCaseVisibilitySettings(request.VisibilitySettings),
 	})
 	if err != nil {
@@ -64,34 +62,28 @@ type profileResponse struct {
 }
 
 type profilePayload struct {
-	ID                 string          `json:"id"`
-	UserID             string          `json:"userId"`
-	FullName           *string         `json:"fullName,omitempty"`
-	Nickname           *string         `json:"nickname,omitempty"`
+	DisplayName        *string         `json:"displayName,omitempty"`
 	Location           *string         `json:"location,omitempty"`
 	Email              *string         `json:"email,omitempty"`
-	Summary            *string         `json:"summary,omitempty"`
+	Bio                *string         `json:"bio,omitempty"`
 	GithubUrl          *string         `json:"githubUrl,omitempty"`
 	ZennUrl            *string         `json:"zennUrl,omitempty"`
 	QiitaUrl           *string         `json:"qiitaUrl,omitempty"`
 	WebsiteUrl         *string         `json:"websiteUrl,omitempty"`
-	PreferredWorkStyle *string         `json:"preferredWorkStyle,omitempty"`
+	WorkStyle          *string         `json:"workStyle,omitempty"`
 	VisibilitySettings map[string]bool `json:"visibilitySettings"`
-	CreatedAt          time.Time       `json:"createdAt"`
-	UpdatedAt          time.Time       `json:"updatedAt"`
 }
 
 type profileUpdateRequest struct {
-	FullName           *string          `json:"fullName,omitempty"`
-	Nickname           *string          `json:"nickname,omitempty"`
+	DisplayName        *string          `json:"displayName,omitempty"`
 	Location           *string          `json:"location,omitempty"`
 	Email              *string          `json:"email,omitempty"`
-	Summary            *string          `json:"summary,omitempty"`
+	Bio                *string          `json:"bio,omitempty"`
 	GithubUrl          *string          `json:"githubUrl,omitempty"`
 	ZennUrl            *string          `json:"zennUrl,omitempty"`
 	QiitaUrl           *string          `json:"qiitaUrl,omitempty"`
 	WebsiteUrl         *string          `json:"websiteUrl,omitempty"`
-	PreferredWorkStyle *string          `json:"preferredWorkStyle,omitempty"`
+	WorkStyle          *string          `json:"workStyle,omitempty"`
 	VisibilitySettings *map[string]bool `json:"visibilitySettings,omitempty"`
 }
 
@@ -102,21 +94,16 @@ type errorResponse struct {
 
 func toProfileResponse(profile *domain.Profile) profilePayload {
 	return profilePayload{
-		ID:                 profile.ID,
-		UserID:             profile.UserID,
-		FullName:           stringPointer(profile.FullName),
-		Nickname:           stringPointer(profile.Nickname),
+		DisplayName:        stringPointer(profile.FullName),
 		Location:           stringPointer(profile.Location),
 		Email:              stringPointer(profile.Email),
-		Summary:            stringPointer(profile.Summary),
+		Bio:                stringPointer(profile.Summary),
 		GithubUrl:          stringPointer(profile.GitHubURL),
 		ZennUrl:            stringPointer(profile.ZennURL),
 		QiitaUrl:           stringPointer(profile.QiitaURL),
 		WebsiteUrl:         stringPointer(profile.WebsiteURL),
-		PreferredWorkStyle: stringPointer(profile.PreferredWorkStyle),
+		WorkStyle:          stringPointer(profile.PreferredWorkStyle),
 		VisibilitySettings: toVisibilitySettingsResponse(profile.VisibilitySettings),
-		CreatedAt:          profile.CreatedAt,
-		UpdatedAt:          profile.UpdatedAt,
 	}
 }
 

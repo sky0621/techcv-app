@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -8,28 +8,163 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Switch } from "../ui/switch";
 import { Github, Globe, BookOpen } from "lucide-react";
 
+type ProfileForm = {
+  displayName: string;
+  email: string;
+  location: string;
+  bio: string;
+  githubUrl: string;
+  zennUrl: string;
+  qiitaUrl: string;
+  websiteUrl: string;
+  workStyle: string;
+};
+
+type VisibilityForm = {
+  location: boolean;
+  email: boolean;
+};
+
+type ProfilePayload = {
+  displayName?: string;
+  location?: string;
+  email?: string;
+  bio?: string;
+  githubUrl?: string;
+  zennUrl?: string;
+  qiitaUrl?: string;
+  websiteUrl?: string;
+  workStyle?: string;
+  visibilitySettings?: Partial<VisibilityForm>;
+};
+
+type ProfileResponse = {
+  profile: ProfilePayload;
+};
+
+const initialProfile: ProfileForm = {
+  displayName: "",
+  email: "",
+  location: "",
+  bio: "",
+  githubUrl: "",
+  zennUrl: "",
+  qiitaUrl: "",
+  websiteUrl: "",
+  workStyle: "",
+};
+
+const initialVisibility: VisibilityForm = {
+  location: true,
+  email: true,
+};
+
+function toProfileForm(profile: ProfilePayload): ProfileForm {
+  return {
+    displayName: profile.displayName ?? "",
+    email: profile.email ?? "",
+    location: profile.location ?? "",
+    bio: profile.bio ?? "",
+    githubUrl: profile.githubUrl ?? "",
+    zennUrl: profile.zennUrl ?? "",
+    qiitaUrl: profile.qiitaUrl ?? "",
+    websiteUrl: profile.websiteUrl ?? "",
+    workStyle: profile.workStyle ?? "",
+  };
+}
+
+function toProfilePayload(profile: ProfileForm, visibility: VisibilityForm): ProfilePayload {
+  return {
+    displayName: profile.displayName,
+    email: profile.email,
+    location: profile.location,
+    bio: profile.bio,
+    githubUrl: profile.githubUrl,
+    zennUrl: profile.zennUrl,
+    qiitaUrl: profile.qiitaUrl,
+    websiteUrl: profile.websiteUrl,
+    workStyle: profile.workStyle,
+    visibilitySettings: visibility,
+  };
+}
+
 export function ProfilePage() {
-  const [profile, setProfile] = useState({
-    displayName: "山田 太郎",
-    email: "yamada@example.com",
-    location: "東京都",
-    bio: "Webエンジニアとして5年以上の経験があります。",
-    githubUrl: "https://github.com/username",
-    zennUrl: "https://zenn.dev/username",
-    qiitaUrl: "https://qiita.com/username",
-    websiteUrl: "https://example.com",
-    workStyle: "リモートワーク希望",
-    availability: "即日可能",
-  });
+  const [profile, setProfile] = useState<ProfileForm>(initialProfile);
+  const [visibility, setVisibility] = useState<VisibilityForm>(initialVisibility);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  const [visibility, setVisibility] = useState({
-    location: true,
-    email: true,
-  });
+  useEffect(() => {
+    const controller = new AbortController();
 
-  const handleSave = () => {
-    // TODO: Supabaseへ保存
-    alert("保存しました");
+    async function loadProfile() {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const response = await fetch("/api/profile", {
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error("プロフィールの取得に失敗しました");
+        }
+
+        const data = (await response.json()) as ProfileResponse;
+        setProfile(toProfileForm(data.profile));
+        setVisibility({
+          ...initialVisibility,
+          ...data.profile.visibilitySettings,
+        });
+      } catch (caught) {
+        if (caught instanceof DOMException && caught.name === "AbortError") {
+          return;
+        }
+        setError(caught instanceof Error ? caught.message : "プロフィールの取得に失敗しました");
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadProfile();
+
+    return () => {
+      controller.abort();
+    };
+  }, []);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(toProfilePayload(profile, visibility)),
+      });
+      if (!response.ok) {
+        throw new Error("プロフィールの保存に失敗しました");
+      }
+
+      const data = (await response.json()) as ProfileResponse;
+      setProfile(toProfileForm(data.profile));
+      setVisibility({
+        ...initialVisibility,
+        ...data.profile.visibilitySettings,
+      });
+      setMessage("保存しました");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "プロフィールの保存に失敗しました");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -39,6 +174,17 @@ export function ProfilePage() {
           <h1 className="text-3xl font-bold text-gray-900">プロフィール管理</h1>
           <p className="text-gray-600 mt-1">基本情報とSNSリンクを管理</p>
         </div>
+
+        {error && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+        {message && (
+          <div className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            {message}
+          </div>
+        )}
 
         <Tabs defaultValue="basic" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
@@ -221,18 +367,6 @@ export function ProfilePage() {
                     }
                   />
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="availability">稼働開始時期</Label>
-                  <Input
-                    id="availability"
-                    placeholder="例: 即日可能、2024年6月から"
-                    value={profile.availability}
-                    onChange={(e) =>
-                      setProfile({ ...profile, availability: e.target.value })
-                    }
-                  />
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -240,7 +374,9 @@ export function ProfilePage() {
 
         <div className="flex justify-end gap-3">
           <Button variant="outline">キャンセル</Button>
-          <Button onClick={handleSave}>保存</Button>
+          <Button onClick={handleSave} disabled={isLoading || isSaving}>
+            {isSaving ? "保存中" : "保存"}
+          </Button>
         </div>
       </div>
     </div>
