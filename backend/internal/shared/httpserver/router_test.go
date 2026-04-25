@@ -43,8 +43,11 @@ func TestProfileRoutes(t *testing.T) {
 		"email":"me@example.com",
 		"bio":"Backend engineer",
 		"githubUrl":"https://github.com/sky0621",
+		"zennUrl":"https://zenn.dev/sky0621",
+		"qiitaUrl":"https://qiita.com/sky0621",
+		"websiteUrl":"https://example.com",
 		"workStyle":"Full remote",
-		"visibilitySettings":{"email":false}
+		"visibilitySettings":{"email":false,"location":false}
 	}`)
 
 	putReq := httptest.NewRequest(http.MethodPut, "/api/profile", bytes.NewReader(body))
@@ -58,8 +61,18 @@ func TestProfileRoutes(t *testing.T) {
 	var putResp struct {
 		Profile struct {
 			DisplayName string `json:"displayName"`
+			Location    string `json:"location"`
+			Email       string `json:"email"`
 			Bio         string `json:"bio"`
+			GithubURL   string `json:"githubUrl"`
+			ZennURL     string `json:"zennUrl"`
+			QiitaURL    string `json:"qiitaUrl"`
+			WebsiteURL  string `json:"websiteUrl"`
 			WorkStyle   string `json:"workStyle"`
+			Visibility  struct {
+				Email    bool `json:"email"`
+				Location bool `json:"location"`
+			} `json:"visibilitySettings"`
 		} `json:"profile"`
 	}
 	if err := json.Unmarshal(putRec.Body.Bytes(), &putResp); err != nil {
@@ -69,11 +82,32 @@ func TestProfileRoutes(t *testing.T) {
 	if putResp.Profile.DisplayName != "Sky Sample" {
 		t.Fatalf("expected updated displayName, got %v", putResp.Profile.DisplayName)
 	}
+	if putResp.Profile.Location != "Tokyo" {
+		t.Fatalf("expected updated location, got %v", putResp.Profile.Location)
+	}
+	if putResp.Profile.Email != "me@example.com" {
+		t.Fatalf("expected updated email, got %v", putResp.Profile.Email)
+	}
 	if putResp.Profile.Bio != "Backend engineer" {
 		t.Fatalf("expected updated bio, got %v", putResp.Profile.Bio)
 	}
+	if putResp.Profile.GithubURL != "https://github.com/sky0621" {
+		t.Fatalf("expected updated githubUrl, got %v", putResp.Profile.GithubURL)
+	}
+	if putResp.Profile.ZennURL != "https://zenn.dev/sky0621" {
+		t.Fatalf("expected updated zennUrl, got %v", putResp.Profile.ZennURL)
+	}
+	if putResp.Profile.QiitaURL != "https://qiita.com/sky0621" {
+		t.Fatalf("expected updated qiitaUrl, got %v", putResp.Profile.QiitaURL)
+	}
+	if putResp.Profile.WebsiteURL != "https://example.com" {
+		t.Fatalf("expected updated websiteUrl, got %v", putResp.Profile.WebsiteURL)
+	}
 	if putResp.Profile.WorkStyle != "Full remote" {
 		t.Fatalf("expected updated workStyle, got %v", putResp.Profile.WorkStyle)
+	}
+	if putResp.Profile.Visibility.Email != false || putResp.Profile.Visibility.Location != false {
+		t.Fatalf("expected updated visibility settings, got %+v", putResp.Profile.Visibility)
 	}
 
 	getUpdatedReq := httptest.NewRequest(http.MethodGet, "/api/profile", nil)
@@ -83,8 +117,18 @@ func TestProfileRoutes(t *testing.T) {
 	var getUpdatedResp struct {
 		Profile struct {
 			DisplayName string `json:"displayName"`
+			Location    string `json:"location"`
+			Email       string `json:"email"`
 			Bio         string `json:"bio"`
+			GithubURL   string `json:"githubUrl"`
+			ZennURL     string `json:"zennUrl"`
+			QiitaURL    string `json:"qiitaUrl"`
+			WebsiteURL  string `json:"websiteUrl"`
 			WorkStyle   string `json:"workStyle"`
+			Visibility  struct {
+				Email    bool `json:"email"`
+				Location bool `json:"location"`
+			} `json:"visibilitySettings"`
 		} `json:"profile"`
 	}
 	if err := json.Unmarshal(getUpdatedRec.Body.Bytes(), &getUpdatedResp); err != nil {
@@ -94,11 +138,32 @@ func TestProfileRoutes(t *testing.T) {
 	if getUpdatedResp.Profile.DisplayName != "Sky Sample" {
 		t.Fatalf("expected persisted displayName, got %v", getUpdatedResp.Profile.DisplayName)
 	}
+	if getUpdatedResp.Profile.Location != "Tokyo" {
+		t.Fatalf("expected persisted location, got %v", getUpdatedResp.Profile.Location)
+	}
+	if getUpdatedResp.Profile.Email != "me@example.com" {
+		t.Fatalf("expected persisted email, got %v", getUpdatedResp.Profile.Email)
+	}
 	if getUpdatedResp.Profile.Bio != "Backend engineer" {
 		t.Fatalf("expected persisted bio, got %v", getUpdatedResp.Profile.Bio)
 	}
+	if getUpdatedResp.Profile.GithubURL != "https://github.com/sky0621" {
+		t.Fatalf("expected persisted githubUrl, got %v", getUpdatedResp.Profile.GithubURL)
+	}
+	if getUpdatedResp.Profile.ZennURL != "https://zenn.dev/sky0621" {
+		t.Fatalf("expected persisted zennUrl, got %v", getUpdatedResp.Profile.ZennURL)
+	}
+	if getUpdatedResp.Profile.QiitaURL != "https://qiita.com/sky0621" {
+		t.Fatalf("expected persisted qiitaUrl, got %v", getUpdatedResp.Profile.QiitaURL)
+	}
+	if getUpdatedResp.Profile.WebsiteURL != "https://example.com" {
+		t.Fatalf("expected persisted websiteUrl, got %v", getUpdatedResp.Profile.WebsiteURL)
+	}
 	if getUpdatedResp.Profile.WorkStyle != "Full remote" {
 		t.Fatalf("expected persisted workStyle, got %v", getUpdatedResp.Profile.WorkStyle)
+	}
+	if getUpdatedResp.Profile.Visibility.Email != false || getUpdatedResp.Profile.Visibility.Location != false {
+		t.Fatalf("expected persisted visibility settings, got %+v", getUpdatedResp.Profile.Visibility)
 	}
 }
 

@@ -76,7 +76,7 @@ func (r *SQLiteProfileRepository) Get(ctx context.Context) (*domain.Profile, err
 	profile := domain.Profile{
 		ID:                 "profile_01",
 		UserID:             "user_01",
-		VisibilitySettings: map[string]any{"email": false},
+		VisibilitySettings: map[string]any{"email": true, "location": true},
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}

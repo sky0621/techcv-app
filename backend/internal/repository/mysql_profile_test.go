@@ -36,7 +36,7 @@ func TestSQLiteProfileRepositoryGetCreatesDefaultProfile(t *testing.T) {
 	if got.UserID != "user_01" {
 		t.Fatalf("expected default UserID user_01, got %q", got.UserID)
 	}
-	if got.VisibilitySettings["email"] != false {
+	if got.VisibilitySettings["email"] != true || got.VisibilitySettings["location"] != true {
 		t.Fatalf("unexpected default visibility settings: %#v", got.VisibilitySettings)
 	}
 

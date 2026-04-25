@@ -55,11 +55,14 @@ func TestGetProfileMapsDomainToResponse(t *testing.T) {
 	if resp.Profile.WorkStyle != "Full remote" {
 		t.Fatalf("unexpected WorkStyle: %+v", resp.Profile.WorkStyle)
 	}
-	if len(resp.Profile.VisibilitySettings) != 2 {
-		t.Fatalf("expected only boolean visibility settings, got %#v", resp.Profile.VisibilitySettings)
+	if len(resp.Profile.VisibilitySettings) != 3 {
+		t.Fatalf("expected boolean visibility settings with defaults, got %#v", resp.Profile.VisibilitySettings)
 	}
 	if resp.Profile.VisibilitySettings["email"] != false || resp.Profile.VisibilitySettings["github"] != true {
 		t.Fatalf("unexpected visibility settings: %#v", resp.Profile.VisibilitySettings)
+	}
+	if resp.Profile.VisibilitySettings["location"] != true {
+		t.Fatalf("expected default location visibility, got %#v", resp.Profile.VisibilitySettings)
 	}
 }
 
@@ -101,7 +104,7 @@ func TestUpdateProfileMapsRequestToUseCase(t *testing.T) {
 	email := "me@example.com"
 	bio := "Backend engineer"
 	workStyle := "Full remote"
-	visibility := map[string]bool{"email": false, "github": true}
+	visibility := map[string]bool{"email": false, "location": false}
 	body, err := json.Marshal(profileUpdateRequest{
 		DisplayName:        &displayName,
 		Email:              &email,
@@ -138,7 +141,7 @@ func TestUpdateProfileMapsRequestToUseCase(t *testing.T) {
 	if resp.Profile.WorkStyle != "Full remote" {
 		t.Fatalf("unexpected WorkStyle: %+v", resp.Profile.WorkStyle)
 	}
-	if resp.Profile.VisibilitySettings["email"] != false || resp.Profile.VisibilitySettings["github"] != true {
+	if resp.Profile.VisibilitySettings["email"] != false || resp.Profile.VisibilitySettings["location"] != false {
 		t.Fatalf("unexpected visibility settings: %#v", resp.Profile.VisibilitySettings)
 	}
 }

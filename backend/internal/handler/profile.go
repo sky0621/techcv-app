@@ -108,7 +108,10 @@ func toProfileResponse(profile *domain.Profile) profilePayload {
 }
 
 func toVisibilitySettingsResponse(values map[string]any) map[string]bool {
-	result := map[string]bool{}
+	result := map[string]bool{
+		"email":    true,
+		"location": true,
+	}
 	for key, value := range values {
 		booleanValue, ok := value.(bool)
 		if ok {
