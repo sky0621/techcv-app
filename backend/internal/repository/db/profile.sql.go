@@ -10,6 +10,16 @@ import (
 	"time"
 )
 
+const deleteQualificationsByProfileID = `-- name: DeleteQualificationsByProfileID :exec
+DELETE FROM profile_qualifications
+WHERE profile_id = ?
+`
+
+func (q *Queries) DeleteQualificationsByProfileID(ctx context.Context, profileID string) error {
+	_, err := q.db.ExecContext(ctx, deleteQualificationsByProfileID, profileID)
+	return err
+}
+
 const getProfileByUserID = `-- name: GetProfileByUserID :one
 SELECT
   id,
@@ -23,6 +33,8 @@ SELECT
   zenn_url,
   qiita_url,
   website_url,
+  occupation,
+  employment_type,
   preferred_work_style,
   visibility_settings,
   created_at,
@@ -47,12 +59,111 @@ func (q *Queries) GetProfileByUserID(ctx context.Context, userID string) (Profil
 		&i.ZennUrl,
 		&i.QiitaUrl,
 		&i.WebsiteUrl,
+		&i.Occupation,
+		&i.EmploymentType,
 		&i.PreferredWorkStyle,
 		&i.VisibilitySettings,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const insertQualification = `-- name: InsertQualification :exec
+INSERT INTO profile_qualifications (
+  id,
+  profile_id,
+  name,
+  acquired_date,
+  organization,
+  url,
+  memo,
+  sort_order,
+  created_at,
+  updated_at
+) VALUES (
+  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+)
+`
+
+type InsertQualificationParams struct {
+	ID           string
+	ProfileID    string
+	Name         string
+	AcquiredDate string
+	Organization string
+	Url          string
+	Memo         string
+	SortOrder    int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+func (q *Queries) InsertQualification(ctx context.Context, arg InsertQualificationParams) error {
+	_, err := q.db.ExecContext(ctx, insertQualification,
+		arg.ID,
+		arg.ProfileID,
+		arg.Name,
+		arg.AcquiredDate,
+		arg.Organization,
+		arg.Url,
+		arg.Memo,
+		arg.SortOrder,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const listQualificationsByProfileID = `-- name: ListQualificationsByProfileID :many
+SELECT
+  id,
+  profile_id,
+  name,
+  acquired_date,
+  organization,
+  url,
+  memo,
+  sort_order,
+  created_at,
+  updated_at
+FROM profile_qualifications
+WHERE profile_id = ?
+ORDER BY sort_order ASC, created_at ASC, id ASC
+`
+
+func (q *Queries) ListQualificationsByProfileID(ctx context.Context, profileID string) ([]ProfileQualification, error) {
+	rows, err := q.db.QueryContext(ctx, listQualificationsByProfileID, profileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProfileQualification
+	for rows.Next() {
+		var i ProfileQualification
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProfileID,
+			&i.Name,
+			&i.AcquiredDate,
+			&i.Organization,
+			&i.Url,
+			&i.Memo,
+			&i.SortOrder,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertProfile = `-- name: UpsertProfile :exec
@@ -68,13 +179,15 @@ INSERT INTO profiles (
   zenn_url,
   qiita_url,
   website_url,
+  occupation,
+  employment_type,
   preferred_work_style,
   visibility_settings,
   created_at,
   updated_at
 ) VALUES (
   ?, ?, ?, ?, ?, ?, ?, ?,
-  ?, ?, ?, ?, ?, ?, ?
+  ?, ?, ?, ?, ?, ?, ?, ?, ?
 )
 ON CONFLICT(user_id) DO UPDATE SET
   full_name = excluded.full_name,
@@ -86,6 +199,8 @@ ON CONFLICT(user_id) DO UPDATE SET
   zenn_url = excluded.zenn_url,
   qiita_url = excluded.qiita_url,
   website_url = excluded.website_url,
+  occupation = excluded.occupation,
+  employment_type = excluded.employment_type,
   preferred_work_style = excluded.preferred_work_style,
   visibility_settings = excluded.visibility_settings,
   updated_at = excluded.updated_at
@@ -103,6 +218,8 @@ type UpsertProfileParams struct {
 	ZennUrl            string
 	QiitaUrl           string
 	WebsiteUrl         string
+	Occupation         string
+	EmploymentType     string
 	PreferredWorkStyle string
 	VisibilitySettings string
 	CreatedAt          time.Time
@@ -122,6 +239,8 @@ func (q *Queries) UpsertProfile(ctx context.Context, arg UpsertProfileParams) er
 		arg.ZennUrl,
 		arg.QiitaUrl,
 		arg.WebsiteUrl,
+		arg.Occupation,
+		arg.EmploymentType,
 		arg.PreferredWorkStyle,
 		arg.VisibilitySettings,
 		arg.CreatedAt,

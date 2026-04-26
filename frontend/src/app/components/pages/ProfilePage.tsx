@@ -6,7 +6,16 @@ import { Textarea } from "../ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Switch } from "../ui/switch";
-import { Github, Globe, BookOpen } from "lucide-react";
+import { Award, BookOpen, Github, Globe, Plus, Trash2 } from "lucide-react";
+
+type QualificationForm = {
+  id: string;
+  name: string;
+  acquiredDate: string;
+  organization: string;
+  url: string;
+  memo: string;
+};
 
 type ProfileForm = {
   displayName: string;
@@ -17,7 +26,10 @@ type ProfileForm = {
   zennUrl: string;
   qiitaUrl: string;
   websiteUrl: string;
+  occupation: string;
+  employmentType: string;
   workStyle: string;
+  qualifications: QualificationForm[];
 };
 
 type VisibilityForm = {
@@ -34,7 +46,10 @@ type ProfilePayload = {
   zennUrl?: string;
   qiitaUrl?: string;
   websiteUrl?: string;
+  occupation?: string;
+  employmentType?: string;
   workStyle?: string;
+  qualifications?: QualificationForm[];
   visibilitySettings?: Partial<VisibilityForm>;
 };
 
@@ -51,7 +66,10 @@ const initialProfile: ProfileForm = {
   zennUrl: "",
   qiitaUrl: "",
   websiteUrl: "",
+  occupation: "",
+  employmentType: "",
   workStyle: "",
+  qualifications: [],
 };
 
 const initialVisibility: VisibilityForm = {
@@ -69,7 +87,10 @@ function toProfileForm(profile: ProfilePayload): ProfileForm {
     zennUrl: profile.zennUrl ?? "",
     qiitaUrl: profile.qiitaUrl ?? "",
     websiteUrl: profile.websiteUrl ?? "",
+    occupation: profile.occupation ?? "",
+    employmentType: profile.employmentType ?? "",
     workStyle: profile.workStyle ?? "",
+    qualifications: (profile.qualifications ?? []).map(toQualificationForm),
   };
 }
 
@@ -83,8 +104,33 @@ function toProfilePayload(profile: ProfileForm, visibility: VisibilityForm): Pro
     zennUrl: profile.zennUrl,
     qiitaUrl: profile.qiitaUrl,
     websiteUrl: profile.websiteUrl,
+    occupation: profile.occupation,
+    employmentType: profile.employmentType,
     workStyle: profile.workStyle,
+    qualifications: profile.qualifications,
     visibilitySettings: visibility,
+  };
+}
+
+function toQualificationForm(qualification: QualificationForm): QualificationForm {
+  return {
+    id: qualification.id ?? "",
+    name: qualification.name ?? "",
+    acquiredDate: qualification.acquiredDate ?? "",
+    organization: qualification.organization ?? "",
+    url: qualification.url ?? "",
+    memo: qualification.memo ?? "",
+  };
+}
+
+function emptyQualification(): QualificationForm {
+  return {
+    id: "",
+    name: "",
+    acquiredDate: "",
+    organization: "",
+    url: "",
+    memo: "",
   };
 }
 
@@ -167,6 +213,37 @@ export function ProfilePage() {
     }
   };
 
+  const addQualification = () => {
+    setProfile((current) => ({
+      ...current,
+      qualifications: [...current.qualifications, emptyQualification()],
+    }));
+  };
+
+  const updateQualification = (
+    index: number,
+    field: keyof QualificationForm,
+    value: string,
+  ) => {
+    setProfile((current) => ({
+      ...current,
+      qualifications: current.qualifications.map((qualification, qualificationIndex) =>
+        qualificationIndex === index
+          ? { ...qualification, [field]: value }
+          : qualification
+      ),
+    }));
+  };
+
+  const removeQualification = (index: number) => {
+    setProfile((current) => ({
+      ...current,
+      qualifications: current.qualifications.filter((_, qualificationIndex) =>
+        qualificationIndex !== index
+      ),
+    }));
+  };
+
   return (
     <div className="p-8">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -187,10 +264,11 @@ export function ProfilePage() {
         )}
 
         <Tabs defaultValue="basic" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="basic">基本情報</TabsTrigger>
             <TabsTrigger value="links">SNS・リンク</TabsTrigger>
             <TabsTrigger value="preferences">働き方</TabsTrigger>
+            <TabsTrigger value="qualifications">資格情報</TabsTrigger>
           </TabsList>
 
           <TabsContent value="basic" className="space-y-4">
@@ -352,10 +430,35 @@ export function ProfilePage() {
           <TabsContent value="preferences" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>働き方の希望</CardTitle>
-                <CardDescription>勤務形態、稼働開始時期など</CardDescription>
+                <CardTitle>職業・働き方</CardTitle>
+                <CardDescription>職業、労働形態、働き方の希望</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="occupation">職業</Label>
+                    <Input
+                      id="occupation"
+                      placeholder="例: ソフトウェアエンジニア"
+                      value={profile.occupation}
+                      onChange={(e) =>
+                        setProfile({ ...profile, occupation: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="employmentType">労働形態</Label>
+                    <Input
+                      id="employmentType"
+                      placeholder="例: フリーランス、正社員、業務委託"
+                      value={profile.employmentType}
+                      onChange={(e) =>
+                        setProfile({ ...profile, employmentType: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="workStyle">希望する働き方</Label>
                   <Input
@@ -367,6 +470,112 @@ export function ProfilePage() {
                     }
                   />
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="qualifications" className="space-y-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between gap-4">
+                <div>
+                  <CardTitle>資格情報</CardTitle>
+                  <CardDescription>資格名、取得日、管理団体、説明URL、メモを管理</CardDescription>
+                </div>
+                <Button type="button" variant="outline" onClick={addQualification}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  追加
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {profile.qualifications.length === 0 ? (
+                  <div className="rounded-md border border-dashed p-6 text-center text-sm text-gray-500">
+                    資格情報はまだ登録されていません。
+                  </div>
+                ) : (
+                  profile.qualifications.map((qualification, index) => (
+                    <div
+                      key={qualification.id || `qualification-${index}`}
+                      className="space-y-4 rounded-md border p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 font-medium text-gray-900">
+                          <Award className="w-4 h-4" />
+                          資格 {index + 1}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => removeQualification(index)}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          削除
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor={`qualification-name-${index}`}>資格名</Label>
+                          <Input
+                            id={`qualification-name-${index}`}
+                            value={qualification.name}
+                            onChange={(e) =>
+                              updateQualification(index, "name", e.target.value)
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`qualification-date-${index}`}>取得日</Label>
+                          <Input
+                            id={`qualification-date-${index}`}
+                            type="date"
+                            value={qualification.acquiredDate}
+                            onChange={(e) =>
+                              updateQualification(index, "acquiredDate", e.target.value)
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`qualification-organization-${index}`}>
+                          資格を管理する団体名
+                        </Label>
+                        <Input
+                          id={`qualification-organization-${index}`}
+                          value={qualification.organization}
+                          onChange={(e) =>
+                            updateQualification(index, "organization", e.target.value)
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`qualification-url-${index}`}>説明URL</Label>
+                        <Input
+                          id={`qualification-url-${index}`}
+                          type="url"
+                          placeholder="https://example.com/certification"
+                          value={qualification.url}
+                          onChange={(e) =>
+                            updateQualification(index, "url", e.target.value)
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`qualification-memo-${index}`}>メモ</Label>
+                        <Textarea
+                          id={`qualification-memo-${index}`}
+                          rows={3}
+                          value={qualification.memo}
+                          onChange={(e) =>
+                            updateQualification(index, "memo", e.target.value)
+                          }
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
           </TabsContent>

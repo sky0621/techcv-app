@@ -46,7 +46,25 @@ func TestProfileRoutes(t *testing.T) {
 		"zennUrl":"https://zenn.dev/sky0621",
 		"qiitaUrl":"https://qiita.com/sky0621",
 		"websiteUrl":"https://example.com",
+		"occupation":"Software Engineer",
+		"employmentType":"Freelance",
 		"workStyle":"Full remote",
+		"qualifications":[
+			{
+				"name":"AWS Certified Solutions Architect",
+				"acquiredDate":"2026-04-26",
+				"organization":"Amazon Web Services",
+				"url":"https://aws.amazon.com/certification/certified-solutions-architect-associate/",
+				"memo":"Associate"
+			},
+			{
+				"name":"基本情報技術者",
+				"acquiredDate":"2020-10-01",
+				"organization":"IPA",
+				"url":"https://www.ipa.go.jp/shiken/kubun/fe.html",
+				"memo":""
+			}
+		],
 		"visibilitySettings":{"email":false,"location":false}
 	}`)
 
@@ -60,16 +78,26 @@ func TestProfileRoutes(t *testing.T) {
 
 	var putResp struct {
 		Profile struct {
-			DisplayName string `json:"displayName"`
-			Location    string `json:"location"`
-			Email       string `json:"email"`
-			Bio         string `json:"bio"`
-			GithubURL   string `json:"githubUrl"`
-			ZennURL     string `json:"zennUrl"`
-			QiitaURL    string `json:"qiitaUrl"`
-			WebsiteURL  string `json:"websiteUrl"`
-			WorkStyle   string `json:"workStyle"`
-			Visibility  struct {
+			DisplayName    string `json:"displayName"`
+			Location       string `json:"location"`
+			Email          string `json:"email"`
+			Bio            string `json:"bio"`
+			GithubURL      string `json:"githubUrl"`
+			ZennURL        string `json:"zennUrl"`
+			QiitaURL       string `json:"qiitaUrl"`
+			WebsiteURL     string `json:"websiteUrl"`
+			Occupation     string `json:"occupation"`
+			EmploymentType string `json:"employmentType"`
+			WorkStyle      string `json:"workStyle"`
+			Qualifications []struct {
+				ID           string `json:"id"`
+				Name         string `json:"name"`
+				AcquiredDate string `json:"acquiredDate"`
+				Organization string `json:"organization"`
+				URL          string `json:"url"`
+				Memo         string `json:"memo"`
+			} `json:"qualifications"`
+			Visibility struct {
 				Email    bool `json:"email"`
 				Location bool `json:"location"`
 			} `json:"visibilitySettings"`
@@ -103,8 +131,26 @@ func TestProfileRoutes(t *testing.T) {
 	if putResp.Profile.WebsiteURL != "https://example.com" {
 		t.Fatalf("expected updated websiteUrl, got %v", putResp.Profile.WebsiteURL)
 	}
+	if putResp.Profile.Occupation != "Software Engineer" {
+		t.Fatalf("expected updated occupation, got %v", putResp.Profile.Occupation)
+	}
+	if putResp.Profile.EmploymentType != "Freelance" {
+		t.Fatalf("expected updated employmentType, got %v", putResp.Profile.EmploymentType)
+	}
 	if putResp.Profile.WorkStyle != "Full remote" {
 		t.Fatalf("expected updated workStyle, got %v", putResp.Profile.WorkStyle)
+	}
+	if len(putResp.Profile.Qualifications) != 2 {
+		t.Fatalf("expected two qualifications, got %#v", putResp.Profile.Qualifications)
+	}
+	if putResp.Profile.Qualifications[0].Name != "AWS Certified Solutions Architect" {
+		t.Fatalf("expected first qualification to preserve order, got %#v", putResp.Profile.Qualifications[0])
+	}
+	if putResp.Profile.Qualifications[0].URL != "https://aws.amazon.com/certification/certified-solutions-architect-associate/" {
+		t.Fatalf("expected first qualification URL to persist, got %#v", putResp.Profile.Qualifications[0])
+	}
+	if putResp.Profile.Qualifications[1].Name != "基本情報技術者" {
+		t.Fatalf("expected second qualification to preserve order, got %#v", putResp.Profile.Qualifications[1])
 	}
 	if putResp.Profile.Visibility.Email != false || putResp.Profile.Visibility.Location != false {
 		t.Fatalf("expected updated visibility settings, got %+v", putResp.Profile.Visibility)
@@ -116,16 +162,26 @@ func TestProfileRoutes(t *testing.T) {
 
 	var getUpdatedResp struct {
 		Profile struct {
-			DisplayName string `json:"displayName"`
-			Location    string `json:"location"`
-			Email       string `json:"email"`
-			Bio         string `json:"bio"`
-			GithubURL   string `json:"githubUrl"`
-			ZennURL     string `json:"zennUrl"`
-			QiitaURL    string `json:"qiitaUrl"`
-			WebsiteURL  string `json:"websiteUrl"`
-			WorkStyle   string `json:"workStyle"`
-			Visibility  struct {
+			DisplayName    string `json:"displayName"`
+			Location       string `json:"location"`
+			Email          string `json:"email"`
+			Bio            string `json:"bio"`
+			GithubURL      string `json:"githubUrl"`
+			ZennURL        string `json:"zennUrl"`
+			QiitaURL       string `json:"qiitaUrl"`
+			WebsiteURL     string `json:"websiteUrl"`
+			Occupation     string `json:"occupation"`
+			EmploymentType string `json:"employmentType"`
+			WorkStyle      string `json:"workStyle"`
+			Qualifications []struct {
+				ID           string `json:"id"`
+				Name         string `json:"name"`
+				AcquiredDate string `json:"acquiredDate"`
+				Organization string `json:"organization"`
+				URL          string `json:"url"`
+				Memo         string `json:"memo"`
+			} `json:"qualifications"`
+			Visibility struct {
 				Email    bool `json:"email"`
 				Location bool `json:"location"`
 			} `json:"visibilitySettings"`
@@ -159,11 +215,91 @@ func TestProfileRoutes(t *testing.T) {
 	if getUpdatedResp.Profile.WebsiteURL != "https://example.com" {
 		t.Fatalf("expected persisted websiteUrl, got %v", getUpdatedResp.Profile.WebsiteURL)
 	}
+	if getUpdatedResp.Profile.Occupation != "Software Engineer" {
+		t.Fatalf("expected persisted occupation, got %v", getUpdatedResp.Profile.Occupation)
+	}
+	if getUpdatedResp.Profile.EmploymentType != "Freelance" {
+		t.Fatalf("expected persisted employmentType, got %v", getUpdatedResp.Profile.EmploymentType)
+	}
 	if getUpdatedResp.Profile.WorkStyle != "Full remote" {
 		t.Fatalf("expected persisted workStyle, got %v", getUpdatedResp.Profile.WorkStyle)
 	}
+	if len(getUpdatedResp.Profile.Qualifications) != 2 {
+		t.Fatalf("expected persisted qualifications, got %#v", getUpdatedResp.Profile.Qualifications)
+	}
+	if getUpdatedResp.Profile.Qualifications[0].Name != "AWS Certified Solutions Architect" {
+		t.Fatalf("expected persisted first qualification, got %#v", getUpdatedResp.Profile.Qualifications[0])
+	}
+	if getUpdatedResp.Profile.Qualifications[1].Organization != "IPA" {
+		t.Fatalf("expected persisted second qualification, got %#v", getUpdatedResp.Profile.Qualifications[1])
+	}
+	if getUpdatedResp.Profile.Qualifications[1].URL != "https://www.ipa.go.jp/shiken/kubun/fe.html" {
+		t.Fatalf("expected persisted second qualification URL, got %#v", getUpdatedResp.Profile.Qualifications[1])
+	}
 	if getUpdatedResp.Profile.Visibility.Email != false || getUpdatedResp.Profile.Visibility.Location != false {
 		t.Fatalf("expected persisted visibility settings, got %+v", getUpdatedResp.Profile.Visibility)
+	}
+
+	replacementBody := []byte(`{
+		"displayName":"Sky Sample",
+		"location":"Tokyo",
+		"email":"me@example.com",
+		"bio":"Backend engineer",
+		"githubUrl":"https://github.com/sky0621",
+		"zennUrl":"https://zenn.dev/sky0621",
+		"qiitaUrl":"https://qiita.com/sky0621",
+		"websiteUrl":"https://example.com",
+		"occupation":"Software Engineer",
+		"employmentType":"Freelance",
+		"workStyle":"Full remote",
+		"qualifications":[
+			{
+				"id":"replacement_qualification",
+				"name":"Google Cloud Professional Cloud Architect",
+				"acquiredDate":"2025-01-01",
+				"organization":"Google Cloud",
+				"url":"https://cloud.google.com/learn/certification/cloud-architect",
+				"memo":"更新済み"
+			}
+		],
+		"visibilitySettings":{"email":false,"location":false}
+	}`)
+
+	replacementReq := httptest.NewRequest(http.MethodPut, "/api/profile", bytes.NewReader(replacementBody))
+	replacementRec := httptest.NewRecorder()
+	router.ServeHTTP(replacementRec, replacementReq)
+
+	if replacementRec.Code != http.StatusOK {
+		t.Fatalf("expected replacement status 200, got %d", replacementRec.Code)
+	}
+
+	getReplacedReq := httptest.NewRequest(http.MethodGet, "/api/profile", nil)
+	getReplacedRec := httptest.NewRecorder()
+	router.ServeHTTP(getReplacedRec, getReplacedReq)
+
+	var getReplacedResp struct {
+		Profile struct {
+			Qualifications []struct {
+				ID           string `json:"id"`
+				Name         string `json:"name"`
+				AcquiredDate string `json:"acquiredDate"`
+				Organization string `json:"organization"`
+				URL          string `json:"url"`
+				Memo         string `json:"memo"`
+			} `json:"qualifications"`
+		} `json:"profile"`
+	}
+	if err := json.Unmarshal(getReplacedRec.Body.Bytes(), &getReplacedResp); err != nil {
+		t.Fatalf("failed to decode replaced get response: %v", err)
+	}
+	if len(getReplacedResp.Profile.Qualifications) != 1 {
+		t.Fatalf("expected replaced qualifications, got %#v", getReplacedResp.Profile.Qualifications)
+	}
+	if getReplacedResp.Profile.Qualifications[0].ID != "replacement_qualification" {
+		t.Fatalf("expected replacement qualification id to persist, got %#v", getReplacedResp.Profile.Qualifications[0])
+	}
+	if getReplacedResp.Profile.Qualifications[0].URL != "https://cloud.google.com/learn/certification/cloud-architect" {
+		t.Fatalf("expected replacement qualification URL to persist, got %#v", getReplacedResp.Profile.Qualifications[0])
 	}
 }
 

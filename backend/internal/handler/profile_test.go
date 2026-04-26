@@ -22,10 +22,22 @@ func TestGetProfileMapsDomainToResponse(t *testing.T) {
 			FullName:           "Sky Sample",
 			Email:              "me@example.com",
 			Summary:            "Backend engineer",
+			Occupation:         "Software Engineer",
+			EmploymentType:     "Freelance",
 			PreferredWorkStyle: "Full remote",
 			VisibilitySettings: map[string]any{"email": false, "github": true, "nickname": "public"},
-			CreatedAt:          now,
-			UpdatedAt:          now,
+			Qualifications: []domain.Qualification{
+				{
+					ID:           "qualification_01",
+					Name:         "AWS Certified Solutions Architect",
+					AcquiredDate: "2026-04-26",
+					Organization: "Amazon Web Services",
+					URL:          "https://aws.amazon.com/certification/certified-solutions-architect-associate/",
+					Memo:         "Associate",
+				},
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
 		},
 	}
 
@@ -52,8 +64,23 @@ func TestGetProfileMapsDomainToResponse(t *testing.T) {
 	if resp.Profile.Bio != "Backend engineer" {
 		t.Fatalf("unexpected Bio: %+v", resp.Profile.Bio)
 	}
+	if resp.Profile.Occupation != "Software Engineer" {
+		t.Fatalf("unexpected Occupation: %+v", resp.Profile.Occupation)
+	}
+	if resp.Profile.EmploymentType != "Freelance" {
+		t.Fatalf("unexpected EmploymentType: %+v", resp.Profile.EmploymentType)
+	}
 	if resp.Profile.WorkStyle != "Full remote" {
 		t.Fatalf("unexpected WorkStyle: %+v", resp.Profile.WorkStyle)
+	}
+	if len(resp.Profile.Qualifications) != 1 {
+		t.Fatalf("expected one qualification, got %#v", resp.Profile.Qualifications)
+	}
+	if resp.Profile.Qualifications[0].Name != "AWS Certified Solutions Architect" {
+		t.Fatalf("unexpected qualification: %#v", resp.Profile.Qualifications[0])
+	}
+	if resp.Profile.Qualifications[0].URL != "https://aws.amazon.com/certification/certified-solutions-architect-associate/" {
+		t.Fatalf("unexpected qualification URL: %#v", resp.Profile.Qualifications[0])
 	}
 	if len(resp.Profile.VisibilitySettings) != 3 {
 		t.Fatalf("expected boolean visibility settings with defaults, got %#v", resp.Profile.VisibilitySettings)
@@ -103,13 +130,27 @@ func TestUpdateProfileMapsRequestToUseCase(t *testing.T) {
 	displayName := "Sky Sample"
 	email := "me@example.com"
 	bio := "Backend engineer"
+	occupation := "Software Engineer"
+	employmentType := "Freelance"
 	workStyle := "Full remote"
+	qualifications := []qualificationPayload{
+		{
+			Name:         "AWS Certified Solutions Architect",
+			AcquiredDate: "2026-04-26",
+			Organization: "Amazon Web Services",
+			URL:          "https://aws.amazon.com/certification/certified-solutions-architect-associate/",
+			Memo:         "Associate",
+		},
+	}
 	visibility := map[string]bool{"email": false, "location": false}
 	body, err := json.Marshal(profileUpdateRequest{
 		DisplayName:        &displayName,
 		Email:              &email,
 		Bio:                &bio,
+		Occupation:         &occupation,
+		EmploymentType:     &employmentType,
 		WorkStyle:          &workStyle,
+		Qualifications:     qualifications,
 		VisibilitySettings: &visibility,
 	})
 	if err != nil {
@@ -138,8 +179,23 @@ func TestUpdateProfileMapsRequestToUseCase(t *testing.T) {
 	if resp.Profile.Bio != "Backend engineer" {
 		t.Fatalf("unexpected Bio: %+v", resp.Profile.Bio)
 	}
+	if resp.Profile.Occupation != "Software Engineer" {
+		t.Fatalf("unexpected Occupation: %+v", resp.Profile.Occupation)
+	}
+	if resp.Profile.EmploymentType != "Freelance" {
+		t.Fatalf("unexpected EmploymentType: %+v", resp.Profile.EmploymentType)
+	}
 	if resp.Profile.WorkStyle != "Full remote" {
 		t.Fatalf("unexpected WorkStyle: %+v", resp.Profile.WorkStyle)
+	}
+	if len(resp.Profile.Qualifications) != 1 {
+		t.Fatalf("expected one qualification, got %#v", resp.Profile.Qualifications)
+	}
+	if resp.Profile.Qualifications[0].Name != "AWS Certified Solutions Architect" {
+		t.Fatalf("unexpected qualification: %#v", resp.Profile.Qualifications[0])
+	}
+	if resp.Profile.Qualifications[0].URL != "https://aws.amazon.com/certification/certified-solutions-architect-associate/" {
+		t.Fatalf("unexpected qualification URL: %#v", resp.Profile.Qualifications[0])
 	}
 	if resp.Profile.VisibilitySettings["email"] != false || resp.Profile.VisibilitySettings["location"] != false {
 		t.Fatalf("unexpected visibility settings: %#v", resp.Profile.VisibilitySettings)
@@ -159,6 +215,9 @@ func (r *profileRepositoryStub) Get(context.Context) (*domain.Profile, error) {
 	if r.profile.VisibilitySettings != nil {
 		profileCopy.VisibilitySettings = cloneVisibilitySettings(r.profile.VisibilitySettings)
 	}
+	if r.profile.Qualifications != nil {
+		profileCopy.Qualifications = cloneQualifications(r.profile.Qualifications)
+	}
 
 	return &profileCopy, nil
 }
@@ -167,6 +226,9 @@ func (r *profileRepositoryStub) Save(_ context.Context, profile *domain.Profile)
 	profileCopy := *profile
 	if profile.VisibilitySettings != nil {
 		profileCopy.VisibilitySettings = cloneVisibilitySettings(profile.VisibilitySettings)
+	}
+	if profile.Qualifications != nil {
+		profileCopy.Qualifications = cloneQualifications(profile.Qualifications)
 	}
 	if profileCopy.UpdatedAt.IsZero() {
 		profileCopy.UpdatedAt = time.Now().UTC()
@@ -182,6 +244,12 @@ func cloneVisibilitySettings(values map[string]any) map[string]any {
 		cloned[key] = value
 	}
 
+	return cloned
+}
+
+func cloneQualifications(values []domain.Qualification) []domain.Qualification {
+	cloned := make([]domain.Qualification, len(values))
+	copy(cloned, values)
 	return cloned
 }
 

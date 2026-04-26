@@ -92,8 +92,49 @@ func TestSQLiteProfileRepositorySavePersistsProfile(t *testing.T) {
 	if reloaded.FullName != "Sky Sample" || reloaded.PreferredWorkStyle != "Full remote" {
 		t.Fatalf("unexpected reloaded profile: %+v", reloaded)
 	}
+	if reloaded.Occupation != "Software Engineer" || reloaded.EmploymentType != "Freelance" {
+		t.Fatalf("unexpected reloaded work fields: %+v", reloaded)
+	}
 	if reloaded.VisibilitySettings["github"] != true || reloaded.VisibilitySettings["email"] != false {
 		t.Fatalf("unexpected reloaded visibility settings: %#v", reloaded.VisibilitySettings)
+	}
+	if len(reloaded.Qualifications) != 2 {
+		t.Fatalf("expected qualifications to persist, got %#v", reloaded.Qualifications)
+	}
+	if reloaded.Qualifications[0].ID != "qualification_01" || reloaded.Qualifications[0].Name != "AWS Certified Solutions Architect" {
+		t.Fatalf("unexpected first qualification: %#v", reloaded.Qualifications[0])
+	}
+	if reloaded.Qualifications[0].URL != "https://aws.amazon.com/certification/certified-solutions-architect-associate/" {
+		t.Fatalf("unexpected first qualification URL: %#v", reloaded.Qualifications[0])
+	}
+	if reloaded.Qualifications[1].Name != "基本情報技術者" || reloaded.Qualifications[1].Organization != "IPA" {
+		t.Fatalf("unexpected second qualification: %#v", reloaded.Qualifications[1])
+	}
+
+	reloaded.Qualifications = []domain.Qualification{
+		{
+			Name:         "Google Cloud Professional Cloud Architect",
+			AcquiredDate: "2025-01-01",
+			Organization: "Google Cloud",
+			URL:          "https://cloud.google.com/learn/certification/cloud-architect",
+			Memo:         "replacement",
+		},
+	}
+	replaced, err := repo.Save(ctx, reloaded)
+	if err != nil {
+		t.Fatalf("Save() replacement error = %v", err)
+	}
+	if len(replaced.Qualifications) != 1 {
+		t.Fatalf("expected qualifications to be replaced, got %#v", replaced.Qualifications)
+	}
+	if replaced.Qualifications[0].ID == "" {
+		t.Fatalf("expected replacement qualification ID to be generated, got %#v", replaced.Qualifications[0])
+	}
+	if replaced.Qualifications[0].Name != "Google Cloud Professional Cloud Architect" {
+		t.Fatalf("unexpected replacement qualification: %#v", replaced.Qualifications[0])
+	}
+	if replaced.Qualifications[0].URL != "https://cloud.google.com/learn/certification/cloud-architect" {
+		t.Fatalf("unexpected replacement qualification URL: %#v", replaced.Qualifications[0])
 	}
 }
 
@@ -133,6 +174,55 @@ func TestSQLiteProfileRepositoryMigratesProfilePhoneColumn(t *testing.T) {
 	}
 	if hasPhoneColumn {
 		t.Fatal("expected profiles.phone column to be dropped")
+	}
+	hasOccupationColumn, err := repo.profileTableHasColumn(ctx, "occupation")
+	if err != nil {
+		t.Fatalf("profileTableHasColumn(occupation) error = %v", err)
+	}
+	if !hasOccupationColumn {
+		t.Fatal("expected profiles.occupation column to be added")
+	}
+	hasEmploymentTypeColumn, err := repo.profileTableHasColumn(ctx, "employment_type")
+	if err != nil {
+		t.Fatalf("profileTableHasColumn(employment_type) error = %v", err)
+	}
+	if !hasEmploymentTypeColumn {
+		t.Fatal("expected profiles.employment_type column to be added")
+	}
+}
+
+func TestSQLiteProfileRepositoryMigratesQualificationURLColumn(t *testing.T) {
+	t.Helper()
+
+	ctx := context.Background()
+	testDB := newSQLiteProfileTestDatabase(t)
+
+	rawDB, err := sql.Open("sqlite3", testDB.dsn())
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	if _, err := rawDB.ExecContext(ctx, oldProfileSchema+oldQualificationSchemaWithoutURL); err != nil {
+		_ = rawDB.Close()
+		t.Fatalf("failed to create old qualification schema: %v", err)
+	}
+	if err := rawDB.Close(); err != nil {
+		t.Fatalf("failed to close old qualification schema database: %v", err)
+	}
+
+	repo, err := NewSQLiteProfileRepository(ctx, testDB.dsn(), testSchemaPath())
+	if err != nil {
+		t.Fatalf("NewSQLiteProfileRepository() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = repo.Close()
+	})
+
+	hasURLColumn, err := repo.qualificationTableHasColumn(ctx, "url")
+	if err != nil {
+		t.Fatalf("qualificationTableHasColumn() error = %v", err)
+	}
+	if !hasURLColumn {
+		t.Fatal("expected profile_qualifications.url column to be added")
 	}
 }
 
@@ -174,10 +264,30 @@ func profileFixture(createdAt time.Time) domain.Profile {
 		ZennURL:            "https://zenn.dev/sky0621",
 		QiitaURL:           "https://qiita.com/sky0621",
 		WebsiteURL:         "https://example.com",
+		Occupation:         "Software Engineer",
+		EmploymentType:     "Freelance",
 		PreferredWorkStyle: "Full remote",
 		VisibilitySettings: map[string]any{
 			"email":  false,
 			"github": true,
+		},
+		Qualifications: []domain.Qualification{
+			{
+				ID:           "qualification_01",
+				Name:         "AWS Certified Solutions Architect",
+				AcquiredDate: "2026-04-26",
+				Organization: "Amazon Web Services",
+				URL:          "https://aws.amazon.com/certification/certified-solutions-architect-associate/",
+				Memo:         "Associate",
+			},
+			{
+				ID:           "qualification_02",
+				Name:         "基本情報技術者",
+				AcquiredDate: "2020-10-01",
+				Organization: "IPA",
+				URL:          "https://www.ipa.go.jp/shiken/kubun/fe.html",
+				Memo:         "",
+			},
 		},
 		CreatedAt: createdAt,
 	}
@@ -201,4 +311,18 @@ CREATE TABLE profiles (
     visibility_settings TEXT NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);`
+
+const oldQualificationSchemaWithoutURL = `
+CREATE TABLE profile_qualifications (
+    id TEXT NOT NULL PRIMARY KEY,
+    profile_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    acquired_date TEXT NOT NULL,
+    organization TEXT NOT NULL,
+    memo TEXT NOT NULL,
+    sort_order INTEGER NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
 );`

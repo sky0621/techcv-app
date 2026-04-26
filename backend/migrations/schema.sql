@@ -10,8 +10,24 @@ CREATE TABLE IF NOT EXISTS profiles (
     zenn_url TEXT NOT NULL,
     qiita_url TEXT NOT NULL,
     website_url TEXT NOT NULL,
+    occupation TEXT NOT NULL,
+    employment_type TEXT NOT NULL,
     preferred_work_style TEXT NOT NULL,
     visibility_settings TEXT NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS profile_qualifications (
+    id TEXT NOT NULL PRIMARY KEY,
+    profile_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    acquired_date TEXT NOT NULL,
+    organization TEXT NOT NULL,
+    url TEXT NOT NULL,
+    memo TEXT NOT NULL,
+    sort_order INTEGER NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
 );

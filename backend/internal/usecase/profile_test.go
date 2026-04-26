@@ -25,10 +25,15 @@ func TestUpdateReplacesFieldsAndPreservesVisibilityWhenInputIsNil(t *testing.T) 
 			ZennURL:            "https://zenn.dev/before",
 			QiitaURL:           "https://qiita.com/before",
 			WebsiteURL:         "https://before.example.com",
+			Occupation:         "Before Occupation",
+			EmploymentType:     "Before Employment",
 			PreferredWorkStyle: "Hybrid",
 			VisibilitySettings: map[string]any{"email": true},
-			CreatedAt:          now,
-			UpdatedAt:          now,
+			Qualifications: []domain.Qualification{
+				{ID: "qualification_before", Name: "Before Cert"},
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
 		},
 	}
 
@@ -43,7 +48,19 @@ func TestUpdateReplacesFieldsAndPreservesVisibilityWhenInputIsNil(t *testing.T) 
 		ZennURL:            "https://zenn.dev/after",
 		QiitaURL:           "https://qiita.com/after",
 		WebsiteURL:         "https://after.example.com",
+		Occupation:         "Software Engineer",
+		EmploymentType:     "Freelance",
 		PreferredWorkStyle: "Remote",
+		Qualifications: []domain.Qualification{
+			{
+				ID:           "qualification_after",
+				Name:         "After Cert",
+				AcquiredDate: "2026-04-26",
+				Organization: "Cert Org",
+				URL:          "https://example.com/after-cert",
+				Memo:         "memo",
+			},
+		},
 		VisibilitySettings: nil,
 	})
 	if err != nil {
@@ -69,8 +86,17 @@ func TestUpdateReplacesFieldsAndPreservesVisibilityWhenInputIsNil(t *testing.T) 
 	if got.QiitaURL != "https://qiita.com/after" || got.WebsiteURL != "https://after.example.com" {
 		t.Fatalf("unexpected site fields: %+v", got)
 	}
+	if got.Occupation != "Software Engineer" || got.EmploymentType != "Freelance" {
+		t.Fatalf("unexpected work fields: %+v", got)
+	}
 	if got.PreferredWorkStyle != "Remote" {
 		t.Fatalf("expected PreferredWorkStyle to be updated, got %q", got.PreferredWorkStyle)
+	}
+	if len(got.Qualifications) != 1 || got.Qualifications[0].Name != "After Cert" {
+		t.Fatalf("expected Qualifications to be updated, got %#v", got.Qualifications)
+	}
+	if got.Qualifications[0].URL != "https://example.com/after-cert" {
+		t.Fatalf("expected Qualification URL to be updated, got %#v", got.Qualifications)
 	}
 
 	if emailVisible, ok := got.VisibilitySettings["email"]; !ok || emailVisible != true {
@@ -116,6 +142,9 @@ func (r *stubRepository) Get(context.Context) (*domain.Profile, error) {
 	if r.profile.VisibilitySettings != nil {
 		profileCopy.VisibilitySettings = cloneMap(r.profile.VisibilitySettings)
 	}
+	if r.profile.Qualifications != nil {
+		profileCopy.Qualifications = cloneQualifications(r.profile.Qualifications)
+	}
 
 	return &profileCopy, nil
 }
@@ -126,6 +155,9 @@ func (r *stubRepository) Save(_ context.Context, profile *domain.Profile) (*doma
 	profileCopy := *profile
 	if profile.VisibilitySettings != nil {
 		profileCopy.VisibilitySettings = cloneMap(profile.VisibilitySettings)
+	}
+	if profile.Qualifications != nil {
+		profileCopy.Qualifications = cloneQualifications(profile.Qualifications)
 	}
 
 	r.profile = &profileCopy

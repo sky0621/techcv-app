@@ -17,8 +17,11 @@ type ProfileInput struct {
 	ZennURL            string
 	QiitaURL           string
 	WebsiteURL         string
+	Occupation         string
+	EmploymentType     string
 	PreferredWorkStyle string
 	VisibilitySettings map[string]any
+	Qualifications     []domain.Qualification
 }
 
 type ProfileUseCase struct {
@@ -48,10 +51,23 @@ func (u *ProfileUseCase) Update(ctx context.Context, input ProfileInput) (*domai
 	current.ZennURL = input.ZennURL
 	current.QiitaURL = input.QiitaURL
 	current.WebsiteURL = input.WebsiteURL
+	current.Occupation = input.Occupation
+	current.EmploymentType = input.EmploymentType
 	current.PreferredWorkStyle = input.PreferredWorkStyle
+	current.Qualifications = cloneQualifications(input.Qualifications)
 	if input.VisibilitySettings != nil {
 		current.VisibilitySettings = input.VisibilitySettings
 	}
 
 	return u.repository.Save(ctx, current)
+}
+
+func cloneQualifications(values []domain.Qualification) []domain.Qualification {
+	if values == nil {
+		return nil
+	}
+
+	cloned := make([]domain.Qualification, len(values))
+	copy(cloned, values)
+	return cloned
 }

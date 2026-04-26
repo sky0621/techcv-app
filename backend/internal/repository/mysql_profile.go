@@ -65,7 +65,12 @@ func (r *SQLiteProfileRepository) Ping(ctx context.Context) error {
 func (r *SQLiteProfileRepository) Get(ctx context.Context) (*domain.Profile, error) {
 	row, err := r.queries.GetProfileByUserID(ctx, "user_01")
 	if err == nil {
-		return toDomainProfile(row)
+		qualifications, err := r.queries.ListQualificationsByProfileID(ctx, row.ID)
+		if err != nil {
+			return nil, fmt.Errorf("query profile qualifications: %w", err)
+		}
+
+		return toDomainProfile(row, qualifications)
 	}
 
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -98,7 +103,17 @@ func (r *SQLiteProfileRepository) Save(ctx context.Context, profile *domain.Prof
 		createdAt = now
 	}
 
-	err = r.queries.UpsertProfile(ctx, dbgen.UpsertProfileParams{
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin profile transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	queries := r.queries.WithTx(tx)
+
+	err = queries.UpsertProfile(ctx, dbgen.UpsertProfileParams{
 		ID:                 profile.ID,
 		UserID:             profile.UserID,
 		FullName:           profile.FullName,
@@ -110,6 +125,8 @@ func (r *SQLiteProfileRepository) Save(ctx context.Context, profile *domain.Prof
 		ZennUrl:            profile.ZennURL,
 		QiitaUrl:           profile.QiitaURL,
 		WebsiteUrl:         profile.WebsiteURL,
+		Occupation:         profile.Occupation,
+		EmploymentType:     profile.EmploymentType,
 		PreferredWorkStyle: profile.PreferredWorkStyle,
 		VisibilitySettings: string(visibilityBytes),
 		CreatedAt:          createdAt,
@@ -119,12 +136,47 @@ func (r *SQLiteProfileRepository) Save(ctx context.Context, profile *domain.Prof
 		return nil, fmt.Errorf("save profile: %w", err)
 	}
 
-	row, err := r.queries.GetProfileByUserID(ctx, profile.UserID)
+	if err := queries.DeleteQualificationsByProfileID(ctx, profile.ID); err != nil {
+		return nil, fmt.Errorf("delete profile qualifications: %w", err)
+	}
+
+	for index, qualification := range profile.Qualifications {
+		if err := queries.InsertQualification(ctx, dbgen.InsertQualificationParams{
+			ID:           qualificationID(qualification, index, now),
+			ProfileID:    profile.ID,
+			Name:         qualification.Name,
+			AcquiredDate: qualification.AcquiredDate,
+			Organization: qualification.Organization,
+			Url:          qualification.URL,
+			Memo:         qualification.Memo,
+			SortOrder:    int64(index),
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}); err != nil {
+			return nil, fmt.Errorf("insert profile qualification: %w", err)
+		}
+	}
+
+	row, err := queries.GetProfileByUserID(ctx, profile.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("reload profile: %w", err)
 	}
 
-	return toDomainProfile(row)
+	qualifications, err := queries.ListQualificationsByProfileID(ctx, row.ID)
+	if err != nil {
+		return nil, fmt.Errorf("reload profile qualifications: %w", err)
+	}
+
+	result, err := toDomainProfile(row, qualifications)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit profile transaction: %w", err)
+	}
+
+	return result, nil
 }
 
 func (r *SQLiteProfileRepository) configure(ctx context.Context) error {
@@ -156,7 +208,17 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 		}
 	}
 
-	return r.dropProfilePhoneColumn(ctx)
+	if err := r.dropProfilePhoneColumn(ctx); err != nil {
+		return err
+	}
+	if err := r.addProfileTextColumn(ctx, "occupation"); err != nil {
+		return err
+	}
+	if err := r.addProfileTextColumn(ctx, "employment_type"); err != nil {
+		return err
+	}
+
+	return r.addQualificationURLColumn(ctx)
 }
 
 func ensureSQLiteDirectory(dsn string) error {
@@ -192,10 +254,50 @@ func (r *SQLiteProfileRepository) dropProfilePhoneColumn(ctx context.Context) er
 	return nil
 }
 
-func (r *SQLiteProfileRepository) profileTableHasColumn(ctx context.Context, columnName string) (bool, error) {
-	rows, err := r.db.QueryContext(ctx, "PRAGMA table_info(profiles)")
+func (r *SQLiteProfileRepository) addProfileTextColumn(ctx context.Context, columnName string) error {
+	hasColumn, err := r.profileTableHasColumn(ctx, columnName)
 	if err != nil {
-		return false, fmt.Errorf("inspect profiles columns: %w", err)
+		return err
+	}
+	if hasColumn {
+		return nil
+	}
+
+	if _, err := r.db.ExecContext(ctx, "ALTER TABLE profiles ADD COLUMN "+columnName+" TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("add profiles.%s column: %w", columnName, err)
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) profileTableHasColumn(ctx context.Context, columnName string) (bool, error) {
+	return r.tableHasColumn(ctx, "profiles", columnName)
+}
+
+func (r *SQLiteProfileRepository) qualificationTableHasColumn(ctx context.Context, columnName string) (bool, error) {
+	return r.tableHasColumn(ctx, "profile_qualifications", columnName)
+}
+
+func (r *SQLiteProfileRepository) addQualificationURLColumn(ctx context.Context) error {
+	hasURLColumn, err := r.qualificationTableHasColumn(ctx, "url")
+	if err != nil {
+		return err
+	}
+	if hasURLColumn {
+		return nil
+	}
+
+	if _, err := r.db.ExecContext(ctx, "ALTER TABLE profile_qualifications ADD COLUMN url TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("add profile_qualifications.url column: %w", err)
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) tableHasColumn(ctx context.Context, tableName string, columnName string) (bool, error) {
+	rows, err := r.db.QueryContext(ctx, "PRAGMA table_info("+tableName+")")
+	if err != nil {
+		return false, fmt.Errorf("inspect %s columns: %w", tableName, err)
 	}
 	defer rows.Close()
 
@@ -209,20 +311,20 @@ func (r *SQLiteProfileRepository) profileTableHasColumn(ctx context.Context, col
 			primaryKey   int
 		)
 		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
-			return false, fmt.Errorf("scan profiles column: %w", err)
+			return false, fmt.Errorf("scan %s column: %w", tableName, err)
 		}
 		if name == columnName {
 			return true, nil
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return false, fmt.Errorf("iterate profiles columns: %w", err)
+		return false, fmt.Errorf("iterate %s columns: %w", tableName, err)
 	}
 
 	return false, nil
 }
 
-func toDomainProfile(row dbgen.Profile) (*domain.Profile, error) {
+func toDomainProfile(row dbgen.Profile, qualificationRows []dbgen.ProfileQualification) (*domain.Profile, error) {
 	profile := &domain.Profile{
 		ID:                 row.ID,
 		UserID:             row.UserID,
@@ -235,6 +337,8 @@ func toDomainProfile(row dbgen.Profile) (*domain.Profile, error) {
 		ZennURL:            row.ZennUrl,
 		QiitaURL:           row.QiitaUrl,
 		WebsiteURL:         row.WebsiteUrl,
+		Occupation:         row.Occupation,
+		EmploymentType:     row.EmploymentType,
 		PreferredWorkStyle: row.PreferredWorkStyle,
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
@@ -247,8 +351,33 @@ func toDomainProfile(row dbgen.Profile) (*domain.Profile, error) {
 	}
 
 	profile.VisibilitySettings = sanitizeVisibilitySettings(profile.VisibilitySettings)
+	profile.Qualifications = toDomainQualifications(qualificationRows)
 
 	return profile, nil
+}
+
+func toDomainQualifications(rows []dbgen.ProfileQualification) []domain.Qualification {
+	qualifications := make([]domain.Qualification, 0, len(rows))
+	for _, row := range rows {
+		qualifications = append(qualifications, domain.Qualification{
+			ID:           row.ID,
+			Name:         row.Name,
+			AcquiredDate: row.AcquiredDate,
+			Organization: row.Organization,
+			URL:          row.Url,
+			Memo:         row.Memo,
+		})
+	}
+
+	return qualifications
+}
+
+func qualificationID(qualification domain.Qualification, index int, now time.Time) string {
+	if qualification.ID != "" {
+		return qualification.ID
+	}
+
+	return fmt.Sprintf("qualification_%d_%d", now.UnixNano(), index+1)
 }
 
 func sanitizeVisibilitySettings(values map[string]any) map[string]any {

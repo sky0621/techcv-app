@@ -20,8 +20,23 @@ type Profile struct {
 	ZennUrl            string
 	QiitaUrl           string
 	WebsiteUrl         string
+	Occupation         string
+	EmploymentType     string
 	PreferredWorkStyle string
 	VisibilitySettings string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+}
+
+type ProfileQualification struct {
+	ID           string
+	ProfileID    string
+	Name         string
+	AcquiredDate string
+	Organization string
+	Url          string
+	Memo         string
+	SortOrder    int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
