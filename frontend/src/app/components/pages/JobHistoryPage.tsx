@@ -11,6 +11,7 @@ import { Badge } from "../ui/badge";
 type JobHistory = {
   id: string;
   company: string;
+  displayName: string;
   startYear: number;
   startMonth: number;
   endYear: number | null;
@@ -70,6 +71,7 @@ export function JobHistoryPage() {
   const [editingJob, setEditingJob] = useState<JobHistory | null>(null);
   const [formData, setFormData] = useState({
     company: "",
+    displayName: "",
     startDate: "",
     endDate: "",
     employmentTypeId: "",
@@ -121,6 +123,7 @@ export function JobHistoryPage() {
     setEditingJob(null);
     setFormData({
       company: "",
+      displayName: "",
       startDate: "",
       endDate: "",
       employmentTypeId: employmentTypes[0]?.id ?? "",
@@ -132,6 +135,7 @@ export function JobHistoryPage() {
     setEditingJob(job);
     setFormData({
       company: job.company,
+      displayName: job.displayName,
       startDate: formatYearMonth(job.startYear, job.startMonth),
       endDate:
         job.endYear === null || job.endMonth === null
@@ -151,6 +155,7 @@ export function JobHistoryPage() {
       const end = parseYearMonth(formData.endDate);
       const requestBody = {
         company: formData.company,
+        displayName: formData.displayName,
         startYear: start.year,
         startMonth: start.month,
         endYear: formData.endDate.trim() === "" ? null : end.year,
@@ -206,6 +211,7 @@ export function JobHistoryPage() {
 
   const canSave =
     formData.company.trim() !== "" &&
+    formData.displayName.trim() !== "" &&
     formData.startDate.trim() !== "" &&
     formData.employmentTypeId.trim() !== "";
 
@@ -244,7 +250,8 @@ export function JobHistoryPage() {
                       <Briefcase className="w-6 h-6 text-blue-600" />
                     </div>
                     <div>
-                      <CardTitle className="text-xl">{job.company}</CardTitle>
+                      <CardTitle className="text-xl">{job.displayName}</CardTitle>
+                      <div className="mt-1 text-sm text-gray-500">{job.company}</div>
                       <div className="flex items-center gap-3 mt-2 text-sm text-gray-600">
                         <span>
                           {formatYearMonth(job.startYear, job.startMonth)} 〜{" "}
@@ -309,6 +316,16 @@ export function JobHistoryPage() {
                   value={formData.company}
                   onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                   placeholder="株式会社〇〇"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="displayName">表示名</Label>
+                <Input
+                  id="displayName"
+                  value={formData.displayName}
+                  onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                  placeholder="現職、屋号、表示用の勤務先名など"
                 />
               </div>
 

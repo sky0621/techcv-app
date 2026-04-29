@@ -530,6 +530,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 		JobHistories []struct {
 			ID               string `json:"id"`
 			Company          string `json:"company"`
+			DisplayName      string `json:"displayName"`
 			StartYear        int64  `json:"startYear"`
 			StartMonth       int64  `json:"startMonth"`
 			EndYear          *int64 `json:"endYear"`
@@ -546,6 +547,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 		t.Fatalf("expected one seeded job history, got %#v", listResp.JobHistories)
 	}
 	if listResp.JobHistories[0].Company != "株式会社A" ||
+		listResp.JobHistories[0].DisplayName != "株式会社A" ||
 		listResp.JobHistories[0].StartYear != 2023 ||
 		listResp.JobHistories[0].StartMonth != 1 ||
 		listResp.JobHistories[0].EndYear != nil ||
@@ -558,6 +560,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 
 	createBody := []byte(`{
 		"company":"株式会社C",
+		"displayName":"表示用C",
 		"startYear":2024,
 		"startMonth":1,
 		"endYear":null,
@@ -576,6 +579,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 		JobHistory struct {
 			ID               string `json:"id"`
 			Company          string `json:"company"`
+			DisplayName      string `json:"displayName"`
 			StartYear        int64  `json:"startYear"`
 			StartMonth       int64  `json:"startMonth"`
 			EndYear          *int64 `json:"endYear"`
@@ -589,6 +593,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 		t.Fatalf("failed to decode create response: %v", err)
 	}
 	if createResp.JobHistory.ID == "" ||
+		createResp.JobHistory.DisplayName != "表示用C" ||
 		createResp.JobHistory.EndYear != nil ||
 		createResp.JobHistory.EndMonth != nil ||
 		createResp.JobHistory.EmploymentTypeID != "job_employment_type_freelance" ||
@@ -599,6 +604,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 
 	updateBody := []byte(`{
 		"company":"株式会社C Updated",
+		"displayName":"表示用C Updated",
 		"startYear":2024,
 		"startMonth":2,
 		"endYear":2025,
@@ -616,6 +622,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 	var updateResp struct {
 		JobHistory struct {
 			Company          string `json:"company"`
+			DisplayName      string `json:"displayName"`
 			StartYear        int64  `json:"startYear"`
 			StartMonth       int64  `json:"startMonth"`
 			EndYear          *int64 `json:"endYear"`
@@ -628,6 +635,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 		t.Fatalf("failed to decode update response: %v", err)
 	}
 	if updateResp.JobHistory.Company != "株式会社C Updated" ||
+		updateResp.JobHistory.DisplayName != "表示用C Updated" ||
 		updateResp.JobHistory.StartYear != 2024 ||
 		updateResp.JobHistory.StartMonth != 2 ||
 		updateResp.JobHistory.EndYear == nil ||
@@ -702,6 +710,7 @@ func newTestProfileRepository() *testProfileRepository {
 			{
 				ID:               "job_history_company_a",
 				Company:          "株式会社A",
+				DisplayName:      "株式会社A",
 				StartYear:        2023,
 				StartMonth:       1,
 				EndYear:          nil,
@@ -897,6 +906,7 @@ func (r *testProfileRepository) CreateJobHistory(_ context.Context, input domain
 	jobHistory := domain.JobHistory{
 		ID:               "job_history_test_new",
 		Company:          input.Company,
+		DisplayName:      input.DisplayName,
 		StartYear:        input.StartYear,
 		StartMonth:       input.StartMonth,
 		EndYear:          input.EndYear,
@@ -923,6 +933,7 @@ func (r *testProfileRepository) UpdateJobHistory(_ context.Context, id string, i
 	for index, jobHistory := range r.jobHistories {
 		if jobHistory.ID == id {
 			r.jobHistories[index].Company = input.Company
+			r.jobHistories[index].DisplayName = input.DisplayName
 			r.jobHistories[index].StartYear = input.StartYear
 			r.jobHistories[index].StartMonth = input.StartMonth
 			r.jobHistories[index].EndYear = input.EndYear

@@ -2,6 +2,7 @@
 SELECT
   job_histories.id,
   job_histories.company,
+  job_histories.display_name,
   job_histories.start_year,
   job_histories.start_month,
   job_histories.end_year,
@@ -20,6 +21,7 @@ ORDER BY job_histories.sort_order ASC, job_histories.start_year DESC, job_histor
 SELECT
   job_histories.id,
   job_histories.company,
+  job_histories.display_name,
   job_histories.start_year,
   job_histories.start_month,
   job_histories.end_year,
@@ -38,6 +40,7 @@ WHERE job_histories.id = ?;
 INSERT INTO job_histories (
   id,
   company,
+  display_name,
   start_year,
   start_month,
   end_year,
@@ -54,12 +57,14 @@ SELECT
   ?,
   ?,
   ?,
+  ?,
   0,
   COALESCE(MIN(sort_order), 0) - 1
 FROM job_histories
 RETURNING
   id,
   company,
+  display_name,
   start_year,
   start_month,
   end_year,
@@ -74,6 +79,7 @@ RETURNING
 UPDATE job_histories
 SET
   company = ?,
+  display_name = ?,
   start_year = ?,
   start_month = ?,
   end_year = ?,
@@ -84,6 +90,7 @@ WHERE id = ?
 RETURNING
   id,
   company,
+  display_name,
   start_year,
   start_month,
   end_year,

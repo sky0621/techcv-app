@@ -28,6 +28,7 @@ const getJobHistory = `-- name: GetJobHistory :one
 SELECT
   job_histories.id,
   job_histories.company,
+  job_histories.display_name,
   job_histories.start_year,
   job_histories.start_month,
   job_histories.end_year,
@@ -46,6 +47,7 @@ WHERE job_histories.id = ?
 type GetJobHistoryRow struct {
 	ID               string
 	Company          string
+	DisplayName      string
 	StartYear        int64
 	StartMonth       int64
 	EndYear          sql.NullInt64
@@ -64,6 +66,7 @@ func (q *Queries) GetJobHistory(ctx context.Context, id string) (GetJobHistoryRo
 	err := row.Scan(
 		&i.ID,
 		&i.Company,
+		&i.DisplayName,
 		&i.StartYear,
 		&i.StartMonth,
 		&i.EndYear,
@@ -119,6 +122,7 @@ const insertJobHistory = `-- name: InsertJobHistory :one
 INSERT INTO job_histories (
   id,
   company,
+  display_name,
   start_year,
   start_month,
   end_year,
@@ -135,12 +139,14 @@ SELECT
   ?,
   ?,
   ?,
+  ?,
   0,
   COALESCE(MIN(sort_order), 0) - 1
 FROM job_histories
 RETURNING
   id,
   company,
+  display_name,
   start_year,
   start_month,
   end_year,
@@ -155,6 +161,7 @@ RETURNING
 type InsertJobHistoryParams struct {
 	ID               string
 	Company          string
+	DisplayName      string
 	StartYear        int64
 	StartMonth       int64
 	EndYear          sql.NullInt64
@@ -166,6 +173,7 @@ func (q *Queries) InsertJobHistory(ctx context.Context, arg InsertJobHistoryPara
 	row := q.db.QueryRowContext(ctx, insertJobHistory,
 		arg.ID,
 		arg.Company,
+		arg.DisplayName,
 		arg.StartYear,
 		arg.StartMonth,
 		arg.EndYear,
@@ -176,6 +184,7 @@ func (q *Queries) InsertJobHistory(ctx context.Context, arg InsertJobHistoryPara
 	err := row.Scan(
 		&i.ID,
 		&i.Company,
+		&i.DisplayName,
 		&i.StartYear,
 		&i.StartMonth,
 		&i.EndYear,
@@ -233,6 +242,7 @@ const listJobHistories = `-- name: ListJobHistories :many
 SELECT
   job_histories.id,
   job_histories.company,
+  job_histories.display_name,
   job_histories.start_year,
   job_histories.start_month,
   job_histories.end_year,
@@ -251,6 +261,7 @@ ORDER BY job_histories.sort_order ASC, job_histories.start_year DESC, job_histor
 type ListJobHistoriesRow struct {
 	ID               string
 	Company          string
+	DisplayName      string
 	StartYear        int64
 	StartMonth       int64
 	EndYear          sql.NullInt64
@@ -275,6 +286,7 @@ func (q *Queries) ListJobHistories(ctx context.Context) ([]ListJobHistoriesRow, 
 		if err := rows.Scan(
 			&i.ID,
 			&i.Company,
+			&i.DisplayName,
 			&i.StartYear,
 			&i.StartMonth,
 			&i.EndYear,
@@ -335,6 +347,7 @@ const updateJobHistory = `-- name: UpdateJobHistory :one
 UPDATE job_histories
 SET
   company = ?,
+  display_name = ?,
   start_year = ?,
   start_month = ?,
   end_year = ?,
@@ -345,6 +358,7 @@ WHERE id = ?
 RETURNING
   id,
   company,
+  display_name,
   start_year,
   start_month,
   end_year,
@@ -358,6 +372,7 @@ RETURNING
 
 type UpdateJobHistoryParams struct {
 	Company          string
+	DisplayName      string
 	StartYear        int64
 	StartMonth       int64
 	EndYear          sql.NullInt64
@@ -369,6 +384,7 @@ type UpdateJobHistoryParams struct {
 func (q *Queries) UpdateJobHistory(ctx context.Context, arg UpdateJobHistoryParams) (JobHistory, error) {
 	row := q.db.QueryRowContext(ctx, updateJobHistory,
 		arg.Company,
+		arg.DisplayName,
 		arg.StartYear,
 		arg.StartMonth,
 		arg.EndYear,
@@ -380,6 +396,7 @@ func (q *Queries) UpdateJobHistory(ctx context.Context, arg UpdateJobHistoryPara
 	err := row.Scan(
 		&i.ID,
 		&i.Company,
+		&i.DisplayName,
 		&i.StartYear,
 		&i.StartMonth,
 		&i.EndYear,

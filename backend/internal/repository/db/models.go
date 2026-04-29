@@ -20,6 +20,7 @@ type JobEmploymentType struct {
 type JobHistory struct {
 	ID               string
 	Company          string
+	DisplayName      string
 	StartYear        int64
 	StartMonth       int64
 	EndYear          sql.NullInt64
