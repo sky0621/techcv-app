@@ -217,8 +217,34 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.addProfileTextColumn(ctx, "employment_type"); err != nil {
 		return err
 	}
+	if err := r.addSkillCategoryIconColumn(ctx); err != nil {
+		return err
+	}
+	if err := r.seedSkillOptions(ctx); err != nil {
+		return err
+	}
+	if err := r.backfillEmptySkillCategoryIcons(ctx); err != nil {
+		return err
+	}
 
 	return r.addQualificationURLColumn(ctx)
+}
+
+func (r *SQLiteProfileRepository) ListSkillOptions(ctx context.Context) (*domain.SkillOptions, error) {
+	categories, err := r.queries.ListSkillCategories(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("query skill categories: %w", err)
+	}
+
+	proficiencyLevels, err := r.queries.ListSkillProficiencyLevels(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("query skill proficiency levels: %w", err)
+	}
+
+	return &domain.SkillOptions{
+		Categories:        toDomainSkillCategoryOptions(categories),
+		ProficiencyLevels: toDomainSkillProficiencyLevelOptions(proficiencyLevels),
+	}, nil
 }
 
 func ensureSQLiteDirectory(dsn string) error {
@@ -289,6 +315,79 @@ func (r *SQLiteProfileRepository) addQualificationURLColumn(ctx context.Context)
 
 	if _, err := r.db.ExecContext(ctx, "ALTER TABLE profile_qualifications ADD COLUMN url TEXT NOT NULL DEFAULT ''"); err != nil {
 		return fmt.Errorf("add profile_qualifications.url column: %w", err)
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) addSkillCategoryIconColumn(ctx context.Context) error {
+	hasIconColumn, err := r.tableHasColumn(ctx, "skill_categories", "icon")
+	if err != nil {
+		return err
+	}
+	if hasIconColumn {
+		return nil
+	}
+
+	if _, err := r.db.ExecContext(ctx, "ALTER TABLE skill_categories ADD COLUMN icon TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("add skill_categories.icon column: %w", err)
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) seedSkillOptions(ctx context.Context) error {
+	categories := []domain.SkillOption{
+		{ID: "skill_category_language", Name: "言語", Icon: "code", SortOrder: 1},
+		{ID: "skill_category_framework", Name: "フレームワーク", Icon: "code", SortOrder: 2},
+		{ID: "skill_category_database", Name: "データベース", Icon: "database", SortOrder: 3},
+		{ID: "skill_category_infrastructure", Name: "インフラ", Icon: "cloud", SortOrder: 4},
+		{ID: "skill_category_tool", Name: "ツール", Icon: "wrench", SortOrder: 5},
+		{ID: "skill_category_other", Name: "その他", Icon: "wrench", SortOrder: 6},
+	}
+	for _, category := range categories {
+		if _, err := r.db.ExecContext(
+			ctx,
+			`INSERT INTO skill_categories (id, name, icon, sort_order)
+VALUES (?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+  name = excluded.name,
+  icon = excluded.icon,
+  sort_order = excluded.sort_order,
+  updated_at = CURRENT_TIMESTAMP`,
+			category.ID,
+			category.Name,
+			category.Icon,
+			category.SortOrder,
+		); err != nil {
+			return fmt.Errorf("seed skill category %s: %w", category.ID, err)
+		}
+	}
+
+	proficiencyLevels := []domain.SkillOption{
+		{ID: "skill_proficiency_beginner", Name: "初級", SortOrder: 1},
+		{ID: "skill_proficiency_intermediate", Name: "中級", SortOrder: 2},
+		{ID: "skill_proficiency_advanced", Name: "上級", SortOrder: 3},
+		{ID: "skill_proficiency_expert", Name: "エキスパート", SortOrder: 4},
+	}
+	for _, level := range proficiencyLevels {
+		if _, err := r.db.ExecContext(
+			ctx,
+			"INSERT OR IGNORE INTO skill_proficiency_levels (id, name, sort_order) VALUES (?, ?, ?)",
+			level.ID,
+			level.Name,
+			level.SortOrder,
+		); err != nil {
+			return fmt.Errorf("seed skill proficiency level %s: %w", level.ID, err)
+		}
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) backfillEmptySkillCategoryIcons(ctx context.Context) error {
+	if _, err := r.db.ExecContext(ctx, "UPDATE skill_categories SET icon = 'wrench', updated_at = CURRENT_TIMESTAMP WHERE icon = ''"); err != nil {
+		return fmt.Errorf("backfill empty skill category icons: %w", err)
 	}
 
 	return nil
@@ -370,6 +469,33 @@ func toDomainQualifications(rows []dbgen.ProfileQualification) []domain.Qualific
 	}
 
 	return qualifications
+}
+
+func toDomainSkillCategoryOptions(rows []dbgen.SkillCategory) []domain.SkillOption {
+	options := make([]domain.SkillOption, 0, len(rows))
+	for _, row := range rows {
+		options = append(options, domain.SkillOption{
+			ID:        row.ID,
+			Name:      row.Name,
+			Icon:      row.Icon,
+			SortOrder: row.SortOrder,
+		})
+	}
+
+	return options
+}
+
+func toDomainSkillProficiencyLevelOptions(rows []dbgen.SkillProficiencyLevel) []domain.SkillOption {
+	options := make([]domain.SkillOption, 0, len(rows))
+	for _, row := range rows {
+		options = append(options, domain.SkillOption{
+			ID:        row.ID,
+			Name:      row.Name,
+			SortOrder: row.SortOrder,
+		})
+	}
+
+	return options
 }
 
 func qualificationID(qualification domain.Qualification, index int, now time.Time) string {

@@ -226,6 +226,114 @@ func TestSQLiteProfileRepositoryMigratesQualificationURLColumn(t *testing.T) {
 	}
 }
 
+func TestSQLiteProfileRepositorySeedsSkillOptions(t *testing.T) {
+	t.Helper()
+
+	ctx := context.Background()
+	testDB := newSQLiteProfileTestDatabase(t)
+
+	repo, err := NewSQLiteProfileRepository(ctx, testDB.dsn(), testSchemaPath())
+	if err != nil {
+		t.Fatalf("NewSQLiteProfileRepository() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = repo.Close()
+	})
+
+	if err := repo.seedSkillOptions(ctx); err != nil {
+		t.Fatalf("seedSkillOptions() second call error = %v", err)
+	}
+
+	options, err := repo.ListSkillOptions(ctx)
+	if err != nil {
+		t.Fatalf("ListSkillOptions() error = %v", err)
+	}
+
+	if len(options.Categories) != 6 {
+		t.Fatalf("expected six categories, got %#v", options.Categories)
+	}
+	if options.Categories[0].ID != "skill_category_language" || options.Categories[0].Name != "言語" {
+		t.Fatalf("unexpected first category: %#v", options.Categories[0])
+	}
+	if options.Categories[0].Icon != "code" {
+		t.Fatalf("unexpected first category icon: %#v", options.Categories[0])
+	}
+	if options.Categories[5].ID != "skill_category_other" || options.Categories[5].SortOrder != 6 {
+		t.Fatalf("unexpected last category: %#v", options.Categories[5])
+	}
+	if options.Categories[5].Icon != "wrench" {
+		t.Fatalf("unexpected last category icon: %#v", options.Categories[5])
+	}
+	if len(options.ProficiencyLevels) != 4 {
+		t.Fatalf("expected four proficiency levels, got %#v", options.ProficiencyLevels)
+	}
+	if options.ProficiencyLevels[0].ID != "skill_proficiency_beginner" || options.ProficiencyLevels[0].Name != "初級" {
+		t.Fatalf("unexpected first proficiency level: %#v", options.ProficiencyLevels[0])
+	}
+	if options.ProficiencyLevels[3].ID != "skill_proficiency_expert" || options.ProficiencyLevels[3].SortOrder != 4 {
+		t.Fatalf("unexpected last proficiency level: %#v", options.ProficiencyLevels[3])
+	}
+}
+
+func TestSQLiteProfileRepositoryMigratesSkillCategoryIconColumn(t *testing.T) {
+	t.Helper()
+
+	ctx := context.Background()
+	testDB := newSQLiteProfileTestDatabase(t)
+
+	rawDB, err := sql.Open("sqlite3", testDB.dsn())
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	if _, err := rawDB.ExecContext(ctx, oldSkillCategorySchemaWithoutIcon); err != nil {
+		_ = rawDB.Close()
+		t.Fatalf("failed to create old skill category schema: %v", err)
+	}
+	if _, err := rawDB.ExecContext(ctx, "INSERT INTO skill_categories (id, name, sort_order) VALUES ('skill_category_service', '外部サービス', 5)"); err != nil {
+		_ = rawDB.Close()
+		t.Fatalf("failed to insert old skill category: %v", err)
+	}
+	if err := rawDB.Close(); err != nil {
+		t.Fatalf("failed to close old skill category schema database: %v", err)
+	}
+
+	repo, err := NewSQLiteProfileRepository(ctx, testDB.dsn(), testSchemaPath())
+	if err != nil {
+		t.Fatalf("NewSQLiteProfileRepository() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = repo.Close()
+	})
+
+	hasIconColumn, err := repo.tableHasColumn(ctx, "skill_categories", "icon")
+	if err != nil {
+		t.Fatalf("tableHasColumn(skill_categories.icon) error = %v", err)
+	}
+	if !hasIconColumn {
+		t.Fatal("expected skill_categories.icon column to be added")
+	}
+
+	options, err := repo.ListSkillOptions(ctx)
+	if err != nil {
+		t.Fatalf("ListSkillOptions() error = %v", err)
+	}
+	if options.Categories[0].Icon != "code" {
+		t.Fatalf("expected seeded icon after migration, got %#v", options.Categories[0])
+	}
+	var foundService bool
+	for _, category := range options.Categories {
+		if category.ID == "skill_category_service" {
+			foundService = true
+			if category.Icon != "wrench" {
+				t.Fatalf("expected fallback icon for migrated category, got %#v", category)
+			}
+		}
+	}
+	if !foundService {
+		t.Fatal("expected migrated custom category to remain")
+	}
+}
+
 type sqliteProfileTestDatabase struct {
 	path string
 }
@@ -325,4 +433,13 @@ CREATE TABLE profile_qualifications (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+);`
+
+const oldSkillCategorySchemaWithoutIcon = `
+CREATE TABLE skill_categories (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    sort_order INTEGER NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );`

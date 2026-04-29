@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Code, Database, Cloud, Wrench, Pencil, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -17,13 +17,23 @@ type Skill = {
   proficiency: string;
 };
 
-const categoryIcons: Record<string, any> = {
-  "言語": Code,
-  "フレームワーク": Code,
-  "データベース": Database,
-  "インフラ": Cloud,
-  "ツール": Wrench,
-  "その他": Wrench,
+type SkillOption = {
+  id: string;
+  name: string;
+  icon?: string;
+  sortOrder: number;
+};
+
+type SkillOptionsResponse = {
+  categories: SkillOption[];
+  proficiencyLevels: SkillOption[];
+};
+
+const iconComponents: Record<string, any> = {
+  cloud: Cloud,
+  code: Code,
+  database: Database,
+  wrench: Wrench,
 };
 
 const initialSkills: Skill[] = [
@@ -36,28 +46,84 @@ const initialSkills: Skill[] = [
   { id: 7, name: "Git", category: "ツール", experience: "4年", proficiency: "上級" },
 ];
 
-const categories = ["言語", "フレームワーク", "データベース", "インフラ", "ツール", "その他"];
-const proficiencyLevels = ["初級", "中級", "上級", "エキスパート"];
+const defaultCategory = "言語";
+const defaultProficiency = "中級";
 
 export function SkillsPage() {
   const [skills, setSkills] = useState<Skill[]>(initialSkills);
+  const [categories, setCategories] = useState<SkillOption[]>([]);
+  const [proficiencyLevels, setProficiencyLevels] = useState<SkillOption[]>([]);
+  const [isOptionsLoading, setIsOptionsLoading] = useState(true);
+  const [optionsError, setOptionsError] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
   const [formData, setFormData] = useState({
     name: "",
-    category: "言語",
+    category: defaultCategory,
     experience: "",
-    proficiency: "中級",
+    proficiency: defaultProficiency,
   });
 
-  const skillsByCategory = categories.reduce((acc, category) => {
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadOptions() {
+      setIsOptionsLoading(true);
+      setOptionsError("");
+
+      try {
+        const response = await fetch("/api/skills/options", {
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error("スキルの選択肢の取得に失敗しました");
+        }
+
+        const data = (await response.json()) as SkillOptionsResponse;
+        setCategories(data.categories ?? []);
+        setProficiencyLevels(data.proficiencyLevels ?? []);
+      } catch (caught) {
+        if (caught instanceof DOMException && caught.name === "AbortError") {
+          return;
+        }
+        setOptionsError(
+          caught instanceof Error ? caught.message : "スキルの選択肢の取得に失敗しました",
+        );
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsOptionsLoading(false);
+        }
+      }
+    }
+
+    void loadOptions();
+
+    return () => {
+      controller.abort();
+    };
+  }, []);
+
+  const categoryNames = categories.map((category) => category.name);
+  const proficiencyLevelNames = proficiencyLevels.map((level) => level.name);
+  const selectedDefaultCategory = categoryNames[0] ?? defaultCategory;
+  const selectedDefaultProficiency =
+    proficiencyLevelNames.find((level) => level === defaultProficiency) ??
+    proficiencyLevelNames[0] ??
+    defaultProficiency;
+
+  const skillsByCategory = categoryNames.reduce((acc, category) => {
     acc[category] = skills.filter(s => s.category === category);
     return acc;
   }, {} as Record<string, Skill[]>);
 
   const handleAdd = () => {
     setEditingSkill(null);
-    setFormData({ name: "", category: "言語", experience: "", proficiency: "中級" });
+    setFormData({
+      name: "",
+      category: selectedDefaultCategory,
+      experience: "",
+      proficiency: selectedDefaultProficiency,
+    });
     setIsDialogOpen(true);
   };
 
@@ -92,6 +158,14 @@ export function SkillsPage() {
     }
   };
 
+  const getCategoryIcon = (icon?: string) => {
+    if (!icon) {
+      return Wrench;
+    }
+
+    return iconComponents[icon] ?? Wrench;
+  };
+
   return (
     <div className="p-8">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -100,35 +174,47 @@ export function SkillsPage() {
             <h1 className="text-3xl font-bold text-gray-900">スキル管理</h1>
             <p className="text-gray-600 mt-1">技術スキルと習熟度を管理</p>
           </div>
-          <Button onClick={handleAdd}>
+          <Button onClick={handleAdd} disabled={isOptionsLoading || !!optionsError}>
             <Plus className="w-4 h-4 mr-2" />
             スキルを追加
           </Button>
         </div>
 
+        {isOptionsLoading && (
+          <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            スキルの選択肢を読み込み中です。
+          </div>
+        )}
+        {optionsError && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {optionsError}
+          </div>
+        )}
+
         <Tabs defaultValue="all" className="w-full">
           <TabsList>
             <TabsTrigger value="all">すべて ({skills.length})</TabsTrigger>
-            {categories.map(cat => (
+            {categoryNames.map(cat => (
               <TabsTrigger key={cat} value={cat}>
-                {cat} ({skillsByCategory[cat].length})
+                {cat} ({skillsByCategory[cat]?.length ?? 0})
               </TabsTrigger>
             ))}
           </TabsList>
 
           <TabsContent value="all" className="space-y-4 mt-6">
             {categories.map(category => {
-              const Icon = categoryIcons[category];
-              const categorySkills = skillsByCategory[category];
+              const Icon = getCategoryIcon(category.icon);
+              const categoryName = category.name;
+              const categorySkills = skillsByCategory[categoryName];
 
               if (categorySkills.length === 0) return null;
 
               return (
-                <Card key={category}>
+                <Card key={category.id}>
                   <CardHeader>
                     <div className="flex items-center gap-3">
                       <Icon className="w-5 h-5 text-gray-600" />
-                      <CardTitle>{category}</CardTitle>
+                      <CardTitle>{categoryName}</CardTitle>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -186,17 +272,18 @@ export function SkillsPage() {
           </TabsContent>
 
           {categories.map(category => {
-            const Icon = categoryIcons[category];
-            const categorySkills = skillsByCategory[category];
+            const Icon = getCategoryIcon(category.icon);
+            const categoryName = category.name;
+            const categorySkills = skillsByCategory[categoryName] ?? [];
 
             return (
-              <TabsContent key={category} value={category} className="mt-6">
+              <TabsContent key={category.id} value={categoryName} className="mt-6">
                 <Card>
                   <CardHeader>
                     <div className="flex items-center gap-3">
                       <Icon className="w-5 h-5 text-gray-600" />
                       <div>
-                        <CardTitle>{category}</CardTitle>
+                        <CardTitle>{categoryName}</CardTitle>
                         <CardDescription>{categorySkills.length}件のスキル</CardDescription>
                       </div>
                     </div>
@@ -276,12 +363,13 @@ export function SkillsPage() {
                 <Select
                   value={formData.category}
                   onValueChange={(value) => setFormData({ ...formData, category: value })}
+                  disabled={categoryNames.length === 0}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map(cat => (
+                    {categoryNames.map(cat => (
                       <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                     ))}
                   </SelectContent>
@@ -303,12 +391,13 @@ export function SkillsPage() {
                 <Select
                   value={formData.proficiency}
                   onValueChange={(value) => setFormData({ ...formData, proficiency: value })}
+                  disabled={proficiencyLevelNames.length === 0}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {proficiencyLevels.map(level => (
+                    {proficiencyLevelNames.map(level => (
                       <SelectItem key={level} value={level}>{level}</SelectItem>
                     ))}
                   </SelectContent>

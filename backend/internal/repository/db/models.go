@@ -40,3 +40,20 @@ type ProfileQualification struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
+
+type SkillCategory struct {
+	ID        string
+	Name      string
+	Icon      string
+	SortOrder int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type SkillProficiencyLevel struct {
+	ID        string
+	Name      string
+	SortOrder int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}

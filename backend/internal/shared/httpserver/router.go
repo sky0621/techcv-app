@@ -9,9 +9,15 @@ import (
 	"github.com/sky0621/techcv-app/backend/internal/usecase"
 )
 
-func NewRouter(profileRepository repository.ProfileRepository) http.Handler {
+func NewRouter(
+	profileRepository repository.ProfileRepository,
+	skillOptionsRepository repository.SkillOptionsRepository,
+) http.Handler {
 	r := chi.NewRouter()
 	profileServer := handler.NewProfileHandler(usecase.NewProfileUseCase(profileRepository))
+	skillOptionsServer := handler.NewSkillOptionsHandler(
+		usecase.NewSkillOptionsUseCase(skillOptionsRepository),
+	)
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -21,6 +27,7 @@ func NewRouter(profileRepository repository.ProfileRepository) http.Handler {
 	api := chi.NewRouter()
 	api.Get("/profile", profileServer.GetProfile)
 	api.Put("/profile", profileServer.UpdateProfile)
+	api.Get("/skills/options", skillOptionsServer.ListSkillOptions)
 	r.Mount("/api", api)
 
 	return r

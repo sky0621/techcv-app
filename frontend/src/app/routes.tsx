@@ -7,6 +7,7 @@ import { ProjectsPage } from "./components/pages/ProjectsPage";
 import { SkillsPage } from "./components/pages/SkillsPage";
 import { ResumesPage } from "./components/pages/ResumesPage";
 import { ResumePreviewPage } from "./components/pages/ResumePreviewPage";
+import { SettingsPage } from "./components/pages/SettingsPage";
 import { NotFoundPage } from "./components/pages/NotFoundPage";
 
 export const router = createBrowserRouter([
@@ -22,6 +23,7 @@ export const router = createBrowserRouter([
       { path: "skills", Component: SkillsPage },
       { path: "resumes", Component: ResumesPage },
       { path: "resumes/:id/preview", Component: ResumePreviewPage },
+      { path: "settings", Component: SettingsPage },
     ],
   },
   {

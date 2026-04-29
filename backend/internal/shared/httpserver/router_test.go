@@ -14,7 +14,8 @@ import (
 )
 
 func TestProfileRoutes(t *testing.T) {
-	router := NewRouter(newTestProfileRepository())
+	repository := newTestProfileRepository()
+	router := NewRouter(repository, repository)
 
 	getReq := httptest.NewRequest(http.MethodGet, "/api/profile", nil)
 	getRec := httptest.NewRecorder()
@@ -303,6 +304,52 @@ func TestProfileRoutes(t *testing.T) {
 	}
 }
 
+func TestSkillOptionsRoute(t *testing.T) {
+	repository := newTestProfileRepository()
+	router := NewRouter(repository, repository)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/skills/options", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	var resp struct {
+		Categories []struct {
+			ID        string `json:"id"`
+			Name      string `json:"name"`
+			Icon      string `json:"icon"`
+			SortOrder int64  `json:"sortOrder"`
+		} `json:"categories"`
+		ProficiencyLevels []struct {
+			ID        string `json:"id"`
+			Name      string `json:"name"`
+			SortOrder int64  `json:"sortOrder"`
+		} `json:"proficiencyLevels"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode skill options response: %v", err)
+	}
+
+	if len(resp.Categories) != 6 {
+		t.Fatalf("expected six categories, got %#v", resp.Categories)
+	}
+	if resp.Categories[0].ID != "skill_category_language" || resp.Categories[0].Name != "言語" {
+		t.Fatalf("unexpected first category: %#v", resp.Categories[0])
+	}
+	if resp.Categories[0].Icon != "code" {
+		t.Fatalf("unexpected first category icon: %#v", resp.Categories[0])
+	}
+	if len(resp.ProficiencyLevels) != 4 {
+		t.Fatalf("expected four proficiency levels, got %#v", resp.ProficiencyLevels)
+	}
+	if resp.ProficiencyLevels[0].ID != "skill_proficiency_beginner" || resp.ProficiencyLevels[0].Name != "初級" {
+		t.Fatalf("unexpected first proficiency level: %#v", resp.ProficiencyLevels[0])
+	}
+}
+
 type testProfileRepository struct {
 	mu      sync.RWMutex
 	profile *domain.Profile
@@ -345,4 +392,23 @@ func (r *testProfileRepository) Save(_ context.Context, profile *domain.Profile)
 
 	savedCopy := *r.profile
 	return &savedCopy, nil
+}
+
+func (r *testProfileRepository) ListSkillOptions(context.Context) (*domain.SkillOptions, error) {
+	return &domain.SkillOptions{
+		Categories: []domain.SkillOption{
+			{ID: "skill_category_language", Name: "言語", Icon: "code", SortOrder: 1},
+			{ID: "skill_category_framework", Name: "フレームワーク", Icon: "code", SortOrder: 2},
+			{ID: "skill_category_database", Name: "データベース", Icon: "database", SortOrder: 3},
+			{ID: "skill_category_infrastructure", Name: "インフラ", Icon: "cloud", SortOrder: 4},
+			{ID: "skill_category_tool", Name: "ツール", Icon: "wrench", SortOrder: 5},
+			{ID: "skill_category_other", Name: "その他", Icon: "wrench", SortOrder: 6},
+		},
+		ProficiencyLevels: []domain.SkillOption{
+			{ID: "skill_proficiency_beginner", Name: "初級", SortOrder: 1},
+			{ID: "skill_proficiency_intermediate", Name: "中級", SortOrder: 2},
+			{ID: "skill_proficiency_advanced", Name: "上級", SortOrder: 3},
+			{ID: "skill_proficiency_expert", Name: "エキスパート", SortOrder: 4},
+		},
+	}, nil
 }

@@ -54,9 +54,15 @@ export function MainLayout() {
         </nav>
 
         <div className="p-4 border-t border-gray-200 space-y-1">
-          <Button variant="ghost" className="w-full justify-start gap-3">
-            <Settings className="w-5 h-5" />
-            <span>設定</span>
+          <Button
+            asChild
+            variant={location.pathname.startsWith("/app/settings") ? "secondary" : "ghost"}
+            className="w-full justify-start gap-3"
+          >
+            <Link to="/app/settings">
+              <Settings className="w-5 h-5" />
+              <span>設定</span>
+            </Link>
           </Button>
         </div>
       </aside>
