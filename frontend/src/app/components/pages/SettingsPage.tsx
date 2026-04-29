@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Code, Database, Cloud, Pencil, Plus, Wrench } from "lucide-react";
+import * as LucideIcons from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import {
@@ -12,7 +13,6 @@ import {
 } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import {
   Table,
   TableBody,
@@ -40,26 +40,47 @@ type CategoryForm = {
   icon: string;
 };
 
-const iconComponents: Record<string, any> = {
-  cloud: Cloud,
-  code: Code,
-  database: Database,
-  wrench: Wrench,
-};
-
-const iconOptions = ["code", "database", "cloud", "wrench"];
+const iconExamples = "code, database, cloud, wrench, frame";
 const emptyCategoryForm: CategoryForm = {
   id: "",
   name: "",
   icon: "wrench",
 };
 
-function getIcon(icon?: string) {
-  if (!icon) {
-    return Wrench;
-  }
+function normalizeIconName(icon?: string) {
+  return (icon ?? "").trim().replace(/^lucide-/i, "");
+}
 
-  return iconComponents[icon] ?? Wrench;
+function getLucideIconLabel(icon?: string) {
+  const normalizedIcon = normalizeIconName(icon);
+
+  return `lucide-${normalizedIcon || "wrench"}`;
+}
+
+function toLucideExportName(icon?: string) {
+  const normalizedIcon = normalizeIconName(icon);
+  if (!normalizedIcon) return "Wrench";
+
+  return normalizedIcon
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
+}
+
+function isLucideIcon(candidate: unknown): candidate is LucideIcon {
+  return (
+    candidate !== null &&
+    typeof candidate === "object" &&
+    "displayName" in candidate &&
+    typeof candidate.displayName === "string"
+  );
+}
+
+function getIcon(icon?: string): LucideIcon {
+  const candidate = (LucideIcons as Record<string, unknown>)[toLucideExportName(icon)];
+
+  return isLucideIcon(candidate) ? candidate : LucideIcons.Wrench;
 }
 
 export function SettingsPage() {
@@ -199,7 +220,7 @@ export function SettingsPage() {
                 <CardDescription>skill_categories テーブルの内容</CardDescription>
               </div>
               <Button type="button" variant="outline" onClick={openAddCategoryDialog}>
-                <Plus className="w-4 h-4 mr-2" />
+                <LucideIcons.Plus className="w-4 h-4 mr-2" />
                 追加
               </Button>
             </CardHeader>
@@ -225,7 +246,7 @@ export function SettingsPage() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4 text-gray-600" />
-                            <span>{category.icon || "wrench"}</span>
+                            <span>{getLucideIconLabel(category.icon)}</span>
                           </div>
                         </TableCell>
                         <TableCell className="font-mono text-xs text-gray-600">
@@ -238,7 +259,7 @@ export function SettingsPage() {
                             size="sm"
                             onClick={() => openEditCategoryDialog(category)}
                           >
-                            <Pencil className="w-4 h-4 mr-2" />
+                            <LucideIcons.Pencil className="w-4 h-4 mr-2" />
                             編集
                           </Button>
                         </TableCell>
@@ -334,30 +355,27 @@ export function SettingsPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="category-icon">アイコン</Label>
-                <Select
-                  value={categoryForm.icon}
-                  onValueChange={(value) =>
-                    setCategoryForm({ ...categoryForm, icon: value })
-                  }
-                >
-                  <SelectTrigger id="category-icon">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {iconOptions.map((icon) => {
-                      const Icon = getIcon(icon);
+                <div className="flex items-center gap-3">
+                  <Input
+                    id="category-icon"
+                    value={categoryForm.icon}
+                    onChange={(e) =>
+                      setCategoryForm({ ...categoryForm, icon: e.target.value })
+                    }
+                    placeholder="code"
+                  />
+                  <div className="flex h-9 min-w-28 items-center gap-2 rounded-md border bg-gray-50 px-3 text-sm text-gray-700">
+                    {(() => {
+                      const Icon = getIcon(categoryForm.icon);
 
-                      return (
-                        <SelectItem key={icon} value={icon}>
-                          <span className="flex items-center gap-2">
-                            <Icon className="w-4 h-4" />
-                            {icon}
-                          </span>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+                      return <Icon className="w-4 h-4 text-gray-600" />;
+                    })()}
+                    <span>{getLucideIconLabel(categoryForm.icon)}</span>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">
+                  例: {iconExamples}。プレビューでは lucide- と組み合わせて表示します。
+                </p>
               </div>
             </div>
 
