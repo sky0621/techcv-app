@@ -16,7 +16,7 @@ import (
 
 func TestProfileRoutes(t *testing.T) {
 	repository := newTestProfileRepository()
-	router := NewRouter(repository, repository)
+	router := NewRouter(repository, repository, repository)
 
 	getReq := httptest.NewRequest(http.MethodGet, "/api/profile", nil)
 	getRec := httptest.NewRecorder()
@@ -307,7 +307,7 @@ func TestProfileRoutes(t *testing.T) {
 
 func TestSkillOptionsRoute(t *testing.T) {
 	repository := newTestProfileRepository()
-	router := NewRouter(repository, repository)
+	router := NewRouter(repository, repository, repository)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/skills/options", nil)
 	rec := httptest.NewRecorder()
@@ -353,7 +353,7 @@ func TestSkillOptionsRoute(t *testing.T) {
 
 func TestSkillCategoryMutationRoutes(t *testing.T) {
 	repository := newTestProfileRepository()
-	router := NewRouter(repository, repository)
+	router := NewRouter(repository, repository, repository)
 
 	createBody := []byte(`{
 		"id":"skill_category_backend",
@@ -414,7 +414,7 @@ func TestSkillCategoryMutationRoutes(t *testing.T) {
 
 func TestSkillRoutes(t *testing.T) {
 	repository := newTestProfileRepository()
-	router := NewRouter(repository, repository)
+	router := NewRouter(repository, repository, repository)
 
 	listReq := httptest.NewRequest(http.MethodGet, "/api/skills", nil)
 	listRec := httptest.NewRecorder()
@@ -514,13 +514,119 @@ func TestSkillRoutes(t *testing.T) {
 	}
 }
 
+func TestJobHistoryRoutes(t *testing.T) {
+	repository := newTestProfileRepository()
+	router := NewRouter(repository, repository, repository)
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/job-histories", nil)
+	listRec := httptest.NewRecorder()
+	router.ServeHTTP(listRec, listReq)
+
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("expected list status 200, got %d", listRec.Code)
+	}
+
+	var listResp struct {
+		JobHistories []struct {
+			ID             string `json:"id"`
+			Company        string `json:"company"`
+			StartDate      string `json:"startDate"`
+			EndDate        string `json:"endDate"`
+			EmploymentType string `json:"employmentType"`
+			ProjectCount   int64  `json:"projectCount"`
+		} `json:"jobHistories"`
+	}
+	if err := json.Unmarshal(listRec.Body.Bytes(), &listResp); err != nil {
+		t.Fatalf("failed to decode list response: %v", err)
+	}
+	if len(listResp.JobHistories) != 1 {
+		t.Fatalf("expected one seeded job history, got %#v", listResp.JobHistories)
+	}
+	if listResp.JobHistories[0].Company != "株式会社A" || listResp.JobHistories[0].ProjectCount != 5 {
+		t.Fatalf("unexpected seeded job history: %#v", listResp.JobHistories[0])
+	}
+
+	createBody := []byte(`{
+		"company":"株式会社C",
+		"startDate":"2024-01",
+		"endDate":"現在",
+		"employmentType":"業務委託"
+	}`)
+	createReq := httptest.NewRequest(http.MethodPost, "/api/job-histories", bytes.NewReader(createBody))
+	createRec := httptest.NewRecorder()
+	router.ServeHTTP(createRec, createReq)
+
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("expected create status 201, got %d", createRec.Code)
+	}
+
+	var createResp struct {
+		JobHistory struct {
+			ID             string `json:"id"`
+			Company        string `json:"company"`
+			StartDate      string `json:"startDate"`
+			EndDate        string `json:"endDate"`
+			EmploymentType string `json:"employmentType"`
+			ProjectCount   int64  `json:"projectCount"`
+		} `json:"jobHistory"`
+	}
+	if err := json.Unmarshal(createRec.Body.Bytes(), &createResp); err != nil {
+		t.Fatalf("failed to decode create response: %v", err)
+	}
+	if createResp.JobHistory.ID == "" || createResp.JobHistory.ProjectCount != 0 {
+		t.Fatalf("unexpected created job history: %#v", createResp.JobHistory)
+	}
+
+	updateBody := []byte(`{
+		"company":"株式会社C Updated",
+		"startDate":"2024-02",
+		"endDate":"2025-03",
+		"employmentType":"契約社員"
+	}`)
+	updateReq := httptest.NewRequest(http.MethodPut, "/api/job-histories/"+createResp.JobHistory.ID, bytes.NewReader(updateBody))
+	updateRec := httptest.NewRecorder()
+	router.ServeHTTP(updateRec, updateReq)
+
+	if updateRec.Code != http.StatusOK {
+		t.Fatalf("expected update status 200, got %d", updateRec.Code)
+	}
+
+	var updateResp struct {
+		JobHistory struct {
+			Company        string `json:"company"`
+			StartDate      string `json:"startDate"`
+			EndDate        string `json:"endDate"`
+			EmploymentType string `json:"employmentType"`
+		} `json:"jobHistory"`
+	}
+	if err := json.Unmarshal(updateRec.Body.Bytes(), &updateResp); err != nil {
+		t.Fatalf("failed to decode update response: %v", err)
+	}
+	if updateResp.JobHistory.Company != "株式会社C Updated" ||
+		updateResp.JobHistory.StartDate != "2024-02" ||
+		updateResp.JobHistory.EndDate != "2025-03" ||
+		updateResp.JobHistory.EmploymentType != "契約社員" {
+		t.Fatalf("unexpected updated job history: %#v", updateResp.JobHistory)
+	}
+
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/job-histories/"+createResp.JobHistory.ID, nil)
+	deleteRec := httptest.NewRecorder()
+	router.ServeHTTP(deleteRec, deleteReq)
+
+	if deleteRec.Code != http.StatusNoContent {
+		t.Fatalf("expected delete status 204, got %d", deleteRec.Code)
+	}
+}
+
 type testProfileRepository struct {
 	mu                sync.RWMutex
 	profile           *domain.Profile
 	categories        []domain.SkillOption
 	proficiencyLevels []domain.SkillOption
 	skills            []domain.Skill
+	jobHistories      []domain.JobHistory
 	nextSkillID       int
+	nextJobHistoryID  int
 }
 
 func newTestProfileRepository() *testProfileRepository {
@@ -561,7 +667,19 @@ func newTestProfileRepository() *testProfileRepository {
 				SortOrder:          1,
 			},
 		},
-		nextSkillID: 1,
+		jobHistories: []domain.JobHistory{
+			{
+				ID:             "job_history_company_a",
+				Company:        "株式会社A",
+				StartDate:      "2023-01",
+				EndDate:        "現在",
+				EmploymentType: "正社員",
+				ProjectCount:   5,
+				SortOrder:      1,
+			},
+		},
+		nextSkillID:      1,
+		nextJobHistoryID: 1,
 	}
 }
 
@@ -710,6 +828,67 @@ func (r *testProfileRepository) DeleteSkill(_ context.Context, id string) error 
 	for index, skill := range r.skills {
 		if skill.ID == id {
 			r.skills = append(r.skills[:index], r.skills[index+1:]...)
+			return nil
+		}
+	}
+
+	return sql.ErrNoRows
+}
+
+func (r *testProfileRepository) ListJobHistories(context.Context) ([]domain.JobHistory, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	jobHistories := make([]domain.JobHistory, len(r.jobHistories))
+	copy(jobHistories, r.jobHistories)
+
+	return jobHistories, nil
+}
+
+func (r *testProfileRepository) CreateJobHistory(_ context.Context, input domain.JobHistoryInput) (*domain.JobHistory, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.nextJobHistoryID++
+	jobHistory := domain.JobHistory{
+		ID:             "job_history_test_new",
+		Company:        input.Company,
+		StartDate:      input.StartDate,
+		EndDate:        input.EndDate,
+		EmploymentType: input.EmploymentType,
+		ProjectCount:   0,
+		SortOrder:      int64(len(r.jobHistories) + 1),
+	}
+	r.jobHistories = append(r.jobHistories, jobHistory)
+
+	return &jobHistory, nil
+}
+
+func (r *testProfileRepository) UpdateJobHistory(_ context.Context, id string, input domain.JobHistoryInput) (*domain.JobHistory, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for index, jobHistory := range r.jobHistories {
+		if jobHistory.ID == id {
+			r.jobHistories[index].Company = input.Company
+			r.jobHistories[index].StartDate = input.StartDate
+			r.jobHistories[index].EndDate = input.EndDate
+			r.jobHistories[index].EmploymentType = input.EmploymentType
+			result := r.jobHistories[index]
+			return &result, nil
+		}
+	}
+
+	return nil, sql.ErrNoRows
+}
+
+func (r *testProfileRepository) DeleteJobHistory(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for index, jobHistory := range r.jobHistories {
+		if jobHistory.ID == id {
+			r.jobHistories = append(r.jobHistories[:index], r.jobHistories[index+1:]...)
 			return nil
 		}
 	}

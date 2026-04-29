@@ -12,11 +12,15 @@ import (
 func NewRouter(
 	profileRepository repository.ProfileRepository,
 	skillOptionsRepository repository.SkillOptionsRepository,
+	jobHistoryRepository repository.JobHistoryRepository,
 ) http.Handler {
 	r := chi.NewRouter()
 	profileServer := handler.NewProfileHandler(usecase.NewProfileUseCase(profileRepository))
 	skillOptionsServer := handler.NewSkillOptionsHandler(
 		usecase.NewSkillOptionsUseCase(skillOptionsRepository),
+	)
+	jobHistoryServer := handler.NewJobHistoryHandler(
+		usecase.NewJobHistoryUseCase(jobHistoryRepository),
 	)
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -34,6 +38,10 @@ func NewRouter(
 	api.Delete("/skills/{id}", skillOptionsServer.DeleteSkill)
 	api.Post("/skills/categories", skillOptionsServer.CreateSkillCategory)
 	api.Put("/skills/categories/{id}", skillOptionsServer.UpdateSkillCategory)
+	api.Get("/job-histories", jobHistoryServer.ListJobHistories)
+	api.Post("/job-histories", jobHistoryServer.CreateJobHistory)
+	api.Put("/job-histories/{id}", jobHistoryServer.UpdateJobHistory)
+	api.Delete("/job-histories/{id}", jobHistoryServer.DeleteJobHistory)
 	r.Mount("/api", api)
 
 	return r

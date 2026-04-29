@@ -61,3 +61,15 @@ CREATE TABLE IF NOT EXISTS skills (
     FOREIGN KEY (category_id) REFERENCES skill_categories(id),
     FOREIGN KEY (proficiency_level_id) REFERENCES skill_proficiency_levels(id)
 );
+
+CREATE TABLE IF NOT EXISTS job_histories (
+    id TEXT NOT NULL PRIMARY KEY,
+    company TEXT NOT NULL,
+    start_date TEXT NOT NULL,
+    end_date TEXT NOT NULL,
+    employment_type TEXT NOT NULL,
+    project_count INTEGER NOT NULL DEFAULT 0,
+    sort_order INTEGER NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

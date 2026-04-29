@@ -8,6 +8,18 @@ import (
 	"time"
 )
 
+type JobHistory struct {
+	ID             string
+	Company        string
+	StartDate      string
+	EndDate        string
+	EmploymentType string
+	ProjectCount   int64
+	SortOrder      int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type Profile struct {
 	ID                 string
 	UserID             string

@@ -1,30 +1,36 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Pencil, Trash2, Briefcase } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Badge } from "../ui/badge";
 
 type JobHistory = {
-  id: number;
+  id: string;
   company: string;
   startDate: string;
   endDate: string;
   employmentType: string;
   projectCount: number;
+  sortOrder: number;
 };
 
-const initialJobs: JobHistory[] = [
-  { id: 1, company: "株式会社A", startDate: "2023-01", endDate: "現在", employmentType: "正社員", projectCount: 5 },
-  { id: 2, company: "株式会社B", startDate: "2021-04", endDate: "2022-12", employmentType: "正社員", projectCount: 4 },
-  { id: 3, company: "フリーランス", startDate: "2020-01", endDate: "2021-03", employmentType: "業務委託", projectCount: 3 },
-];
+type JobHistoriesResponse = {
+  jobHistories: JobHistory[];
+};
+
+type JobHistoryResponse = {
+  jobHistory: JobHistory;
+};
 
 export function JobHistoryPage() {
-  const [jobs, setJobs] = useState<JobHistory[]>(initialJobs);
+  const [jobs, setJobs] = useState<JobHistory[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<JobHistory | null>(null);
   const [formData, setFormData] = useState({
@@ -33,6 +39,42 @@ export function JobHistoryPage() {
     endDate: "",
     employmentType: "正社員",
   });
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadJobHistories() {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const response = await fetch("/api/job-histories", {
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error("職歴の取得に失敗しました");
+        }
+
+        const data = (await response.json()) as JobHistoriesResponse;
+        setJobs(data.jobHistories ?? []);
+      } catch (caught) {
+        if (caught instanceof DOMException && caught.name === "AbortError") {
+          return;
+        }
+        setError(caught instanceof Error ? caught.message : "職歴の取得に失敗しました");
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadJobHistories();
+
+    return () => {
+      controller.abort();
+    };
+  }, []);
 
   const handleAdd = () => {
     setEditingJob(null);
@@ -51,25 +93,62 @@ export function JobHistoryPage() {
     setIsDialogOpen(true);
   };
 
-  const handleSave = () => {
-    if (editingJob) {
-      setJobs(jobs.map(j => j.id === editingJob.id ? { ...j, ...formData } : j));
-    } else {
-      const newJob: JobHistory = {
-        id: Date.now(),
-        ...formData,
-        projectCount: 0,
-      };
-      setJobs([newJob, ...jobs]);
+  const handleSave = async () => {
+    setIsSaving(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        editingJob
+          ? `/api/job-histories/${encodeURIComponent(editingJob.id)}`
+          : "/api/job-histories",
+        {
+          method: editingJob ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(editingJob ? "職歴の更新に失敗しました" : "職歴の追加に失敗しました");
+      }
+
+      const data = (await response.json()) as JobHistoryResponse;
+      if (editingJob) {
+        setJobs(jobs.map(j => j.id === editingJob.id ? data.jobHistory : j));
+      } else {
+        setJobs([data.jobHistory, ...jobs]);
+      }
+      setIsDialogOpen(false);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "職歴の保存に失敗しました");
+    } finally {
+      setIsSaving(false);
     }
-    setIsDialogOpen(false);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: string) => {
     if (confirm("本当に削除しますか？")) {
-      setJobs(jobs.filter(j => j.id !== id));
+      setError("");
+
+      try {
+        const response = await fetch(`/api/job-histories/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        });
+        if (!response.ok) {
+          throw new Error("職歴の削除に失敗しました");
+        }
+
+        setJobs(jobs.filter(j => j.id !== id));
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "職歴の削除に失敗しました");
+      }
     }
   };
+
+  const canSave =
+    formData.company.trim() !== "" &&
+    formData.startDate.trim() !== "" &&
+    formData.employmentType.trim() !== "";
 
   return (
     <div className="p-8">
@@ -79,11 +158,22 @@ export function JobHistoryPage() {
             <h1 className="text-3xl font-bold text-gray-900">職歴管理</h1>
             <p className="text-gray-600 mt-1">勤務先の履歴を時系列で管理</p>
           </div>
-          <Button onClick={handleAdd}>
+          <Button onClick={handleAdd} disabled={isLoading}>
             <Plus className="w-4 h-4 mr-2" />
             職歴を追加
           </Button>
         </div>
+
+        {isLoading && (
+          <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            職歴を読み込み中です。
+          </div>
+        )}
+        {error && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
         <div className="space-y-4">
           {jobs.map((job) => (
@@ -124,7 +214,7 @@ export function JobHistoryPage() {
             </Card>
           ))}
 
-          {jobs.length === 0 && (
+          {!isLoading && jobs.length === 0 && (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Briefcase className="w-12 h-12 text-gray-400 mb-4" />
@@ -205,7 +295,9 @@ export function JobHistoryPage() {
               <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                 キャンセル
               </Button>
-              <Button onClick={handleSave}>保存</Button>
+              <Button onClick={handleSave} disabled={!canSave || isSaving}>
+                {isSaving ? "保存中" : "保存"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

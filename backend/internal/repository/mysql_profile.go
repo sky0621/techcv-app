@@ -226,6 +226,9 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.seedSkills(ctx); err != nil {
 		return err
 	}
+	if err := r.seedJobHistories(ctx); err != nil {
+		return err
+	}
 	if err := r.backfillEmptySkillCategoryIcons(ctx); err != nil {
 		return err
 	}
@@ -330,6 +333,58 @@ func (r *SQLiteProfileRepository) DeleteSkill(ctx context.Context, id string) er
 	rowsAffected, err := r.queries.DeleteSkill(ctx, id)
 	if err != nil {
 		return fmt.Errorf("delete skill: %w", err)
+	}
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) ListJobHistories(ctx context.Context) ([]domain.JobHistory, error) {
+	rows, err := r.queries.ListJobHistories(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("query job histories: %w", err)
+	}
+
+	return toDomainJobHistories(rows), nil
+}
+
+func (r *SQLiteProfileRepository) CreateJobHistory(ctx context.Context, input domain.JobHistoryInput) (*domain.JobHistory, error) {
+	now := time.Now().UTC()
+	row, err := r.queries.InsertJobHistory(ctx, dbgen.InsertJobHistoryParams{
+		ID:             jobHistoryID(now),
+		Company:        input.Company,
+		StartDate:      input.StartDate,
+		EndDate:        input.EndDate,
+		EmploymentType: input.EmploymentType,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("insert job history: %w", err)
+	}
+
+	return toDomainJobHistory(row), nil
+}
+
+func (r *SQLiteProfileRepository) UpdateJobHistory(ctx context.Context, id string, input domain.JobHistoryInput) (*domain.JobHistory, error) {
+	row, err := r.queries.UpdateJobHistory(ctx, dbgen.UpdateJobHistoryParams{
+		ID:             id,
+		Company:        input.Company,
+		StartDate:      input.StartDate,
+		EndDate:        input.EndDate,
+		EmploymentType: input.EmploymentType,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update job history: %w", err)
+	}
+
+	return toDomainJobHistory(row), nil
+}
+
+func (r *SQLiteProfileRepository) DeleteJobHistory(ctx context.Context, id string) error {
+	rowsAffected, err := r.queries.DeleteJobHistory(ctx, id)
+	if err != nil {
+		return fmt.Errorf("delete job history: %w", err)
 	}
 	if rowsAffected == 0 {
 		return sql.ErrNoRows
@@ -505,6 +560,39 @@ func (r *SQLiteProfileRepository) seedSkills(ctx context.Context) error {
 	return nil
 }
 
+func (r *SQLiteProfileRepository) seedJobHistories(ctx context.Context) error {
+	jobHistories := []struct {
+		id             string
+		company        string
+		startDate      string
+		endDate        string
+		employmentType string
+		projectCount   int64
+		sortOrder      int64
+	}{
+		{id: "job_history_company_a", company: "株式会社A", startDate: "2023-01", endDate: "現在", employmentType: "正社員", projectCount: 5, sortOrder: 1},
+		{id: "job_history_company_b", company: "株式会社B", startDate: "2021-04", endDate: "2022-12", employmentType: "正社員", projectCount: 4, sortOrder: 2},
+		{id: "job_history_freelance", company: "フリーランス", startDate: "2020-01", endDate: "2021-03", employmentType: "業務委託", projectCount: 3, sortOrder: 3},
+	}
+	for _, jobHistory := range jobHistories {
+		if _, err := r.db.ExecContext(
+			ctx,
+			"INSERT OR IGNORE INTO job_histories (id, company, start_date, end_date, employment_type, project_count, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			jobHistory.id,
+			jobHistory.company,
+			jobHistory.startDate,
+			jobHistory.endDate,
+			jobHistory.employmentType,
+			jobHistory.projectCount,
+			jobHistory.sortOrder,
+		); err != nil {
+			return fmt.Errorf("seed job history %s: %w", jobHistory.id, err)
+		}
+	}
+
+	return nil
+}
+
 func (r *SQLiteProfileRepository) backfillEmptySkillCategoryIcons(ctx context.Context) error {
 	if _, err := r.db.ExecContext(ctx, "UPDATE skill_categories SET icon = 'wrench', updated_at = CURRENT_TIMESTAMP WHERE icon = ''"); err != nil {
 		return fmt.Errorf("backfill empty skill category icons: %w", err)
@@ -653,6 +741,27 @@ func toDomainSkill(row dbgen.GetSkillRow) *domain.Skill {
 	}
 }
 
+func toDomainJobHistories(rows []dbgen.JobHistory) []domain.JobHistory {
+	jobHistories := make([]domain.JobHistory, 0, len(rows))
+	for _, row := range rows {
+		jobHistories = append(jobHistories, *toDomainJobHistory(row))
+	}
+
+	return jobHistories
+}
+
+func toDomainJobHistory(row dbgen.JobHistory) *domain.JobHistory {
+	return &domain.JobHistory{
+		ID:             row.ID,
+		Company:        row.Company,
+		StartDate:      row.StartDate,
+		EndDate:        row.EndDate,
+		EmploymentType: row.EmploymentType,
+		ProjectCount:   row.ProjectCount,
+		SortOrder:      row.SortOrder,
+	}
+}
+
 func qualificationID(qualification domain.Qualification, index int, now time.Time) string {
 	if qualification.ID != "" {
 		return qualification.ID
@@ -663,6 +772,10 @@ func qualificationID(qualification domain.Qualification, index int, now time.Tim
 
 func skillID(now time.Time) string {
 	return fmt.Sprintf("skill_%d", now.UnixNano())
+}
+
+func jobHistoryID(now time.Time) string {
+	return fmt.Sprintf("job_history_%d", now.UnixNano())
 }
 
 func sanitizeVisibilitySettings(values map[string]any) map[string]any {
