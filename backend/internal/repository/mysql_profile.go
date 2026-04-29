@@ -235,6 +235,12 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.seedJobHistories(ctx); err != nil {
 		return err
 	}
+	if err := r.migrateProjectDateColumns(ctx); err != nil {
+		return err
+	}
+	if err := r.seedProjects(ctx); err != nil {
+		return err
+	}
 	if err := r.backfillEmptySkillCategoryIcons(ctx); err != nil {
 		return err
 	}
@@ -407,6 +413,104 @@ func (r *SQLiteProfileRepository) DeleteJobHistory(ctx context.Context, id strin
 	rowsAffected, err := r.queries.DeleteJobHistory(ctx, id)
 	if err != nil {
 		return fmt.Errorf("delete job history: %w", err)
+	}
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) ListProjects(ctx context.Context) ([]domain.Project, error) {
+	rows, err := r.queries.ListProjects(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("query projects: %w", err)
+	}
+
+	return toDomainProjects(rows)
+}
+
+func (r *SQLiteProfileRepository) CreateProject(ctx context.Context, input domain.ProjectInput) (*domain.Project, error) {
+	now := time.Now().UTC()
+	technologies, err := encodeStringSlice(input.Technologies)
+	if err != nil {
+		return nil, err
+	}
+	phases, err := encodeStringSlice(input.Phases)
+	if err != nil {
+		return nil, err
+	}
+
+	row, err := r.queries.InsertProject(ctx, dbgen.InsertProjectParams{
+		ID:           projectID(now),
+		Name:         input.Name,
+		Company:      input.Company,
+		StartYear:    input.StartYear,
+		StartMonth:   input.StartMonth,
+		EndYear:      toNullInt64(input.EndYear),
+		EndMonth:     toNullInt64(input.EndMonth),
+		Description:  input.Description,
+		Role:         input.Role,
+		TeamSize:     input.TeamSize,
+		Technologies: technologies,
+		Phases:       phases,
+		Achievements: input.Achievements,
+		IsDraft:      boolToInt64(input.IsDraft),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("insert project: %w", err)
+	}
+
+	created, err := r.queries.GetProject(ctx, row.ID)
+	if err != nil {
+		return nil, fmt.Errorf("reload project: %w", err)
+	}
+
+	return toDomainProject(created)
+}
+
+func (r *SQLiteProfileRepository) UpdateProject(ctx context.Context, id string, input domain.ProjectInput) (*domain.Project, error) {
+	technologies, err := encodeStringSlice(input.Technologies)
+	if err != nil {
+		return nil, err
+	}
+	phases, err := encodeStringSlice(input.Phases)
+	if err != nil {
+		return nil, err
+	}
+
+	row, err := r.queries.UpdateProject(ctx, dbgen.UpdateProjectParams{
+		ID:           id,
+		Name:         input.Name,
+		Company:      input.Company,
+		StartYear:    input.StartYear,
+		StartMonth:   input.StartMonth,
+		EndYear:      toNullInt64(input.EndYear),
+		EndMonth:     toNullInt64(input.EndMonth),
+		Description:  input.Description,
+		Role:         input.Role,
+		TeamSize:     input.TeamSize,
+		Technologies: technologies,
+		Phases:       phases,
+		Achievements: input.Achievements,
+		IsDraft:      boolToInt64(input.IsDraft),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update project: %w", err)
+	}
+
+	updated, err := r.queries.GetProject(ctx, row.ID)
+	if err != nil {
+		return nil, fmt.Errorf("reload project: %w", err)
+	}
+
+	return toDomainProject(updated)
+}
+
+func (r *SQLiteProfileRepository) DeleteProject(ctx context.Context, id string) error {
+	rowsAffected, err := r.queries.DeleteProject(ctx, id)
+	if err != nil {
+		return fmt.Errorf("delete project: %w", err)
 	}
 	if rowsAffected == 0 {
 		return sql.ErrNoRows
@@ -649,6 +753,86 @@ func (r *SQLiteProfileRepository) migrateJobHistoryDateColumns(ctx context.Conte
 	return nil
 }
 
+func (r *SQLiteProfileRepository) migrateProjectDateColumns(ctx context.Context) error {
+	hasStartDateColumn, err := r.tableHasColumn(ctx, "projects", "start_date")
+	if err != nil {
+		return err
+	}
+	if !hasStartDateColumn {
+		return nil
+	}
+
+	statements := []string{
+		`DROP TABLE IF EXISTS projects_new`,
+		`CREATE TABLE IF NOT EXISTS projects_new (
+			id TEXT NOT NULL PRIMARY KEY,
+			name TEXT NOT NULL,
+			company TEXT NOT NULL,
+			start_year INTEGER NOT NULL,
+			start_month INTEGER NOT NULL,
+			end_year INTEGER,
+			end_month INTEGER,
+			description TEXT NOT NULL,
+			role TEXT NOT NULL,
+			team_size TEXT NOT NULL,
+			technologies TEXT NOT NULL,
+			phases TEXT NOT NULL,
+			achievements TEXT NOT NULL,
+			is_draft INTEGER NOT NULL DEFAULT 0,
+			sort_order INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`INSERT INTO projects_new (
+			id,
+			name,
+			company,
+			start_year,
+			start_month,
+			end_year,
+			end_month,
+			description,
+			role,
+			team_size,
+			technologies,
+			phases,
+			achievements,
+			is_draft,
+			sort_order,
+			created_at,
+			updated_at
+		)
+		SELECT
+			id,
+			name,
+			company,
+			CAST(substr(start_date, 1, 4) AS INTEGER),
+			CAST(substr(start_date, 6, 2) AS INTEGER),
+			CASE WHEN end_date = '' OR end_date = '現在' THEN NULL ELSE CAST(substr(end_date, 1, 4) AS INTEGER) END,
+			CASE WHEN end_date = '' OR end_date = '現在' THEN NULL ELSE CAST(substr(end_date, 6, 2) AS INTEGER) END,
+			description,
+			role,
+			team_size,
+			technologies,
+			phases,
+			achievements,
+			is_draft,
+			sort_order,
+			created_at,
+			updated_at
+		FROM projects`,
+		`DROP TABLE projects`,
+		`ALTER TABLE projects_new RENAME TO projects`,
+	}
+	for _, statement := range statements {
+		if _, err := r.db.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("migrate projects date columns: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (r *SQLiteProfileRepository) seedSkillOptions(ctx context.Context) error {
 	categories := []domain.SkillOption{
 		{ID: "skill_category_language", Name: "言語", Icon: "code", SortOrder: 1},
@@ -783,6 +967,95 @@ func (r *SQLiteProfileRepository) seedJobHistories(ctx context.Context) error {
 			jobHistory.sortOrder,
 		); err != nil {
 			return fmt.Errorf("seed job history %s: %w", jobHistory.id, err)
+		}
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) seedProjects(ctx context.Context) error {
+	projects := []domain.Project{
+		{
+			ID:           "project_ec_renewal",
+			Name:         "ECサイトリニューアル",
+			Company:      "株式会社A",
+			StartYear:    2024,
+			StartMonth:   1,
+			EndYear:      nil,
+			EndMonth:     nil,
+			Description:  "大手ECサイトのフロントエンド刷新プロジェクト",
+			Role:         "フロントエンドエンジニア",
+			TeamSize:     "8名",
+			Technologies: []string{"React", "TypeScript", "Next.js", "Tailwind CSS"},
+			Phases:       []string{"要件定義", "設計", "実装", "テスト"},
+			Achievements: "ページ表示速度を50%改善、コンバージョン率15%向上",
+			IsDraft:      false,
+			SortOrder:    1,
+		},
+		{
+			ID:           "project_business_system",
+			Name:         "業務管理システム開発",
+			Company:      "株式会社B",
+			StartYear:    2023,
+			StartMonth:   6,
+			EndYear:      int64Ptr(2023),
+			EndMonth:     int64Ptr(12),
+			Description:  "社内業務効率化のためのWebアプリケーション開発",
+			Role:         "フルスタックエンジニア",
+			TeamSize:     "5名",
+			Technologies: []string{"Vue.js", "Node.js", "PostgreSQL", "Docker"},
+			Phases:       []string{"設計", "実装", "テスト", "運用保守"},
+			Achievements: "業務時間を30%削減、ユーザー満足度90%以上",
+			IsDraft:      false,
+			SortOrder:    2,
+		},
+	}
+
+	for _, project := range projects {
+		technologies, err := encodeStringSlice(project.Technologies)
+		if err != nil {
+			return err
+		}
+		phases, err := encodeStringSlice(project.Phases)
+		if err != nil {
+			return err
+		}
+		if _, err := r.db.ExecContext(
+			ctx,
+			`INSERT OR IGNORE INTO projects (
+				id,
+				name,
+				company,
+				start_year,
+				start_month,
+				end_year,
+				end_month,
+				description,
+				role,
+				team_size,
+				technologies,
+				phases,
+				achievements,
+				is_draft,
+				sort_order
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			project.ID,
+			project.Name,
+			project.Company,
+			project.StartYear,
+			project.StartMonth,
+			toNullInt64(project.EndYear),
+			toNullInt64(project.EndMonth),
+			project.Description,
+			project.Role,
+			project.TeamSize,
+			technologies,
+			phases,
+			project.Achievements,
+			boolToInt64(project.IsDraft),
+			project.SortOrder,
+		); err != nil {
+			return fmt.Errorf("seed project %s: %w", project.ID, err)
 		}
 	}
 
@@ -974,6 +1247,48 @@ func toDomainJobHistory(row dbgen.GetJobHistoryRow) *domain.JobHistory {
 	}
 }
 
+func toDomainProjects(rows []dbgen.Project) ([]domain.Project, error) {
+	projects := make([]domain.Project, 0, len(rows))
+	for _, row := range rows {
+		project, err := toDomainProject(row)
+		if err != nil {
+			return nil, err
+		}
+		projects = append(projects, *project)
+	}
+
+	return projects, nil
+}
+
+func toDomainProject(row dbgen.Project) (*domain.Project, error) {
+	technologies, err := decodeStringSlice(row.Technologies)
+	if err != nil {
+		return nil, fmt.Errorf("decode project technologies: %w", err)
+	}
+	phases, err := decodeStringSlice(row.Phases)
+	if err != nil {
+		return nil, fmt.Errorf("decode project phases: %w", err)
+	}
+
+	return &domain.Project{
+		ID:           row.ID,
+		Name:         row.Name,
+		Company:      row.Company,
+		StartYear:    row.StartYear,
+		StartMonth:   row.StartMonth,
+		EndYear:      fromNullInt64(row.EndYear),
+		EndMonth:     fromNullInt64(row.EndMonth),
+		Description:  row.Description,
+		Role:         row.Role,
+		TeamSize:     row.TeamSize,
+		Technologies: technologies,
+		Phases:       phases,
+		Achievements: row.Achievements,
+		IsDraft:      row.IsDraft != 0,
+		SortOrder:    row.SortOrder,
+	}, nil
+}
+
 func toDomainJobEmploymentTypes(rows []dbgen.JobEmploymentType) []domain.JobEmploymentType {
 	employmentTypes := make([]domain.JobEmploymentType, 0, len(rows))
 	for _, row := range rows {
@@ -1007,8 +1322,46 @@ func jobHistoryID(now time.Time) string {
 	return fmt.Sprintf("job_history_%d", now.UnixNano())
 }
 
+func projectID(now time.Time) string {
+	return fmt.Sprintf("project_%d", now.UnixNano())
+}
+
 func int64Ptr(value int64) *int64 {
 	return &value
+}
+
+func encodeStringSlice(values []string) (string, error) {
+	if values == nil {
+		values = []string{}
+	}
+
+	bytes, err := json.Marshal(values)
+	if err != nil {
+		return "", fmt.Errorf("encode string slice: %w", err)
+	}
+
+	return string(bytes), nil
+}
+
+func decodeStringSlice(value string) ([]string, error) {
+	if value == "" {
+		return []string{}, nil
+	}
+
+	var values []string
+	if err := json.Unmarshal([]byte(value), &values); err != nil {
+		return nil, err
+	}
+
+	return values, nil
+}
+
+func boolToInt64(value bool) int64 {
+	if value {
+		return 1
+	}
+
+	return 0
 }
 
 func toNullInt64(value *int64) sql.NullInt64 {

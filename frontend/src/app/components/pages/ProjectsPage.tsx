@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Search, Pencil, Trash2, FolderKanban, Save } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -10,7 +10,24 @@ import { Badge } from "../ui/badge";
 import { Checkbox } from "../ui/checkbox";
 
 type Project = {
-  id: number;
+  id: string;
+  name: string;
+  company: string;
+  startYear: number;
+  startMonth: number;
+  endYear: number | null;
+  endMonth: number | null;
+  description: string;
+  role: string;
+  teamSize: string;
+  technologies: string[];
+  phases: string[];
+  achievements: string;
+  isDraft: boolean;
+  sortOrder: number;
+};
+
+type ProjectForm = {
   name: string;
   company: string;
   startDate: string;
@@ -21,39 +38,28 @@ type Project = {
   technologies: string[];
   phases: string[];
   achievements: string;
-  isDraft: boolean;
 };
 
-const initialProjects: Project[] = [
-  {
-    id: 1,
-    name: "ECサイトリニューアル",
-    company: "株式会社A",
-    startDate: "2024-01",
-    endDate: "現在",
-    description: "大手ECサイトのフロントエンド刷新プロジェクト",
-    role: "フロントエンドエンジニア",
-    teamSize: "8名",
-    technologies: ["React", "TypeScript", "Next.js", "Tailwind CSS"],
-    phases: ["要件定義", "設計", "実装", "テスト"],
-    achievements: "ページ表示速度を50%改善、コンバージョン率15%向上",
-    isDraft: false,
-  },
-  {
-    id: 2,
-    name: "業務管理システム開発",
-    company: "株式会社B",
-    startDate: "2023-06",
-    endDate: "2023-12",
-    description: "社内業務効率化のためのWebアプリケーション開発",
-    role: "フルスタックエンジニア",
-    teamSize: "5名",
-    technologies: ["Vue.js", "Node.js", "PostgreSQL", "Docker"],
-    phases: ["設計", "実装", "テスト", "運用保守"],
-    achievements: "業務時間を30%削減、ユーザー満足度90%以上",
-    isDraft: false,
-  },
-];
+type ProjectsResponse = {
+  projects: Project[];
+};
+
+type ProjectResponse = {
+  project: Project;
+};
+
+const emptyForm: ProjectForm = {
+  name: "",
+  company: "",
+  startDate: "",
+  endDate: "",
+  description: "",
+  role: "",
+  teamSize: "",
+  technologies: [],
+  phases: [],
+  achievements: "",
+};
 
 const allTechnologies = [
   "React", "Vue.js", "Angular", "TypeScript", "JavaScript",
@@ -65,24 +71,70 @@ const allTechnologies = [
 
 const phases = ["要件定義", "設計", "実装", "テスト", "運用保守", "リリース"];
 
+function formatYearMonth(year: number, month: number) {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+function formatEndYearMonth(year: number | null, month: number | null) {
+  if (year === null || month === null) {
+    return "現在";
+  }
+
+  return formatYearMonth(year, month);
+}
+
+function parseYearMonth(value: string) {
+  const [year, month] = value.split("-").map(Number);
+
+  return {
+    year: Number.isFinite(year) ? year : 0,
+    month: Number.isFinite(month) ? month : 0,
+  };
+}
+
 export function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
-  const [formData, setFormData] = useState<Partial<Project>>({
-    name: "",
-    company: "",
-    startDate: "",
-    endDate: "",
-    description: "",
-    role: "",
-    teamSize: "",
-    technologies: [],
-    phases: [],
-    achievements: "",
-    isDraft: false,
-  });
+  const [formData, setFormData] = useState<ProjectForm>(emptyForm);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadProjects() {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const response = await fetch("/api/projects", { signal: controller.signal });
+        if (!response.ok) {
+          throw new Error("案件の取得に失敗しました");
+        }
+
+        const data = (await response.json()) as ProjectsResponse;
+        setProjects(data.projects ?? []);
+      } catch (caught) {
+        if (caught instanceof DOMException && caught.name === "AbortError") {
+          return;
+        }
+        setError(caught instanceof Error ? caught.message : "案件の取得に失敗しました");
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadProjects();
+
+    return () => {
+      controller.abort();
+    };
+  }, []);
 
   const filteredProjects = projects.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -92,47 +144,92 @@ export function ProjectsPage() {
 
   const handleAdd = () => {
     setEditingProject(null);
-    setFormData({
-      name: "",
-      company: "",
-      startDate: "",
-      endDate: "",
-      description: "",
-      role: "",
-      teamSize: "",
-      technologies: [],
-      phases: [],
-      achievements: "",
-      isDraft: false,
-    });
+    setFormData(emptyForm);
     setIsDialogOpen(true);
   };
 
   const handleEdit = (project: Project) => {
     setEditingProject(project);
-    setFormData(project);
+    setFormData({
+      name: project.name,
+      company: project.company,
+      startDate: formatYearMonth(project.startYear, project.startMonth),
+      endDate:
+        project.endYear === null || project.endMonth === null
+          ? ""
+          : formatYearMonth(project.endYear, project.endMonth),
+      description: project.description,
+      role: project.role,
+      teamSize: project.teamSize,
+      technologies: project.technologies,
+      phases: project.phases,
+    });
     setIsDialogOpen(true);
   };
 
-  const handleSave = (asDraft: boolean = false) => {
-    const projectData = { ...formData, isDraft: asDraft } as Project;
+  const handleSave = async (asDraft: boolean = false) => {
+    setIsSaving(true);
+    setError("");
 
-    if (editingProject) {
-      setProjects(projects.map(p => p.id === editingProject.id ? { ...p, ...projectData } : p));
-    } else {
-      setProjects([{ id: Date.now(), ...projectData }, ...projects]);
+    try {
+      const start = parseYearMonth(formData.startDate);
+      const end = parseYearMonth(formData.endDate);
+      const response = await fetch(
+        editingProject
+          ? `/api/projects/${encodeURIComponent(editingProject.id)}`
+          : "/api/projects",
+        {
+          method: editingProject ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...formData,
+            startYear: start.year,
+            startMonth: start.month,
+            endYear: formData.endDate.trim() === "" ? null : end.year,
+            endMonth: formData.endDate.trim() === "" ? null : end.month,
+            isDraft: asDraft,
+          }),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(editingProject ? "案件の更新に失敗しました" : "案件の追加に失敗しました");
+      }
+
+      const data = (await response.json()) as ProjectResponse;
+      if (editingProject) {
+        setProjects(projects.map(p => p.id === editingProject.id ? data.project : p));
+      } else {
+        setProjects([data.project, ...projects]);
+      }
+      setIsDialogOpen(false);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "案件の保存に失敗しました");
+    } finally {
+      setIsSaving(false);
     }
-    setIsDialogOpen(false);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: string) => {
     if (confirm("本当に削除しますか？")) {
-      setProjects(projects.filter(p => p.id !== id));
+      setError("");
+
+      try {
+        const response = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        });
+        if (!response.ok) {
+          throw new Error("案件の削除に失敗しました");
+        }
+
+        setProjects(projects.filter(p => p.id !== id));
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "案件の削除に失敗しました");
+      }
     }
   };
 
   const toggleTechnology = (tech: string) => {
-    const current = formData.technologies || [];
+    const current = formData.technologies;
     setFormData({
       ...formData,
       technologies: current.includes(tech)
@@ -142,7 +239,7 @@ export function ProjectsPage() {
   };
 
   const togglePhase = (phase: string) => {
-    const current = formData.phases || [];
+    const current = formData.phases;
     setFormData({
       ...formData,
       phases: current.includes(phase)
@@ -159,11 +256,22 @@ export function ProjectsPage() {
             <h1 className="text-3xl font-bold text-gray-900">案件管理</h1>
             <p className="text-gray-600 mt-1">プロジェクト実績を詳細に記録</p>
           </div>
-          <Button onClick={handleAdd}>
+          <Button onClick={handleAdd} disabled={isLoading}>
             <Plus className="w-4 h-4 mr-2" />
             案件を追加
           </Button>
         </div>
+
+        {isLoading && (
+          <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            案件を読み込み中です。
+          </div>
+        )}
+        {error && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -190,7 +298,8 @@ export function ProjectsPage() {
                         {project.isDraft && <Badge variant="outline" className="bg-yellow-100">下書き</Badge>}
                       </div>
                       <CardDescription className="mt-1">
-                        {project.company} • {project.startDate} 〜 {project.endDate}
+                        {project.company} • {formatYearMonth(project.startYear, project.startMonth)} 〜{" "}
+                        {formatEndYearMonth(project.endYear, project.endMonth)}
                       </CardDescription>
                       <p className="text-sm text-gray-700 mt-2">{project.description}</p>
                       <div className="mt-3 space-y-2">
@@ -229,7 +338,7 @@ export function ProjectsPage() {
             </Card>
           ))}
 
-          {filteredProjects.length === 0 && (
+          {!isLoading && filteredProjects.length === 0 && (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <FolderKanban className="w-12 h-12 text-gray-400 mb-4" />
@@ -294,9 +403,10 @@ export function ProjectsPage() {
                   <Label htmlFor="endDate">終了日</Label>
                   <Input
                     id="endDate"
+                    type="month"
                     value={formData.endDate}
                     onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                    placeholder="現在 または 2024-12"
+                    placeholder="空欄なら現在"
                   />
                 </div>
               </div>
@@ -340,7 +450,7 @@ export function ProjectsPage() {
                     {allTechnologies.map(tech => (
                       <Badge
                         key={tech}
-                        variant={formData.technologies?.includes(tech) ? "default" : "outline"}
+                        variant={formData.technologies.includes(tech) ? "default" : "outline"}
                         className="cursor-pointer"
                         onClick={() => toggleTechnology(tech)}
                       >
@@ -358,7 +468,7 @@ export function ProjectsPage() {
                     <div key={phase} className="flex items-center space-x-2">
                       <Checkbox
                         id={phase}
-                        checked={formData.phases?.includes(phase)}
+                        checked={formData.phases.includes(phase)}
                         onCheckedChange={() => togglePhase(phase)}
                       />
                       <Label htmlFor={phase} className="cursor-pointer">{phase}</Label>
@@ -383,11 +493,13 @@ export function ProjectsPage() {
               <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                 キャンセル
               </Button>
-              <Button variant="outline" onClick={() => handleSave(true)}>
+              <Button variant="outline" onClick={() => handleSave(true)} disabled={isSaving}>
                 <Save className="w-4 h-4 mr-2" />
-                下書き保存
+                {isSaving ? "保存中" : "下書き保存"}
               </Button>
-              <Button onClick={() => handleSave(false)}>保存</Button>
+              <Button onClick={() => handleSave(false)} disabled={isSaving}>
+                {isSaving ? "保存中" : "保存"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

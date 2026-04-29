@@ -85,3 +85,23 @@ CREATE TABLE IF NOT EXISTS job_histories (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (employment_type_id) REFERENCES job_employment_types(id)
 );
+
+CREATE TABLE IF NOT EXISTS projects (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    company TEXT NOT NULL,
+    start_year INTEGER NOT NULL,
+    start_month INTEGER NOT NULL,
+    end_year INTEGER,
+    end_month INTEGER,
+    description TEXT NOT NULL,
+    role TEXT NOT NULL,
+    team_size TEXT NOT NULL,
+    technologies TEXT NOT NULL,
+    phases TEXT NOT NULL,
+    achievements TEXT NOT NULL,
+    is_draft INTEGER NOT NULL DEFAULT 0,
+    sort_order INTEGER NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

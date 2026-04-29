@@ -36,7 +36,7 @@ func New(ctx context.Context) (*App, error) {
 	}
 
 	return &App{
-		Handler: httpserver.NewRouter(profileRepository, profileRepository, profileRepository),
+		Handler: httpserver.NewRouter(profileRepository, profileRepository, profileRepository, profileRepository),
 		closers: []closable{profileRepository},
 	}, nil
 }

@@ -13,6 +13,7 @@ func NewRouter(
 	profileRepository repository.ProfileRepository,
 	skillOptionsRepository repository.SkillOptionsRepository,
 	jobHistoryRepository repository.JobHistoryRepository,
+	projectRepository repository.ProjectRepository,
 ) http.Handler {
 	r := chi.NewRouter()
 	profileServer := handler.NewProfileHandler(usecase.NewProfileUseCase(profileRepository))
@@ -21,6 +22,9 @@ func NewRouter(
 	)
 	jobHistoryServer := handler.NewJobHistoryHandler(
 		usecase.NewJobHistoryUseCase(jobHistoryRepository),
+	)
+	projectServer := handler.NewProjectHandler(
+		usecase.NewProjectUseCase(projectRepository),
 	)
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -45,6 +49,10 @@ func NewRouter(
 	api.Delete("/job-histories/{id}", jobHistoryServer.DeleteJobHistory)
 	api.Post("/job-employment-types", jobHistoryServer.CreateJobEmploymentType)
 	api.Put("/job-employment-types/{id}", jobHistoryServer.UpdateJobEmploymentType)
+	api.Get("/projects", projectServer.ListProjects)
+	api.Post("/projects", projectServer.CreateProject)
+	api.Put("/projects/{id}", projectServer.UpdateProject)
+	api.Delete("/projects/{id}", projectServer.DeleteProject)
 	r.Mount("/api", api)
 
 	return r

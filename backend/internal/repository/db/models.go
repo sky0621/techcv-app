@@ -65,6 +65,26 @@ type ProfileQualification struct {
 	UpdatedAt    time.Time
 }
 
+type Project struct {
+	ID           string
+	Name         string
+	Company      string
+	StartYear    int64
+	StartMonth   int64
+	EndYear      sql.NullInt64
+	EndMonth     sql.NullInt64
+	Description  string
+	Role         string
+	TeamSize     string
+	Technologies string
+	Phases       string
+	Achievements string
+	IsDraft      int64
+	SortOrder    int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type Skill struct {
 	ID                 string
 	Name               string

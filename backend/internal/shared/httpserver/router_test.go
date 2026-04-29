@@ -16,7 +16,7 @@ import (
 
 func TestProfileRoutes(t *testing.T) {
 	repository := newTestProfileRepository()
-	router := NewRouter(repository, repository, repository)
+	router := NewRouter(repository, repository, repository, repository)
 
 	getReq := httptest.NewRequest(http.MethodGet, "/api/profile", nil)
 	getRec := httptest.NewRecorder()
@@ -307,7 +307,7 @@ func TestProfileRoutes(t *testing.T) {
 
 func TestSkillOptionsRoute(t *testing.T) {
 	repository := newTestProfileRepository()
-	router := NewRouter(repository, repository, repository)
+	router := NewRouter(repository, repository, repository, repository)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/skills/options", nil)
 	rec := httptest.NewRecorder()
@@ -353,7 +353,7 @@ func TestSkillOptionsRoute(t *testing.T) {
 
 func TestSkillCategoryMutationRoutes(t *testing.T) {
 	repository := newTestProfileRepository()
-	router := NewRouter(repository, repository, repository)
+	router := NewRouter(repository, repository, repository, repository)
 
 	createBody := []byte(`{
 		"id":"skill_category_backend",
@@ -414,7 +414,7 @@ func TestSkillCategoryMutationRoutes(t *testing.T) {
 
 func TestSkillRoutes(t *testing.T) {
 	repository := newTestProfileRepository()
-	router := NewRouter(repository, repository, repository)
+	router := NewRouter(repository, repository, repository, repository)
 
 	listReq := httptest.NewRequest(http.MethodGet, "/api/skills", nil)
 	listRec := httptest.NewRecorder()
@@ -516,7 +516,7 @@ func TestSkillRoutes(t *testing.T) {
 
 func TestJobHistoryRoutes(t *testing.T) {
 	repository := newTestProfileRepository()
-	router := NewRouter(repository, repository, repository)
+	router := NewRouter(repository, repository, repository, repository)
 
 	listReq := httptest.NewRequest(http.MethodGet, "/api/job-histories", nil)
 	listRec := httptest.NewRecorder()
@@ -656,6 +656,147 @@ func TestJobHistoryRoutes(t *testing.T) {
 	}
 }
 
+func TestProjectRoutes(t *testing.T) {
+	repository := newTestProfileRepository()
+	router := NewRouter(repository, repository, repository, repository)
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/projects", nil)
+	listRec := httptest.NewRecorder()
+	router.ServeHTTP(listRec, listReq)
+
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("expected list status 200, got %d", listRec.Code)
+	}
+
+	var listResp struct {
+		Projects []struct {
+			ID           string   `json:"id"`
+			Name         string   `json:"name"`
+			Company      string   `json:"company"`
+			StartYear    int64    `json:"startYear"`
+			StartMonth   int64    `json:"startMonth"`
+			EndYear      *int64   `json:"endYear"`
+			EndMonth     *int64   `json:"endMonth"`
+			Technologies []string `json:"technologies"`
+			Phases       []string `json:"phases"`
+			IsDraft      bool     `json:"isDraft"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(listRec.Body.Bytes(), &listResp); err != nil {
+		t.Fatalf("failed to decode list response: %v", err)
+	}
+	if len(listResp.Projects) != 1 {
+		t.Fatalf("expected one seeded project, got %#v", listResp.Projects)
+	}
+	if listResp.Projects[0].Name != "ECサイトリニューアル" ||
+		listResp.Projects[0].Company != "株式会社A" ||
+		listResp.Projects[0].StartYear != 2024 ||
+		listResp.Projects[0].StartMonth != 1 ||
+		listResp.Projects[0].EndYear != nil ||
+		listResp.Projects[0].EndMonth != nil ||
+		len(listResp.Projects[0].Technologies) != 2 ||
+		listResp.Projects[0].Technologies[0] != "React" ||
+		len(listResp.Projects[0].Phases) != 2 {
+		t.Fatalf("unexpected seeded project: %#v", listResp.Projects[0])
+	}
+
+	createBody := []byte(`{
+		"name":"新規案件",
+		"company":"株式会社C",
+		"startYear":2025,
+		"startMonth":1,
+		"endYear":null,
+		"endMonth":null,
+		"description":"新規開発",
+		"role":"バックエンドエンジニア",
+		"teamSize":"4名",
+		"technologies":["Go","SQLite"],
+		"phases":["設計","実装"],
+		"achievements":"APIを構築",
+		"isDraft":true
+	}`)
+	createReq := httptest.NewRequest(http.MethodPost, "/api/projects", bytes.NewReader(createBody))
+	createRec := httptest.NewRecorder()
+	router.ServeHTTP(createRec, createReq)
+
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("expected create status 201, got %d", createRec.Code)
+	}
+
+	var createResp struct {
+		Project struct {
+			ID           string   `json:"id"`
+			Name         string   `json:"name"`
+			Technologies []string `json:"technologies"`
+			IsDraft      bool     `json:"isDraft"`
+		} `json:"project"`
+	}
+	if err := json.Unmarshal(createRec.Body.Bytes(), &createResp); err != nil {
+		t.Fatalf("failed to decode create response: %v", err)
+	}
+	if createResp.Project.ID == "" ||
+		createResp.Project.Name != "新規案件" ||
+		len(createResp.Project.Technologies) != 2 ||
+		!createResp.Project.IsDraft {
+		t.Fatalf("unexpected created project: %#v", createResp.Project)
+	}
+
+	updateBody := []byte(`{
+		"name":"新規案件 Updated",
+		"company":"株式会社C",
+		"startYear":2025,
+		"startMonth":1,
+		"endYear":2025,
+		"endMonth":3,
+		"description":"新規開発",
+		"role":"テックリード",
+		"teamSize":"4名",
+		"technologies":["Go","SQLite","React"],
+		"phases":["設計","実装","テスト"],
+		"achievements":"APIと画面を構築",
+		"isDraft":false
+	}`)
+	updateReq := httptest.NewRequest(http.MethodPut, "/api/projects/"+createResp.Project.ID, bytes.NewReader(updateBody))
+	updateRec := httptest.NewRecorder()
+	router.ServeHTTP(updateRec, updateReq)
+
+	if updateRec.Code != http.StatusOK {
+		t.Fatalf("expected update status 200, got %d", updateRec.Code)
+	}
+
+	var updateResp struct {
+		Project struct {
+			Name         string   `json:"name"`
+			EndYear      *int64   `json:"endYear"`
+			EndMonth     *int64   `json:"endMonth"`
+			Technologies []string `json:"technologies"`
+			Phases       []string `json:"phases"`
+			IsDraft      bool     `json:"isDraft"`
+		} `json:"project"`
+	}
+	if err := json.Unmarshal(updateRec.Body.Bytes(), &updateResp); err != nil {
+		t.Fatalf("failed to decode update response: %v", err)
+	}
+	if updateResp.Project.Name != "新規案件 Updated" ||
+		updateResp.Project.EndYear == nil ||
+		*updateResp.Project.EndYear != 2025 ||
+		updateResp.Project.EndMonth == nil ||
+		*updateResp.Project.EndMonth != 3 ||
+		len(updateResp.Project.Technologies) != 3 ||
+		len(updateResp.Project.Phases) != 3 ||
+		updateResp.Project.IsDraft {
+		t.Fatalf("unexpected updated project: %#v", updateResp.Project)
+	}
+
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/projects/"+createResp.Project.ID, nil)
+	deleteRec := httptest.NewRecorder()
+	router.ServeHTTP(deleteRec, deleteReq)
+
+	if deleteRec.Code != http.StatusNoContent {
+		t.Fatalf("expected delete status 204, got %d", deleteRec.Code)
+	}
+}
+
 type testProfileRepository struct {
 	mu                sync.RWMutex
 	profile           *domain.Profile
@@ -664,8 +805,10 @@ type testProfileRepository struct {
 	skills            []domain.Skill
 	jobHistories      []domain.JobHistory
 	employmentTypes   []domain.JobEmploymentType
+	projects          []domain.Project
 	nextSkillID       int
 	nextJobHistoryID  int
+	nextProjectID     int
 }
 
 func newTestProfileRepository() *testProfileRepository {
@@ -726,8 +869,28 @@ func newTestProfileRepository() *testProfileRepository {
 			{ID: "job_employment_type_contract", Name: "契約社員", SortOrder: 2},
 			{ID: "job_employment_type_freelance", Name: "業務委託", SortOrder: 3},
 		},
+		projects: []domain.Project{
+			{
+				ID:           "project_ec_renewal",
+				Name:         "ECサイトリニューアル",
+				Company:      "株式会社A",
+				StartYear:    2024,
+				StartMonth:   1,
+				EndYear:      nil,
+				EndMonth:     nil,
+				Description:  "大手ECサイトのフロントエンド刷新プロジェクト",
+				Role:         "フロントエンドエンジニア",
+				TeamSize:     "8名",
+				Technologies: []string{"React", "TypeScript"},
+				Phases:       []string{"設計", "実装"},
+				Achievements: "ページ表示速度を改善",
+				IsDraft:      false,
+				SortOrder:    1,
+			},
+		},
 		nextSkillID:      1,
 		nextJobHistoryID: 1,
+		nextProjectID:    1,
 	}
 }
 
@@ -999,6 +1162,84 @@ func (r *testProfileRepository) UpdateJobEmploymentType(_ context.Context, id st
 	}
 
 	return nil, sql.ErrNoRows
+}
+
+func (r *testProfileRepository) ListProjects(context.Context) ([]domain.Project, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	projects := make([]domain.Project, len(r.projects))
+	copy(projects, r.projects)
+
+	return projects, nil
+}
+
+func (r *testProfileRepository) CreateProject(_ context.Context, input domain.ProjectInput) (*domain.Project, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.nextProjectID++
+	project := domain.Project{
+		ID:           "project_test_new",
+		Name:         input.Name,
+		Company:      input.Company,
+		StartYear:    input.StartYear,
+		StartMonth:   input.StartMonth,
+		EndYear:      input.EndYear,
+		EndMonth:     input.EndMonth,
+		Description:  input.Description,
+		Role:         input.Role,
+		TeamSize:     input.TeamSize,
+		Technologies: input.Technologies,
+		Phases:       input.Phases,
+		Achievements: input.Achievements,
+		IsDraft:      input.IsDraft,
+		SortOrder:    int64(len(r.projects) + 1),
+	}
+	r.projects = append(r.projects, project)
+
+	return &project, nil
+}
+
+func (r *testProfileRepository) UpdateProject(_ context.Context, id string, input domain.ProjectInput) (*domain.Project, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for index, project := range r.projects {
+		if project.ID == id {
+			r.projects[index].Name = input.Name
+			r.projects[index].Company = input.Company
+			r.projects[index].StartYear = input.StartYear
+			r.projects[index].StartMonth = input.StartMonth
+			r.projects[index].EndYear = input.EndYear
+			r.projects[index].EndMonth = input.EndMonth
+			r.projects[index].Description = input.Description
+			r.projects[index].Role = input.Role
+			r.projects[index].TeamSize = input.TeamSize
+			r.projects[index].Technologies = input.Technologies
+			r.projects[index].Phases = input.Phases
+			r.projects[index].Achievements = input.Achievements
+			r.projects[index].IsDraft = input.IsDraft
+			result := r.projects[index]
+			return &result, nil
+		}
+	}
+
+	return nil, sql.ErrNoRows
+}
+
+func (r *testProfileRepository) DeleteProject(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for index, project := range r.projects {
+		if project.ID == id {
+			r.projects = append(r.projects[:index], r.projects[index+1:]...)
+			return nil
+		}
+	}
+
+	return sql.ErrNoRows
 }
 
 func (r *testProfileRepository) findCategory(id string) (domain.SkillOption, bool) {
