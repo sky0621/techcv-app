@@ -528,14 +528,15 @@ func TestJobHistoryRoutes(t *testing.T) {
 
 	var listResp struct {
 		JobHistories []struct {
-			ID             string `json:"id"`
-			Company        string `json:"company"`
-			StartYear      int64  `json:"startYear"`
-			StartMonth     int64  `json:"startMonth"`
-			EndYear        *int64 `json:"endYear"`
-			EndMonth       *int64 `json:"endMonth"`
-			EmploymentType string `json:"employmentType"`
-			ProjectCount   int64  `json:"projectCount"`
+			ID               string `json:"id"`
+			Company          string `json:"company"`
+			StartYear        int64  `json:"startYear"`
+			StartMonth       int64  `json:"startMonth"`
+			EndYear          *int64 `json:"endYear"`
+			EndMonth         *int64 `json:"endMonth"`
+			EmploymentTypeID string `json:"employmentTypeId"`
+			EmploymentType   string `json:"employmentType"`
+			ProjectCount     int64  `json:"projectCount"`
 		} `json:"jobHistories"`
 	}
 	if err := json.Unmarshal(listRec.Body.Bytes(), &listResp); err != nil {
@@ -549,6 +550,8 @@ func TestJobHistoryRoutes(t *testing.T) {
 		listResp.JobHistories[0].StartMonth != 1 ||
 		listResp.JobHistories[0].EndYear != nil ||
 		listResp.JobHistories[0].EndMonth != nil ||
+		listResp.JobHistories[0].EmploymentTypeID != "job_employment_type_full_time" ||
+		listResp.JobHistories[0].EmploymentType != "正社員" ||
 		listResp.JobHistories[0].ProjectCount != 5 {
 		t.Fatalf("unexpected seeded job history: %#v", listResp.JobHistories[0])
 	}
@@ -559,7 +562,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 		"startMonth":1,
 		"endYear":null,
 		"endMonth":null,
-		"employmentType":"業務委託"
+		"employmentTypeId":"job_employment_type_freelance"
 	}`)
 	createReq := httptest.NewRequest(http.MethodPost, "/api/job-histories", bytes.NewReader(createBody))
 	createRec := httptest.NewRecorder()
@@ -571,14 +574,15 @@ func TestJobHistoryRoutes(t *testing.T) {
 
 	var createResp struct {
 		JobHistory struct {
-			ID             string `json:"id"`
-			Company        string `json:"company"`
-			StartYear      int64  `json:"startYear"`
-			StartMonth     int64  `json:"startMonth"`
-			EndYear        *int64 `json:"endYear"`
-			EndMonth       *int64 `json:"endMonth"`
-			EmploymentType string `json:"employmentType"`
-			ProjectCount   int64  `json:"projectCount"`
+			ID               string `json:"id"`
+			Company          string `json:"company"`
+			StartYear        int64  `json:"startYear"`
+			StartMonth       int64  `json:"startMonth"`
+			EndYear          *int64 `json:"endYear"`
+			EndMonth         *int64 `json:"endMonth"`
+			EmploymentTypeID string `json:"employmentTypeId"`
+			EmploymentType   string `json:"employmentType"`
+			ProjectCount     int64  `json:"projectCount"`
 		} `json:"jobHistory"`
 	}
 	if err := json.Unmarshal(createRec.Body.Bytes(), &createResp); err != nil {
@@ -587,6 +591,8 @@ func TestJobHistoryRoutes(t *testing.T) {
 	if createResp.JobHistory.ID == "" ||
 		createResp.JobHistory.EndYear != nil ||
 		createResp.JobHistory.EndMonth != nil ||
+		createResp.JobHistory.EmploymentTypeID != "job_employment_type_freelance" ||
+		createResp.JobHistory.EmploymentType != "業務委託" ||
 		createResp.JobHistory.ProjectCount != 0 {
 		t.Fatalf("unexpected created job history: %#v", createResp.JobHistory)
 	}
@@ -597,7 +603,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 		"startMonth":2,
 		"endYear":2025,
 		"endMonth":3,
-		"employmentType":"契約社員"
+		"employmentTypeId":"job_employment_type_contract"
 	}`)
 	updateReq := httptest.NewRequest(http.MethodPut, "/api/job-histories/"+createResp.JobHistory.ID, bytes.NewReader(updateBody))
 	updateRec := httptest.NewRecorder()
@@ -609,12 +615,13 @@ func TestJobHistoryRoutes(t *testing.T) {
 
 	var updateResp struct {
 		JobHistory struct {
-			Company        string `json:"company"`
-			StartYear      int64  `json:"startYear"`
-			StartMonth     int64  `json:"startMonth"`
-			EndYear        *int64 `json:"endYear"`
-			EndMonth       *int64 `json:"endMonth"`
-			EmploymentType string `json:"employmentType"`
+			Company          string `json:"company"`
+			StartYear        int64  `json:"startYear"`
+			StartMonth       int64  `json:"startMonth"`
+			EndYear          *int64 `json:"endYear"`
+			EndMonth         *int64 `json:"endMonth"`
+			EmploymentTypeID string `json:"employmentTypeId"`
+			EmploymentType   string `json:"employmentType"`
 		} `json:"jobHistory"`
 	}
 	if err := json.Unmarshal(updateRec.Body.Bytes(), &updateResp); err != nil {
@@ -627,6 +634,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 		*updateResp.JobHistory.EndYear != 2025 ||
 		updateResp.JobHistory.EndMonth == nil ||
 		*updateResp.JobHistory.EndMonth != 3 ||
+		updateResp.JobHistory.EmploymentTypeID != "job_employment_type_contract" ||
 		updateResp.JobHistory.EmploymentType != "契約社員" {
 		t.Fatalf("unexpected updated job history: %#v", updateResp.JobHistory)
 	}
@@ -647,6 +655,7 @@ type testProfileRepository struct {
 	proficiencyLevels []domain.SkillOption
 	skills            []domain.Skill
 	jobHistories      []domain.JobHistory
+	employmentTypes   []domain.JobEmploymentType
 	nextSkillID       int
 	nextJobHistoryID  int
 }
@@ -691,16 +700,22 @@ func newTestProfileRepository() *testProfileRepository {
 		},
 		jobHistories: []domain.JobHistory{
 			{
-				ID:             "job_history_company_a",
-				Company:        "株式会社A",
-				StartYear:      2023,
-				StartMonth:     1,
-				EndYear:        nil,
-				EndMonth:       nil,
-				EmploymentType: "正社員",
-				ProjectCount:   5,
-				SortOrder:      1,
+				ID:               "job_history_company_a",
+				Company:          "株式会社A",
+				StartYear:        2023,
+				StartMonth:       1,
+				EndYear:          nil,
+				EndMonth:         nil,
+				EmploymentTypeID: "job_employment_type_full_time",
+				EmploymentType:   "正社員",
+				ProjectCount:     5,
+				SortOrder:        1,
 			},
+		},
+		employmentTypes: []domain.JobEmploymentType{
+			{ID: "job_employment_type_full_time", Name: "正社員", SortOrder: 1},
+			{ID: "job_employment_type_contract", Name: "契約社員", SortOrder: 2},
+			{ID: "job_employment_type_freelance", Name: "業務委託", SortOrder: 3},
 		},
 		nextSkillID:      1,
 		nextJobHistoryID: 1,
@@ -873,17 +888,23 @@ func (r *testProfileRepository) CreateJobHistory(_ context.Context, input domain
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	employmentType, ok := r.findEmploymentType(input.EmploymentTypeID)
+	if !ok {
+		return nil, sql.ErrNoRows
+	}
+
 	r.nextJobHistoryID++
 	jobHistory := domain.JobHistory{
-		ID:             "job_history_test_new",
-		Company:        input.Company,
-		StartYear:      input.StartYear,
-		StartMonth:     input.StartMonth,
-		EndYear:        input.EndYear,
-		EndMonth:       input.EndMonth,
-		EmploymentType: input.EmploymentType,
-		ProjectCount:   0,
-		SortOrder:      int64(len(r.jobHistories) + 1),
+		ID:               "job_history_test_new",
+		Company:          input.Company,
+		StartYear:        input.StartYear,
+		StartMonth:       input.StartMonth,
+		EndYear:          input.EndYear,
+		EndMonth:         input.EndMonth,
+		EmploymentTypeID: input.EmploymentTypeID,
+		EmploymentType:   employmentType.Name,
+		ProjectCount:     0,
+		SortOrder:        int64(len(r.jobHistories) + 1),
 	}
 	r.jobHistories = append(r.jobHistories, jobHistory)
 
@@ -894,6 +915,11 @@ func (r *testProfileRepository) UpdateJobHistory(_ context.Context, id string, i
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	employmentType, ok := r.findEmploymentType(input.EmploymentTypeID)
+	if !ok {
+		return nil, sql.ErrNoRows
+	}
+
 	for index, jobHistory := range r.jobHistories {
 		if jobHistory.ID == id {
 			r.jobHistories[index].Company = input.Company
@@ -901,7 +927,8 @@ func (r *testProfileRepository) UpdateJobHistory(_ context.Context, id string, i
 			r.jobHistories[index].StartMonth = input.StartMonth
 			r.jobHistories[index].EndYear = input.EndYear
 			r.jobHistories[index].EndMonth = input.EndMonth
-			r.jobHistories[index].EmploymentType = input.EmploymentType
+			r.jobHistories[index].EmploymentTypeID = input.EmploymentTypeID
+			r.jobHistories[index].EmploymentType = employmentType.Name
 			result := r.jobHistories[index]
 			return &result, nil
 		}
@@ -924,6 +951,45 @@ func (r *testProfileRepository) DeleteJobHistory(_ context.Context, id string) e
 	return sql.ErrNoRows
 }
 
+func (r *testProfileRepository) ListJobHistoryOptions(context.Context) (*domain.JobHistoryOptions, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	employmentTypes := make([]domain.JobEmploymentType, len(r.employmentTypes))
+	copy(employmentTypes, r.employmentTypes)
+
+	return &domain.JobHistoryOptions{EmploymentTypes: employmentTypes}, nil
+}
+
+func (r *testProfileRepository) CreateJobEmploymentType(_ context.Context, input domain.JobEmploymentTypeInput) (*domain.JobEmploymentType, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	employmentType := domain.JobEmploymentType{
+		ID:        input.ID,
+		Name:      input.Name,
+		SortOrder: int64(len(r.employmentTypes) + 1),
+	}
+	r.employmentTypes = append(r.employmentTypes, employmentType)
+
+	return &employmentType, nil
+}
+
+func (r *testProfileRepository) UpdateJobEmploymentType(_ context.Context, id string, input domain.JobEmploymentTypeInput) (*domain.JobEmploymentType, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for index, employmentType := range r.employmentTypes {
+		if employmentType.ID == id {
+			r.employmentTypes[index].Name = input.Name
+			result := r.employmentTypes[index]
+			return &result, nil
+		}
+	}
+
+	return nil, sql.ErrNoRows
+}
+
 func (r *testProfileRepository) findCategory(id string) (domain.SkillOption, bool) {
 	for _, category := range r.categories {
 		if category.ID == id {
@@ -942,4 +1008,14 @@ func (r *testProfileRepository) findProficiencyLevel(id string) (domain.SkillOpt
 	}
 
 	return domain.SkillOption{}, false
+}
+
+func (r *testProfileRepository) findEmploymentType(id string) (domain.JobEmploymentType, bool) {
+	for _, employmentType := range r.employmentTypes {
+		if employmentType.ID == id {
+			return employmentType, true
+		}
+	}
+
+	return domain.JobEmploymentType{}, false
 }

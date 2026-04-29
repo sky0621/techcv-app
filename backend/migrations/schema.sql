@@ -62,6 +62,14 @@ CREATE TABLE IF NOT EXISTS skills (
     FOREIGN KEY (proficiency_level_id) REFERENCES skill_proficiency_levels(id)
 );
 
+CREATE TABLE IF NOT EXISTS job_employment_types (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    sort_order INTEGER NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS job_histories (
     id TEXT NOT NULL PRIMARY KEY,
     company TEXT NOT NULL,
@@ -69,9 +77,10 @@ CREATE TABLE IF NOT EXISTS job_histories (
     start_month INTEGER NOT NULL,
     end_year INTEGER,
     end_month INTEGER,
-    employment_type TEXT NOT NULL,
+    employment_type_id TEXT NOT NULL,
     project_count INTEGER NOT NULL DEFAULT 0,
     sort_order INTEGER NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (employment_type_id) REFERENCES job_employment_types(id)
 );

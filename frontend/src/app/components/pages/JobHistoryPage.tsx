@@ -15,13 +15,24 @@ type JobHistory = {
   startMonth: number;
   endYear: number | null;
   endMonth: number | null;
+  employmentTypeId: string;
   employmentType: string;
   projectCount: number;
   sortOrder: number;
 };
 
+type JobEmploymentType = {
+  id: string;
+  name: string;
+  sortOrder: number;
+};
+
 type JobHistoriesResponse = {
   jobHistories: JobHistory[];
+};
+
+type JobHistoryOptionsResponse = {
+  employmentTypes: JobEmploymentType[];
 };
 
 type JobHistoryResponse = {
@@ -51,6 +62,7 @@ function parseYearMonth(value: string) {
 
 export function JobHistoryPage() {
   const [jobs, setJobs] = useState<JobHistory[]>([]);
+  const [employmentTypes, setEmploymentTypes] = useState<JobEmploymentType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
@@ -60,7 +72,7 @@ export function JobHistoryPage() {
     company: "",
     startDate: "",
     endDate: "",
-    employmentType: "正社員",
+    employmentTypeId: "",
   });
 
   useEffect(() => {
@@ -71,15 +83,21 @@ export function JobHistoryPage() {
       setError("");
 
       try {
-        const response = await fetch("/api/job-histories", {
-          signal: controller.signal,
-        });
-        if (!response.ok) {
+        const [jobHistoriesResponse, optionsResponse] = await Promise.all([
+          fetch("/api/job-histories", { signal: controller.signal }),
+          fetch("/api/job-histories/options", { signal: controller.signal }),
+        ]);
+        if (!jobHistoriesResponse.ok) {
           throw new Error("職歴の取得に失敗しました");
         }
+        if (!optionsResponse.ok) {
+          throw new Error("職歴の選択肢の取得に失敗しました");
+        }
 
-        const data = (await response.json()) as JobHistoriesResponse;
-        setJobs(data.jobHistories ?? []);
+        const jobHistoriesData = (await jobHistoriesResponse.json()) as JobHistoriesResponse;
+        const optionsData = (await optionsResponse.json()) as JobHistoryOptionsResponse;
+        setJobs(jobHistoriesData.jobHistories ?? []);
+        setEmploymentTypes(optionsData.employmentTypes ?? []);
       } catch (caught) {
         if (caught instanceof DOMException && caught.name === "AbortError") {
           return;
@@ -101,7 +119,12 @@ export function JobHistoryPage() {
 
   const handleAdd = () => {
     setEditingJob(null);
-    setFormData({ company: "", startDate: "", endDate: "", employmentType: "正社員" });
+    setFormData({
+      company: "",
+      startDate: "",
+      endDate: "",
+      employmentTypeId: employmentTypes[0]?.id ?? "",
+    });
     setIsDialogOpen(true);
   };
 
@@ -114,7 +137,7 @@ export function JobHistoryPage() {
         job.endYear === null || job.endMonth === null
           ? ""
           : formatYearMonth(job.endYear, job.endMonth),
-      employmentType: job.employmentType,
+      employmentTypeId: job.employmentTypeId,
     });
     setIsDialogOpen(true);
   };
@@ -132,7 +155,7 @@ export function JobHistoryPage() {
         startMonth: start.month,
         endYear: formData.endDate.trim() === "" ? null : end.year,
         endMonth: formData.endDate.trim() === "" ? null : end.month,
-        employmentType: formData.employmentType,
+        employmentTypeId: formData.employmentTypeId,
       };
       const response = await fetch(
         editingJob
@@ -184,7 +207,7 @@ export function JobHistoryPage() {
   const canSave =
     formData.company.trim() !== "" &&
     formData.startDate.trim() !== "" &&
-    formData.employmentType.trim() !== "";
+    formData.employmentTypeId.trim() !== "";
 
   return (
     <div className="p-8">
@@ -194,7 +217,7 @@ export function JobHistoryPage() {
             <h1 className="text-3xl font-bold text-gray-900">職歴管理</h1>
             <p className="text-gray-600 mt-1">勤務先の履歴を時系列で管理</p>
           </div>
-          <Button onClick={handleAdd} disabled={isLoading}>
+          <Button onClick={handleAdd} disabled={isLoading || employmentTypes.length === 0}>
             <Plus className="w-4 h-4 mr-2" />
             職歴を追加
           </Button>
@@ -314,18 +337,19 @@ export function JobHistoryPage() {
               <div className="space-y-2">
                 <Label htmlFor="employmentType">雇用形態</Label>
                 <Select
-                  value={formData.employmentType}
-                  onValueChange={(value) => setFormData({ ...formData, employmentType: value })}
+                  value={formData.employmentTypeId}
+                  onValueChange={(value) => setFormData({ ...formData, employmentTypeId: value })}
+                  disabled={employmentTypes.length === 0}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="正社員">正社員</SelectItem>
-                    <SelectItem value="契約社員">契約社員</SelectItem>
-                    <SelectItem value="業務委託">業務委託</SelectItem>
-                    <SelectItem value="派遣">派遣</SelectItem>
-                    <SelectItem value="アルバイト">アルバイト</SelectItem>
+                    {employmentTypes.map((employmentType) => (
+                      <SelectItem key={employmentType.id} value={employmentType.id}>
+                        {employmentType.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 const deleteJobHistory = `-- name: DeleteJobHistory :execrows
@@ -25,24 +26,41 @@ func (q *Queries) DeleteJobHistory(ctx context.Context, id string) (int64, error
 
 const getJobHistory = `-- name: GetJobHistory :one
 SELECT
-  id,
-  company,
-  start_year,
-  start_month,
-  end_year,
-  end_month,
-  employment_type,
-  project_count,
-  sort_order,
-  created_at,
-  updated_at
+  job_histories.id,
+  job_histories.company,
+  job_histories.start_year,
+  job_histories.start_month,
+  job_histories.end_year,
+  job_histories.end_month,
+  job_histories.employment_type_id,
+  job_employment_types.name AS employment_type,
+  job_histories.project_count,
+  job_histories.sort_order,
+  job_histories.created_at,
+  job_histories.updated_at
 FROM job_histories
-WHERE id = ?
+JOIN job_employment_types ON job_employment_types.id = job_histories.employment_type_id
+WHERE job_histories.id = ?
 `
 
-func (q *Queries) GetJobHistory(ctx context.Context, id string) (JobHistory, error) {
+type GetJobHistoryRow struct {
+	ID               string
+	Company          string
+	StartYear        int64
+	StartMonth       int64
+	EndYear          sql.NullInt64
+	EndMonth         sql.NullInt64
+	EmploymentTypeID string
+	EmploymentType   string
+	ProjectCount     int64
+	SortOrder        int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+func (q *Queries) GetJobHistory(ctx context.Context, id string) (GetJobHistoryRow, error) {
 	row := q.db.QueryRowContext(ctx, getJobHistory, id)
-	var i JobHistory
+	var i GetJobHistoryRow
 	err := row.Scan(
 		&i.ID,
 		&i.Company,
@@ -50,8 +68,46 @@ func (q *Queries) GetJobHistory(ctx context.Context, id string) (JobHistory, err
 		&i.StartMonth,
 		&i.EndYear,
 		&i.EndMonth,
+		&i.EmploymentTypeID,
 		&i.EmploymentType,
 		&i.ProjectCount,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertJobEmploymentType = `-- name: InsertJobEmploymentType :one
+INSERT INTO job_employment_types (
+  id,
+  name,
+  sort_order
+)
+SELECT
+  ?,
+  ?,
+  COALESCE(MAX(sort_order), 0) + 1
+FROM job_employment_types
+RETURNING
+  id,
+  name,
+  sort_order,
+  created_at,
+  updated_at
+`
+
+type InsertJobEmploymentTypeParams struct {
+	ID   string
+	Name string
+}
+
+func (q *Queries) InsertJobEmploymentType(ctx context.Context, arg InsertJobEmploymentTypeParams) (JobEmploymentType, error) {
+	row := q.db.QueryRowContext(ctx, insertJobEmploymentType, arg.ID, arg.Name)
+	var i JobEmploymentType
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -67,7 +123,7 @@ INSERT INTO job_histories (
   start_month,
   end_year,
   end_month,
-  employment_type,
+  employment_type_id,
   project_count,
   sort_order
 )
@@ -89,7 +145,7 @@ RETURNING
   start_month,
   end_year,
   end_month,
-  employment_type,
+  employment_type_id,
   project_count,
   sort_order,
   created_at,
@@ -97,13 +153,13 @@ RETURNING
 `
 
 type InsertJobHistoryParams struct {
-	ID             string
-	Company        string
-	StartYear      int64
-	StartMonth     int64
-	EndYear        sql.NullInt64
-	EndMonth       sql.NullInt64
-	EmploymentType string
+	ID               string
+	Company          string
+	StartYear        int64
+	StartMonth       int64
+	EndYear          sql.NullInt64
+	EndMonth         sql.NullInt64
+	EmploymentTypeID string
 }
 
 func (q *Queries) InsertJobHistory(ctx context.Context, arg InsertJobHistoryParams) (JobHistory, error) {
@@ -114,7 +170,7 @@ func (q *Queries) InsertJobHistory(ctx context.Context, arg InsertJobHistoryPara
 		arg.StartMonth,
 		arg.EndYear,
 		arg.EndMonth,
-		arg.EmploymentType,
+		arg.EmploymentTypeID,
 	)
 	var i JobHistory
 	err := row.Scan(
@@ -124,7 +180,7 @@ func (q *Queries) InsertJobHistory(ctx context.Context, arg InsertJobHistoryPara
 		&i.StartMonth,
 		&i.EndYear,
 		&i.EndMonth,
-		&i.EmploymentType,
+		&i.EmploymentTypeID,
 		&i.ProjectCount,
 		&i.SortOrder,
 		&i.CreatedAt,
@@ -133,32 +189,89 @@ func (q *Queries) InsertJobHistory(ctx context.Context, arg InsertJobHistoryPara
 	return i, err
 }
 
-const listJobHistories = `-- name: ListJobHistories :many
+const listJobEmploymentTypes = `-- name: ListJobEmploymentTypes :many
 SELECT
   id,
-  company,
-  start_year,
-  start_month,
-  end_year,
-  end_month,
-  employment_type,
-  project_count,
+  name,
   sort_order,
   created_at,
   updated_at
-FROM job_histories
-ORDER BY sort_order ASC, start_year DESC, start_month DESC, company ASC
+FROM job_employment_types
+ORDER BY sort_order ASC, name ASC
 `
 
-func (q *Queries) ListJobHistories(ctx context.Context) ([]JobHistory, error) {
+func (q *Queries) ListJobEmploymentTypes(ctx context.Context) ([]JobEmploymentType, error) {
+	rows, err := q.db.QueryContext(ctx, listJobEmploymentTypes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []JobEmploymentType
+	for rows.Next() {
+		var i JobEmploymentType
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.SortOrder,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listJobHistories = `-- name: ListJobHistories :many
+SELECT
+  job_histories.id,
+  job_histories.company,
+  job_histories.start_year,
+  job_histories.start_month,
+  job_histories.end_year,
+  job_histories.end_month,
+  job_histories.employment_type_id,
+  job_employment_types.name AS employment_type,
+  job_histories.project_count,
+  job_histories.sort_order,
+  job_histories.created_at,
+  job_histories.updated_at
+FROM job_histories
+JOIN job_employment_types ON job_employment_types.id = job_histories.employment_type_id
+ORDER BY job_histories.sort_order ASC, job_histories.start_year DESC, job_histories.start_month DESC, job_histories.company ASC
+`
+
+type ListJobHistoriesRow struct {
+	ID               string
+	Company          string
+	StartYear        int64
+	StartMonth       int64
+	EndYear          sql.NullInt64
+	EndMonth         sql.NullInt64
+	EmploymentTypeID string
+	EmploymentType   string
+	ProjectCount     int64
+	SortOrder        int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+func (q *Queries) ListJobHistories(ctx context.Context) ([]ListJobHistoriesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listJobHistories)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []JobHistory
+	var items []ListJobHistoriesRow
 	for rows.Next() {
-		var i JobHistory
+		var i ListJobHistoriesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Company,
@@ -166,6 +279,7 @@ func (q *Queries) ListJobHistories(ctx context.Context) ([]JobHistory, error) {
 			&i.StartMonth,
 			&i.EndYear,
 			&i.EndMonth,
+			&i.EmploymentTypeID,
 			&i.EmploymentType,
 			&i.ProjectCount,
 			&i.SortOrder,
@@ -185,6 +299,38 @@ func (q *Queries) ListJobHistories(ctx context.Context) ([]JobHistory, error) {
 	return items, nil
 }
 
+const updateJobEmploymentType = `-- name: UpdateJobEmploymentType :one
+UPDATE job_employment_types
+SET
+  name = ?,
+  updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING
+  id,
+  name,
+  sort_order,
+  created_at,
+  updated_at
+`
+
+type UpdateJobEmploymentTypeParams struct {
+	Name string
+	ID   string
+}
+
+func (q *Queries) UpdateJobEmploymentType(ctx context.Context, arg UpdateJobEmploymentTypeParams) (JobEmploymentType, error) {
+	row := q.db.QueryRowContext(ctx, updateJobEmploymentType, arg.Name, arg.ID)
+	var i JobEmploymentType
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateJobHistory = `-- name: UpdateJobHistory :one
 UPDATE job_histories
 SET
@@ -193,7 +339,7 @@ SET
   start_month = ?,
   end_year = ?,
   end_month = ?,
-  employment_type = ?,
+  employment_type_id = ?,
   updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING
@@ -203,7 +349,7 @@ RETURNING
   start_month,
   end_year,
   end_month,
-  employment_type,
+  employment_type_id,
   project_count,
   sort_order,
   created_at,
@@ -211,13 +357,13 @@ RETURNING
 `
 
 type UpdateJobHistoryParams struct {
-	Company        string
-	StartYear      int64
-	StartMonth     int64
-	EndYear        sql.NullInt64
-	EndMonth       sql.NullInt64
-	EmploymentType string
-	ID             string
+	Company          string
+	StartYear        int64
+	StartMonth       int64
+	EndYear          sql.NullInt64
+	EndMonth         sql.NullInt64
+	EmploymentTypeID string
+	ID               string
 }
 
 func (q *Queries) UpdateJobHistory(ctx context.Context, arg UpdateJobHistoryParams) (JobHistory, error) {
@@ -227,7 +373,7 @@ func (q *Queries) UpdateJobHistory(ctx context.Context, arg UpdateJobHistoryPara
 		arg.StartMonth,
 		arg.EndYear,
 		arg.EndMonth,
-		arg.EmploymentType,
+		arg.EmploymentTypeID,
 		arg.ID,
 	)
 	var i JobHistory
@@ -238,7 +384,7 @@ func (q *Queries) UpdateJobHistory(ctx context.Context, arg UpdateJobHistoryPara
 		&i.StartMonth,
 		&i.EndYear,
 		&i.EndMonth,
-		&i.EmploymentType,
+		&i.EmploymentTypeID,
 		&i.ProjectCount,
 		&i.SortOrder,
 		&i.CreatedAt,

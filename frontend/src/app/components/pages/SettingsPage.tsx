@@ -34,10 +34,25 @@ type SkillOptionsResponse = {
   proficiencyLevels: SkillOption[];
 };
 
+type JobEmploymentType = {
+  id: string;
+  name: string;
+  sortOrder: number;
+};
+
+type JobHistoryOptionsResponse = {
+  employmentTypes: JobEmploymentType[];
+};
+
 type CategoryForm = {
   id: string;
   name: string;
   icon: string;
+};
+
+type EmploymentTypeForm = {
+  id: string;
+  name: string;
 };
 
 const iconExamples = "code, database, cloud, wrench, frame";
@@ -45,6 +60,10 @@ const emptyCategoryForm: CategoryForm = {
   id: "",
   name: "",
   icon: "wrench",
+};
+const emptyEmploymentTypeForm: EmploymentTypeForm = {
+  id: "",
+  name: "",
 };
 
 function normalizeIconName(icon?: string) {
@@ -86,11 +105,16 @@ function getIcon(icon?: string): LucideIcon {
 export function SettingsPage() {
   const [categories, setCategories] = useState<SkillOption[]>([]);
   const [proficiencyLevels, setProficiencyLevels] = useState<SkillOption[]>([]);
+  const [employmentTypes, setEmploymentTypes] = useState<JobEmploymentType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingCategory, setIsSavingCategory] = useState(false);
+  const [isSavingEmploymentType, setIsSavingEmploymentType] = useState(false);
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [employmentTypeDialogOpen, setEmploymentTypeDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<SkillOption | null>(null);
+  const [editingEmploymentType, setEditingEmploymentType] = useState<JobEmploymentType | null>(null);
   const [categoryForm, setCategoryForm] = useState<CategoryForm>(emptyCategoryForm);
+  const [employmentTypeForm, setEmploymentTypeForm] = useState<EmploymentTypeForm>(emptyEmploymentTypeForm);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -99,16 +123,19 @@ export function SettingsPage() {
     setError("");
 
     try {
-      const response = await fetch("/api/skills/options", {
-        signal,
-      });
-      if (!response.ok) {
+      const [skillOptionsResponse, jobHistoryOptionsResponse] = await Promise.all([
+        fetch("/api/skills/options", { signal }),
+        fetch("/api/job-histories/options", { signal }),
+      ]);
+      if (!skillOptionsResponse.ok || !jobHistoryOptionsResponse.ok) {
         throw new Error("設定情報の取得に失敗しました");
       }
 
-      const data = (await response.json()) as SkillOptionsResponse;
-      setCategories(data.categories ?? []);
-      setProficiencyLevels(data.proficiencyLevels ?? []);
+      const skillOptions = (await skillOptionsResponse.json()) as SkillOptionsResponse;
+      const jobHistoryOptions = (await jobHistoryOptionsResponse.json()) as JobHistoryOptionsResponse;
+      setCategories(skillOptions.categories ?? []);
+      setProficiencyLevels(skillOptions.proficiencyLevels ?? []);
+      setEmploymentTypes(jobHistoryOptions.employmentTypes ?? []);
     } catch (caught) {
       if (caught instanceof DOMException && caught.name === "AbortError") {
         return;
@@ -151,6 +178,25 @@ export function SettingsPage() {
     setError("");
   };
 
+  const openAddEmploymentTypeDialog = () => {
+    setEditingEmploymentType(null);
+    setEmploymentTypeForm(emptyEmploymentTypeForm);
+    setEmploymentTypeDialogOpen(true);
+    setMessage("");
+    setError("");
+  };
+
+  const openEditEmploymentTypeDialog = (employmentType: JobEmploymentType) => {
+    setEditingEmploymentType(employmentType);
+    setEmploymentTypeForm({
+      id: employmentType.id,
+      name: employmentType.name,
+    });
+    setEmploymentTypeDialogOpen(true);
+    setMessage("");
+    setError("");
+  };
+
   const handleSaveCategory = async () => {
     setIsSavingCategory(true);
     setMessage("");
@@ -187,6 +233,41 @@ export function SettingsPage() {
     categoryForm.name.trim() !== "" &&
     categoryForm.icon.trim() !== "" &&
     (editingCategory !== null || categoryForm.id.trim() !== "");
+  const handleSaveEmploymentType = async () => {
+    setIsSavingEmploymentType(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await fetch(
+        editingEmploymentType
+          ? `/api/job-employment-types/${encodeURIComponent(editingEmploymentType.id)}`
+          : "/api/job-employment-types",
+        {
+          method: editingEmploymentType ? "PUT" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(employmentTypeForm),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(editingEmploymentType ? "雇用形態の更新に失敗しました" : "雇用形態の追加に失敗しました");
+      }
+
+      setEmploymentTypeDialogOpen(false);
+      await loadOptions();
+      setMessage(editingEmploymentType ? "雇用形態を更新しました" : "雇用形態を追加しました");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "雇用形態の保存に失敗しました");
+    } finally {
+      setIsSavingEmploymentType(false);
+    }
+  };
+
+  const canSaveEmploymentType =
+    employmentTypeForm.name.trim() !== "" &&
+    (editingEmploymentType !== null || employmentTypeForm.id.trim() !== "");
 
   return (
     <div className="p-8">
@@ -313,6 +394,60 @@ export function SettingsPage() {
               </Table>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4">
+              <div>
+                <CardTitle>雇用形態</CardTitle>
+                <CardDescription>job_employment_types テーブルの内容</CardDescription>
+              </div>
+              <Button type="button" variant="outline" onClick={openAddEmploymentTypeDialog}>
+                <LucideIcons.Plus className="w-4 h-4 mr-2" />
+                追加
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>表示順</TableHead>
+                    <TableHead>名称</TableHead>
+                    <TableHead>ID</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {employmentTypes.map((employmentType) => (
+                    <TableRow key={employmentType.id}>
+                      <TableCell>{employmentType.sortOrder}</TableCell>
+                      <TableCell className="font-medium">{employmentType.name}</TableCell>
+                      <TableCell className="font-mono text-xs text-gray-600">
+                        {employmentType.id}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditEmploymentTypeDialog(employmentType)}
+                        >
+                          <LucideIcons.Pencil className="w-4 h-4 mr-2" />
+                          編集
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {!isLoading && employmentTypes.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-gray-500">
+                        雇用形態は登録されていません。
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         </div>
 
         <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
@@ -393,6 +528,64 @@ export function SettingsPage() {
                 disabled={!canSaveCategory || isSavingCategory}
               >
                 {isSavingCategory ? "保存中" : "保存"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={employmentTypeDialogOpen} onOpenChange={setEmploymentTypeDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingEmploymentType ? "雇用形態を編集" : "雇用形態を追加"}</DialogTitle>
+              <DialogDescription>
+                {editingEmploymentType
+                  ? "雇用形態の名称を変更します。"
+                  : "雇用形態のIDと名称を登録します。"}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              {!editingEmploymentType && (
+                <div className="space-y-2">
+                  <Label htmlFor="employment-type-id">ID</Label>
+                  <Input
+                    id="employment-type-id"
+                    value={employmentTypeForm.id}
+                    onChange={(e) =>
+                      setEmploymentTypeForm({ ...employmentTypeForm, id: e.target.value })
+                    }
+                    placeholder="job_employment_type_intern"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="employment-type-name">名称</Label>
+                <Input
+                  id="employment-type-name"
+                  value={employmentTypeForm.name}
+                  onChange={(e) =>
+                    setEmploymentTypeForm({ ...employmentTypeForm, name: e.target.value })
+                  }
+                  placeholder="インターン"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEmploymentTypeDialogOpen(false)}
+              >
+                キャンセル
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSaveEmploymentType}
+                disabled={!canSaveEmploymentType || isSavingEmploymentType}
+              >
+                {isSavingEmploymentType ? "保存中" : "保存"}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -9,18 +9,26 @@ import (
 	"time"
 )
 
+type JobEmploymentType struct {
+	ID        string
+	Name      string
+	SortOrder int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type JobHistory struct {
-	ID             string
-	Company        string
-	StartYear      int64
-	StartMonth     int64
-	EndYear        sql.NullInt64
-	EndMonth       sql.NullInt64
-	EmploymentType string
-	ProjectCount   int64
-	SortOrder      int64
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID               string
+	Company          string
+	StartYear        int64
+	StartMonth       int64
+	EndYear          sql.NullInt64
+	EndMonth         sql.NullInt64
+	EmploymentTypeID string
+	ProjectCount     int64
+	SortOrder        int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type Profile struct {

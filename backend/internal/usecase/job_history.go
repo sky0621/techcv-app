@@ -30,3 +30,15 @@ func (u *JobHistoryUseCase) Update(ctx context.Context, id string, input domain.
 func (u *JobHistoryUseCase) Delete(ctx context.Context, id string) error {
 	return u.repository.DeleteJobHistory(ctx, id)
 }
+
+func (u *JobHistoryUseCase) ListOptions(ctx context.Context) (*domain.JobHistoryOptions, error) {
+	return u.repository.ListJobHistoryOptions(ctx)
+}
+
+func (u *JobHistoryUseCase) CreateEmploymentType(ctx context.Context, input domain.JobEmploymentTypeInput) (*domain.JobEmploymentType, error) {
+	return u.repository.CreateJobEmploymentType(ctx, input)
+}
+
+func (u *JobHistoryUseCase) UpdateEmploymentType(ctx context.Context, id string, input domain.JobEmploymentTypeInput) (*domain.JobEmploymentType, error) {
+	return u.repository.UpdateJobEmploymentType(ctx, id, input)
+}

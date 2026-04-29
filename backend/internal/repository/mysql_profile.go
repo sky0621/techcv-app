@@ -226,6 +226,9 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.seedSkills(ctx); err != nil {
 		return err
 	}
+	if err := r.seedJobEmploymentTypes(ctx); err != nil {
+		return err
+	}
 	if err := r.migrateJobHistoryDateColumns(ctx); err != nil {
 		return err
 	}
@@ -356,36 +359,46 @@ func (r *SQLiteProfileRepository) ListJobHistories(ctx context.Context) ([]domai
 func (r *SQLiteProfileRepository) CreateJobHistory(ctx context.Context, input domain.JobHistoryInput) (*domain.JobHistory, error) {
 	now := time.Now().UTC()
 	row, err := r.queries.InsertJobHistory(ctx, dbgen.InsertJobHistoryParams{
-		ID:             jobHistoryID(now),
-		Company:        input.Company,
-		StartYear:      input.StartYear,
-		StartMonth:     input.StartMonth,
-		EndYear:        toNullInt64(input.EndYear),
-		EndMonth:       toNullInt64(input.EndMonth),
-		EmploymentType: input.EmploymentType,
+		ID:               jobHistoryID(now),
+		Company:          input.Company,
+		StartYear:        input.StartYear,
+		StartMonth:       input.StartMonth,
+		EndYear:          toNullInt64(input.EndYear),
+		EndMonth:         toNullInt64(input.EndMonth),
+		EmploymentTypeID: input.EmploymentTypeID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("insert job history: %w", err)
 	}
 
-	return toDomainJobHistory(row), nil
+	created, err := r.queries.GetJobHistory(ctx, row.ID)
+	if err != nil {
+		return nil, fmt.Errorf("reload job history: %w", err)
+	}
+
+	return toDomainJobHistory(created), nil
 }
 
 func (r *SQLiteProfileRepository) UpdateJobHistory(ctx context.Context, id string, input domain.JobHistoryInput) (*domain.JobHistory, error) {
 	row, err := r.queries.UpdateJobHistory(ctx, dbgen.UpdateJobHistoryParams{
-		ID:             id,
-		Company:        input.Company,
-		StartYear:      input.StartYear,
-		StartMonth:     input.StartMonth,
-		EndYear:        toNullInt64(input.EndYear),
-		EndMonth:       toNullInt64(input.EndMonth),
-		EmploymentType: input.EmploymentType,
+		ID:               id,
+		Company:          input.Company,
+		StartYear:        input.StartYear,
+		StartMonth:       input.StartMonth,
+		EndYear:          toNullInt64(input.EndYear),
+		EndMonth:         toNullInt64(input.EndMonth),
+		EmploymentTypeID: input.EmploymentTypeID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("update job history: %w", err)
 	}
 
-	return toDomainJobHistory(row), nil
+	updated, err := r.queries.GetJobHistory(ctx, row.ID)
+	if err != nil {
+		return nil, fmt.Errorf("reload job history: %w", err)
+	}
+
+	return toDomainJobHistory(updated), nil
 }
 
 func (r *SQLiteProfileRepository) DeleteJobHistory(ctx context.Context, id string) error {
@@ -398,6 +411,41 @@ func (r *SQLiteProfileRepository) DeleteJobHistory(ctx context.Context, id strin
 	}
 
 	return nil
+}
+
+func (r *SQLiteProfileRepository) ListJobHistoryOptions(ctx context.Context) (*domain.JobHistoryOptions, error) {
+	rows, err := r.queries.ListJobEmploymentTypes(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("query job employment types: %w", err)
+	}
+
+	return &domain.JobHistoryOptions{
+		EmploymentTypes: toDomainJobEmploymentTypes(rows),
+	}, nil
+}
+
+func (r *SQLiteProfileRepository) CreateJobEmploymentType(ctx context.Context, input domain.JobEmploymentTypeInput) (*domain.JobEmploymentType, error) {
+	row, err := r.queries.InsertJobEmploymentType(ctx, dbgen.InsertJobEmploymentTypeParams{
+		ID:   input.ID,
+		Name: input.Name,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("insert job employment type: %w", err)
+	}
+
+	return toDomainJobEmploymentType(row), nil
+}
+
+func (r *SQLiteProfileRepository) UpdateJobEmploymentType(ctx context.Context, id string, input domain.JobEmploymentTypeInput) (*domain.JobEmploymentType, error) {
+	row, err := r.queries.UpdateJobEmploymentType(ctx, dbgen.UpdateJobEmploymentTypeParams{
+		ID:   id,
+		Name: input.Name,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update job employment type: %w", err)
+	}
+
+	return toDomainJobEmploymentType(row), nil
 }
 
 func ensureSQLiteDirectory(dsn string) error {
@@ -494,8 +542,44 @@ func (r *SQLiteProfileRepository) migrateJobHistoryDateColumns(ctx context.Conte
 	if err != nil {
 		return err
 	}
-	if !hasStartDateColumn {
+	hasEmploymentTypeColumn, err := r.tableHasColumn(ctx, "job_histories", "employment_type")
+	if err != nil {
+		return err
+	}
+	if !hasStartDateColumn && !hasEmploymentTypeColumn {
 		return nil
+	}
+	if hasEmploymentTypeColumn {
+		if _, err := r.db.ExecContext(
+			ctx,
+			`INSERT OR IGNORE INTO job_employment_types (id, name, sort_order)
+			SELECT
+				'job_employment_type_' || lower(hex(randomblob(8))),
+				employment_type,
+				COALESCE((SELECT MAX(sort_order) FROM job_employment_types), 0) + row_number() OVER (ORDER BY employment_type)
+			FROM (SELECT DISTINCT employment_type FROM job_histories WHERE employment_type <> '') AS old_types
+			WHERE NOT EXISTS (
+				SELECT 1 FROM job_employment_types WHERE job_employment_types.name = old_types.employment_type
+			)`,
+		); err != nil {
+			return fmt.Errorf("backfill job employment types: %w", err)
+		}
+	}
+
+	startYearExpression := "start_year"
+	startMonthExpression := "start_month"
+	endYearExpression := "end_year"
+	endMonthExpression := "end_month"
+	if hasStartDateColumn {
+		startYearExpression = "CAST(substr(start_date, 1, 4) AS INTEGER)"
+		startMonthExpression = "CAST(substr(start_date, 6, 2) AS INTEGER)"
+		endYearExpression = "CASE WHEN end_date = '' OR end_date = '現在' THEN NULL ELSE CAST(substr(end_date, 1, 4) AS INTEGER) END"
+		endMonthExpression = "CASE WHEN end_date = '' OR end_date = '現在' THEN NULL ELSE CAST(substr(end_date, 6, 2) AS INTEGER) END"
+	}
+
+	employmentTypeIDExpression := "employment_type_id"
+	if hasEmploymentTypeColumn {
+		employmentTypeIDExpression = "(SELECT id FROM job_employment_types WHERE job_employment_types.name = job_histories.employment_type LIMIT 1)"
 	}
 
 	statements := []string{
@@ -507,20 +591,21 @@ func (r *SQLiteProfileRepository) migrateJobHistoryDateColumns(ctx context.Conte
 			start_month INTEGER NOT NULL,
 			end_year INTEGER,
 			end_month INTEGER,
-			employment_type TEXT NOT NULL,
+			employment_type_id TEXT NOT NULL,
 			project_count INTEGER NOT NULL DEFAULT 0,
 			sort_order INTEGER NOT NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (employment_type_id) REFERENCES job_employment_types(id)
 		)`,
-		`INSERT INTO job_histories_new (
+		fmt.Sprintf(`INSERT INTO job_histories_new (
 			id,
 			company,
 			start_year,
 			start_month,
 			end_year,
 			end_month,
-			employment_type,
+			employment_type_id,
 			project_count,
 			sort_order,
 			created_at,
@@ -529,16 +614,16 @@ func (r *SQLiteProfileRepository) migrateJobHistoryDateColumns(ctx context.Conte
 		SELECT
 			id,
 			company,
-			CAST(substr(start_date, 1, 4) AS INTEGER),
-			CAST(substr(start_date, 6, 2) AS INTEGER),
-			CASE WHEN end_date = '' OR end_date = '現在' THEN NULL ELSE CAST(substr(end_date, 1, 4) AS INTEGER) END,
-			CASE WHEN end_date = '' OR end_date = '現在' THEN NULL ELSE CAST(substr(end_date, 6, 2) AS INTEGER) END,
-			employment_type,
+			%s,
+			%s,
+			%s,
+			%s,
+			%s,
 			project_count,
 			sort_order,
 			created_at,
 			updated_at
-		FROM job_histories`,
+		FROM job_histories`, startYearExpression, startMonthExpression, endYearExpression, endMonthExpression, employmentTypeIDExpression),
 		`DROP TABLE job_histories`,
 		`ALTER TABLE job_histories_new RENAME TO job_histories`,
 	}
@@ -629,33 +714,56 @@ func (r *SQLiteProfileRepository) seedSkills(ctx context.Context) error {
 	return nil
 }
 
+func (r *SQLiteProfileRepository) seedJobEmploymentTypes(ctx context.Context) error {
+	employmentTypes := []domain.JobEmploymentType{
+		{ID: "job_employment_type_full_time", Name: "正社員", SortOrder: 1},
+		{ID: "job_employment_type_contract", Name: "契約社員", SortOrder: 2},
+		{ID: "job_employment_type_freelance", Name: "業務委託", SortOrder: 3},
+		{ID: "job_employment_type_dispatch", Name: "派遣", SortOrder: 4},
+		{ID: "job_employment_type_part_time", Name: "アルバイト", SortOrder: 5},
+	}
+	for _, employmentType := range employmentTypes {
+		if _, err := r.db.ExecContext(
+			ctx,
+			"INSERT OR IGNORE INTO job_employment_types (id, name, sort_order) VALUES (?, ?, ?)",
+			employmentType.ID,
+			employmentType.Name,
+			employmentType.SortOrder,
+		); err != nil {
+			return fmt.Errorf("seed job employment type %s: %w", employmentType.ID, err)
+		}
+	}
+
+	return nil
+}
+
 func (r *SQLiteProfileRepository) seedJobHistories(ctx context.Context) error {
 	jobHistories := []struct {
-		id             string
-		company        string
-		startYear      int64
-		startMonth     int64
-		endYear        *int64
-		endMonth       *int64
-		employmentType string
-		projectCount   int64
-		sortOrder      int64
+		id               string
+		company          string
+		startYear        int64
+		startMonth       int64
+		endYear          *int64
+		endMonth         *int64
+		employmentTypeID string
+		projectCount     int64
+		sortOrder        int64
 	}{
-		{id: "job_history_company_a", company: "株式会社A", startYear: 2023, startMonth: 1, endYear: nil, endMonth: nil, employmentType: "正社員", projectCount: 5, sortOrder: 1},
-		{id: "job_history_company_b", company: "株式会社B", startYear: 2021, startMonth: 4, endYear: int64Ptr(2022), endMonth: int64Ptr(12), employmentType: "正社員", projectCount: 4, sortOrder: 2},
-		{id: "job_history_freelance", company: "フリーランス", startYear: 2020, startMonth: 1, endYear: int64Ptr(2021), endMonth: int64Ptr(3), employmentType: "業務委託", projectCount: 3, sortOrder: 3},
+		{id: "job_history_company_a", company: "株式会社A", startYear: 2023, startMonth: 1, endYear: nil, endMonth: nil, employmentTypeID: "job_employment_type_full_time", projectCount: 5, sortOrder: 1},
+		{id: "job_history_company_b", company: "株式会社B", startYear: 2021, startMonth: 4, endYear: int64Ptr(2022), endMonth: int64Ptr(12), employmentTypeID: "job_employment_type_full_time", projectCount: 4, sortOrder: 2},
+		{id: "job_history_freelance", company: "フリーランス", startYear: 2020, startMonth: 1, endYear: int64Ptr(2021), endMonth: int64Ptr(3), employmentTypeID: "job_employment_type_freelance", projectCount: 3, sortOrder: 3},
 	}
 	for _, jobHistory := range jobHistories {
 		if _, err := r.db.ExecContext(
 			ctx,
-			"INSERT OR IGNORE INTO job_histories (id, company, start_year, start_month, end_year, end_month, employment_type, project_count, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT OR IGNORE INTO job_histories (id, company, start_year, start_month, end_year, end_month, employment_type_id, project_count, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			jobHistory.id,
 			jobHistory.company,
 			jobHistory.startYear,
 			jobHistory.startMonth,
 			toNullInt64(jobHistory.endYear),
 			toNullInt64(jobHistory.endMonth),
-			jobHistory.employmentType,
+			jobHistory.employmentTypeID,
 			jobHistory.projectCount,
 			jobHistory.sortOrder,
 		); err != nil {
@@ -814,26 +922,55 @@ func toDomainSkill(row dbgen.GetSkillRow) *domain.Skill {
 	}
 }
 
-func toDomainJobHistories(rows []dbgen.JobHistory) []domain.JobHistory {
+func toDomainJobHistories(rows []dbgen.ListJobHistoriesRow) []domain.JobHistory {
 	jobHistories := make([]domain.JobHistory, 0, len(rows))
 	for _, row := range rows {
-		jobHistories = append(jobHistories, *toDomainJobHistory(row))
+		jobHistories = append(jobHistories, domain.JobHistory{
+			ID:               row.ID,
+			Company:          row.Company,
+			StartYear:        row.StartYear,
+			StartMonth:       row.StartMonth,
+			EndYear:          fromNullInt64(row.EndYear),
+			EndMonth:         fromNullInt64(row.EndMonth),
+			EmploymentTypeID: row.EmploymentTypeID,
+			EmploymentType:   row.EmploymentType,
+			ProjectCount:     row.ProjectCount,
+			SortOrder:        row.SortOrder,
+		})
 	}
 
 	return jobHistories
 }
 
-func toDomainJobHistory(row dbgen.JobHistory) *domain.JobHistory {
+func toDomainJobHistory(row dbgen.GetJobHistoryRow) *domain.JobHistory {
 	return &domain.JobHistory{
-		ID:             row.ID,
-		Company:        row.Company,
-		StartYear:      row.StartYear,
-		StartMonth:     row.StartMonth,
-		EndYear:        fromNullInt64(row.EndYear),
-		EndMonth:       fromNullInt64(row.EndMonth),
-		EmploymentType: row.EmploymentType,
-		ProjectCount:   row.ProjectCount,
-		SortOrder:      row.SortOrder,
+		ID:               row.ID,
+		Company:          row.Company,
+		StartYear:        row.StartYear,
+		StartMonth:       row.StartMonth,
+		EndYear:          fromNullInt64(row.EndYear),
+		EndMonth:         fromNullInt64(row.EndMonth),
+		EmploymentTypeID: row.EmploymentTypeID,
+		EmploymentType:   row.EmploymentType,
+		ProjectCount:     row.ProjectCount,
+		SortOrder:        row.SortOrder,
+	}
+}
+
+func toDomainJobEmploymentTypes(rows []dbgen.JobEmploymentType) []domain.JobEmploymentType {
+	employmentTypes := make([]domain.JobEmploymentType, 0, len(rows))
+	for _, row := range rows {
+		employmentTypes = append(employmentTypes, *toDomainJobEmploymentType(row))
+	}
+
+	return employmentTypes
+}
+
+func toDomainJobEmploymentType(row dbgen.JobEmploymentType) *domain.JobEmploymentType {
+	return &domain.JobEmploymentType{
+		ID:        row.ID,
+		Name:      row.Name,
+		SortOrder: row.SortOrder,
 	}
 }
 
