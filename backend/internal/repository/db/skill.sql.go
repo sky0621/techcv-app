@@ -7,7 +7,128 @@ package db
 
 import (
 	"context"
+	"time"
 )
+
+const deleteSkill = `-- name: DeleteSkill :execrows
+DELETE FROM skills
+WHERE id = ?
+`
+
+func (q *Queries) DeleteSkill(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteSkill, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const getSkill = `-- name: GetSkill :one
+SELECT
+  skills.id,
+  skills.name,
+  skills.category_id,
+  skill_categories.name AS category_name,
+  skills.experience,
+  skills.proficiency_level_id,
+  skill_proficiency_levels.name AS proficiency_name,
+  skills.sort_order,
+  skills.created_at,
+  skills.updated_at
+FROM skills
+JOIN skill_categories ON skill_categories.id = skills.category_id
+JOIN skill_proficiency_levels ON skill_proficiency_levels.id = skills.proficiency_level_id
+WHERE skills.id = ?
+`
+
+type GetSkillRow struct {
+	ID                 string
+	Name               string
+	CategoryID         string
+	CategoryName       string
+	Experience         string
+	ProficiencyLevelID string
+	ProficiencyName    string
+	SortOrder          int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+func (q *Queries) GetSkill(ctx context.Context, id string) (GetSkillRow, error) {
+	row := q.db.QueryRowContext(ctx, getSkill, id)
+	var i GetSkillRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CategoryID,
+		&i.CategoryName,
+		&i.Experience,
+		&i.ProficiencyLevelID,
+		&i.ProficiencyName,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertSkill = `-- name: InsertSkill :one
+INSERT INTO skills (
+  id,
+  name,
+  category_id,
+  experience,
+  proficiency_level_id,
+  sort_order
+)
+SELECT
+  ?,
+  ?,
+  ?,
+  ?,
+  ?,
+  COALESCE(MAX(sort_order), 0) + 1
+FROM skills
+RETURNING
+  id,
+  name,
+  category_id,
+  experience,
+  proficiency_level_id,
+  sort_order,
+  created_at,
+  updated_at
+`
+
+type InsertSkillParams struct {
+	ID                 string
+	Name               string
+	CategoryID         string
+	Experience         string
+	ProficiencyLevelID string
+}
+
+func (q *Queries) InsertSkill(ctx context.Context, arg InsertSkillParams) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, insertSkill,
+		arg.ID,
+		arg.Name,
+		arg.CategoryID,
+		arg.Experience,
+		arg.ProficiencyLevelID,
+	)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CategoryID,
+		&i.Experience,
+		&i.ProficiencyLevelID,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const insertSkillCategory = `-- name: InsertSkillCategory :one
 INSERT INTO skill_categories (
@@ -131,6 +252,121 @@ func (q *Queries) ListSkillProficiencyLevels(ctx context.Context) ([]SkillProfic
 		return nil, err
 	}
 	return items, nil
+}
+
+const listSkills = `-- name: ListSkills :many
+SELECT
+  skills.id,
+  skills.name,
+  skills.category_id,
+  skill_categories.name AS category_name,
+  skills.experience,
+  skills.proficiency_level_id,
+  skill_proficiency_levels.name AS proficiency_name,
+  skills.sort_order,
+  skills.created_at,
+  skills.updated_at
+FROM skills
+JOIN skill_categories ON skill_categories.id = skills.category_id
+JOIN skill_proficiency_levels ON skill_proficiency_levels.id = skills.proficiency_level_id
+ORDER BY skills.sort_order ASC, skills.name ASC
+`
+
+type ListSkillsRow struct {
+	ID                 string
+	Name               string
+	CategoryID         string
+	CategoryName       string
+	Experience         string
+	ProficiencyLevelID string
+	ProficiencyName    string
+	SortOrder          int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+func (q *Queries) ListSkills(ctx context.Context) ([]ListSkillsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSkills)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSkillsRow
+	for rows.Next() {
+		var i ListSkillsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CategoryID,
+			&i.CategoryName,
+			&i.Experience,
+			&i.ProficiencyLevelID,
+			&i.ProficiencyName,
+			&i.SortOrder,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateSkill = `-- name: UpdateSkill :one
+UPDATE skills
+SET
+  name = ?,
+  category_id = ?,
+  experience = ?,
+  proficiency_level_id = ?,
+  updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING
+  id,
+  name,
+  category_id,
+  experience,
+  proficiency_level_id,
+  sort_order,
+  created_at,
+  updated_at
+`
+
+type UpdateSkillParams struct {
+	Name               string
+	CategoryID         string
+	Experience         string
+	ProficiencyLevelID string
+	ID                 string
+}
+
+func (q *Queries) UpdateSkill(ctx context.Context, arg UpdateSkillParams) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, updateSkill,
+		arg.Name,
+		arg.CategoryID,
+		arg.Experience,
+		arg.ProficiencyLevelID,
+		arg.ID,
+	)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CategoryID,
+		&i.Experience,
+		&i.ProficiencyLevelID,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const updateSkillCategory = `-- name: UpdateSkillCategory :one

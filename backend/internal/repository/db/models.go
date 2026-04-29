@@ -41,6 +41,17 @@ type ProfileQualification struct {
 	UpdatedAt    time.Time
 }
 
+type Skill struct {
+	ID                 string
+	Name               string
+	CategoryID         string
+	Experience         string
+	ProficiencyLevelID string
+	SortOrder          int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
 type SkillCategory struct {
 	ID        string
 	Name      string

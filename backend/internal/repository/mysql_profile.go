@@ -223,6 +223,9 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.seedSkillOptions(ctx); err != nil {
 		return err
 	}
+	if err := r.seedSkills(ctx); err != nil {
+		return err
+	}
 	if err := r.backfillEmptySkillCategoryIcons(ctx); err != nil {
 		return err
 	}
@@ -271,6 +274,68 @@ func (r *SQLiteProfileRepository) UpdateSkillCategory(ctx context.Context, id st
 	}
 
 	return toDomainSkillCategoryOption(row), nil
+}
+
+func (r *SQLiteProfileRepository) ListSkills(ctx context.Context) ([]domain.Skill, error) {
+	rows, err := r.queries.ListSkills(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("query skills: %w", err)
+	}
+
+	return toDomainSkills(rows), nil
+}
+
+func (r *SQLiteProfileRepository) CreateSkill(ctx context.Context, input domain.SkillInput) (*domain.Skill, error) {
+	now := time.Now().UTC()
+	row, err := r.queries.InsertSkill(ctx, dbgen.InsertSkillParams{
+		ID:                 skillID(now),
+		Name:               input.Name,
+		CategoryID:         input.CategoryID,
+		Experience:         input.Experience,
+		ProficiencyLevelID: input.ProficiencyLevelID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("insert skill: %w", err)
+	}
+
+	created, err := r.queries.GetSkill(ctx, row.ID)
+	if err != nil {
+		return nil, fmt.Errorf("reload skill: %w", err)
+	}
+
+	return toDomainSkill(created), nil
+}
+
+func (r *SQLiteProfileRepository) UpdateSkill(ctx context.Context, id string, input domain.SkillInput) (*domain.Skill, error) {
+	row, err := r.queries.UpdateSkill(ctx, dbgen.UpdateSkillParams{
+		ID:                 id,
+		Name:               input.Name,
+		CategoryID:         input.CategoryID,
+		Experience:         input.Experience,
+		ProficiencyLevelID: input.ProficiencyLevelID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update skill: %w", err)
+	}
+
+	updated, err := r.queries.GetSkill(ctx, row.ID)
+	if err != nil {
+		return nil, fmt.Errorf("reload skill: %w", err)
+	}
+
+	return toDomainSkill(updated), nil
+}
+
+func (r *SQLiteProfileRepository) DeleteSkill(ctx context.Context, id string) error {
+	rowsAffected, err := r.queries.DeleteSkill(ctx, id)
+	if err != nil {
+		return fmt.Errorf("delete skill: %w", err)
+	}
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
 }
 
 func ensureSQLiteDirectory(dsn string) error {
@@ -405,6 +470,41 @@ func (r *SQLiteProfileRepository) seedSkillOptions(ctx context.Context) error {
 	return nil
 }
 
+func (r *SQLiteProfileRepository) seedSkills(ctx context.Context) error {
+	skills := []struct {
+		id                 string
+		name               string
+		categoryID         string
+		experience         string
+		proficiencyLevelID string
+		sortOrder          int64
+	}{
+		{id: "skill_typescript", name: "TypeScript", categoryID: "skill_category_language", experience: "3年", proficiencyLevelID: "skill_proficiency_advanced", sortOrder: 1},
+		{id: "skill_react", name: "React", categoryID: "skill_category_framework", experience: "3年", proficiencyLevelID: "skill_proficiency_advanced", sortOrder: 2},
+		{id: "skill_nodejs", name: "Node.js", categoryID: "skill_category_framework", experience: "2年", proficiencyLevelID: "skill_proficiency_intermediate", sortOrder: 3},
+		{id: "skill_postgresql", name: "PostgreSQL", categoryID: "skill_category_database", experience: "2年", proficiencyLevelID: "skill_proficiency_intermediate", sortOrder: 4},
+		{id: "skill_docker", name: "Docker", categoryID: "skill_category_infrastructure", experience: "2年", proficiencyLevelID: "skill_proficiency_intermediate", sortOrder: 5},
+		{id: "skill_aws", name: "AWS", categoryID: "skill_category_infrastructure", experience: "1年", proficiencyLevelID: "skill_proficiency_beginner", sortOrder: 6},
+		{id: "skill_git", name: "Git", categoryID: "skill_category_tool", experience: "4年", proficiencyLevelID: "skill_proficiency_advanced", sortOrder: 7},
+	}
+	for _, skill := range skills {
+		if _, err := r.db.ExecContext(
+			ctx,
+			"INSERT OR IGNORE INTO skills (id, name, category_id, experience, proficiency_level_id, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+			skill.id,
+			skill.name,
+			skill.categoryID,
+			skill.experience,
+			skill.proficiencyLevelID,
+			skill.sortOrder,
+		); err != nil {
+			return fmt.Errorf("seed skill %s: %w", skill.id, err)
+		}
+	}
+
+	return nil
+}
+
 func (r *SQLiteProfileRepository) backfillEmptySkillCategoryIcons(ctx context.Context) error {
 	if _, err := r.db.ExecContext(ctx, "UPDATE skill_categories SET icon = 'wrench', updated_at = CURRENT_TIMESTAMP WHERE icon = ''"); err != nil {
 		return fmt.Errorf("backfill empty skill category icons: %w", err)
@@ -522,12 +622,47 @@ func toDomainSkillProficiencyLevelOptions(rows []dbgen.SkillProficiencyLevel) []
 	return options
 }
 
+func toDomainSkills(rows []dbgen.ListSkillsRow) []domain.Skill {
+	skills := make([]domain.Skill, 0, len(rows))
+	for _, row := range rows {
+		skills = append(skills, domain.Skill{
+			ID:                 row.ID,
+			Name:               row.Name,
+			CategoryID:         row.CategoryID,
+			CategoryName:       row.CategoryName,
+			Experience:         row.Experience,
+			ProficiencyLevelID: row.ProficiencyLevelID,
+			ProficiencyName:    row.ProficiencyName,
+			SortOrder:          row.SortOrder,
+		})
+	}
+
+	return skills
+}
+
+func toDomainSkill(row dbgen.GetSkillRow) *domain.Skill {
+	return &domain.Skill{
+		ID:                 row.ID,
+		Name:               row.Name,
+		CategoryID:         row.CategoryID,
+		CategoryName:       row.CategoryName,
+		Experience:         row.Experience,
+		ProficiencyLevelID: row.ProficiencyLevelID,
+		ProficiencyName:    row.ProficiencyName,
+		SortOrder:          row.SortOrder,
+	}
+}
+
 func qualificationID(qualification domain.Qualification, index int, now time.Time) string {
 	if qualification.ID != "" {
 		return qualification.ID
 	}
 
 	return fmt.Sprintf("qualification_%d_%d", now.UnixNano(), index+1)
+}
+
+func skillID(now time.Time) string {
+	return fmt.Sprintf("skill_%d", now.UnixNano())
 }
 
 func sanitizeVisibilitySettings(values map[string]any) map[string]any {
