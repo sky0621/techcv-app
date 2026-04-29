@@ -28,6 +28,8 @@ func NewRouter(
 	api.Get("/profile", profileServer.GetProfile)
 	api.Put("/profile", profileServer.UpdateProfile)
 	api.Get("/skills/options", skillOptionsServer.ListSkillOptions)
+	api.Post("/skills/categories", skillOptionsServer.CreateSkillCategory)
+	api.Put("/skills/categories/{id}", skillOptionsServer.UpdateSkillCategory)
 	r.Mount("/api", api)
 
 	return r

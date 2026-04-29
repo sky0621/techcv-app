@@ -18,3 +18,11 @@ func NewSkillOptionsUseCase(repository repository.SkillOptionsRepository) *Skill
 func (u *SkillOptionsUseCase) List(ctx context.Context) (*domain.SkillOptions, error) {
 	return u.repository.ListSkillOptions(ctx)
 }
+
+func (u *SkillOptionsUseCase) CreateCategory(ctx context.Context, input domain.SkillCategoryInput) (*domain.SkillOption, error) {
+	return u.repository.CreateSkillCategory(ctx, input)
+}
+
+func (u *SkillOptionsUseCase) UpdateCategory(ctx context.Context, id string, input domain.SkillCategoryInput) (*domain.SkillOption, error) {
+	return u.repository.UpdateSkillCategory(ctx, id, input)
+}

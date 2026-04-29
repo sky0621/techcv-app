@@ -273,6 +273,42 @@ func TestSQLiteProfileRepositorySeedsSkillOptions(t *testing.T) {
 	if options.ProficiencyLevels[3].ID != "skill_proficiency_expert" || options.ProficiencyLevels[3].SortOrder != 4 {
 		t.Fatalf("unexpected last proficiency level: %#v", options.ProficiencyLevels[3])
 	}
+
+	updated, err := repo.UpdateSkillCategory(ctx, "skill_category_language", domain.SkillCategoryInput{
+		Name: "プログラミング言語",
+		Icon: "database",
+	})
+	if err != nil {
+		t.Fatalf("UpdateSkillCategory() error = %v", err)
+	}
+	if updated.Name != "プログラミング言語" || updated.Icon != "database" {
+		t.Fatalf("unexpected updated category: %#v", updated)
+	}
+	if err := repo.seedSkillOptions(ctx); err != nil {
+		t.Fatalf("seedSkillOptions() after update error = %v", err)
+	}
+	options, err = repo.ListSkillOptions(ctx)
+	if err != nil {
+		t.Fatalf("ListSkillOptions() after update error = %v", err)
+	}
+	if options.Categories[0].Name != "プログラミング言語" || options.Categories[0].Icon != "database" {
+		t.Fatalf("expected seed not to overwrite edited category, got %#v", options.Categories[0])
+	}
+
+	created, err := repo.CreateSkillCategory(ctx, domain.SkillCategoryInput{
+		ID:   "skill_category_backend",
+		Name: "バックエンド",
+		Icon: "code",
+	})
+	if err != nil {
+		t.Fatalf("CreateSkillCategory() error = %v", err)
+	}
+	if created.ID != "skill_category_backend" || created.Name != "バックエンド" || created.Icon != "code" {
+		t.Fatalf("unexpected created category: %#v", created)
+	}
+	if created.SortOrder != 7 {
+		t.Fatalf("expected created category sort order 7, got %#v", created)
+	}
 }
 
 func TestSQLiteProfileRepositoryMigratesSkillCategoryIconColumn(t *testing.T) {

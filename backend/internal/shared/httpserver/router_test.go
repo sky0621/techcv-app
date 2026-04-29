@@ -3,6 +3,7 @@ package httpserver
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -350,9 +351,71 @@ func TestSkillOptionsRoute(t *testing.T) {
 	}
 }
 
+func TestSkillCategoryMutationRoutes(t *testing.T) {
+	repository := newTestProfileRepository()
+	router := NewRouter(repository, repository)
+
+	createBody := []byte(`{
+		"id":"skill_category_backend",
+		"name":"バックエンド",
+		"icon":"code"
+	}`)
+	createReq := httptest.NewRequest(http.MethodPost, "/api/skills/categories", bytes.NewReader(createBody))
+	createRec := httptest.NewRecorder()
+	router.ServeHTTP(createRec, createReq)
+
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("expected create status 201, got %d", createRec.Code)
+	}
+
+	var createResp struct {
+		Category struct {
+			ID        string `json:"id"`
+			Name      string `json:"name"`
+			Icon      string `json:"icon"`
+			SortOrder int64  `json:"sortOrder"`
+		} `json:"category"`
+	}
+	if err := json.Unmarshal(createRec.Body.Bytes(), &createResp); err != nil {
+		t.Fatalf("failed to decode create response: %v", err)
+	}
+	if createResp.Category.ID != "skill_category_backend" || createResp.Category.Name != "バックエンド" {
+		t.Fatalf("unexpected created category: %#v", createResp.Category)
+	}
+
+	updateBody := []byte(`{
+		"name":"バックエンド・API",
+		"icon":"database"
+	}`)
+	updateReq := httptest.NewRequest(http.MethodPut, "/api/skills/categories/skill_category_backend", bytes.NewReader(updateBody))
+	updateRec := httptest.NewRecorder()
+	router.ServeHTTP(updateRec, updateReq)
+
+	if updateRec.Code != http.StatusOK {
+		t.Fatalf("expected update status 200, got %d", updateRec.Code)
+	}
+
+	var updateResp struct {
+		Category struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+			Icon string `json:"icon"`
+		} `json:"category"`
+	}
+	if err := json.Unmarshal(updateRec.Body.Bytes(), &updateResp); err != nil {
+		t.Fatalf("failed to decode update response: %v", err)
+	}
+	if updateResp.Category.ID != "skill_category_backend" ||
+		updateResp.Category.Name != "バックエンド・API" ||
+		updateResp.Category.Icon != "database" {
+		t.Fatalf("unexpected updated category: %#v", updateResp.Category)
+	}
+}
+
 type testProfileRepository struct {
-	mu      sync.RWMutex
-	profile *domain.Profile
+	mu         sync.RWMutex
+	profile    *domain.Profile
+	categories []domain.SkillOption
 }
 
 func newTestProfileRepository() *testProfileRepository {
@@ -366,6 +429,14 @@ func newTestProfileRepository() *testProfileRepository {
 			VisibilitySettings: map[string]any{"email": false},
 			CreatedAt:          now,
 			UpdatedAt:          now,
+		},
+		categories: []domain.SkillOption{
+			{ID: "skill_category_language", Name: "言語", Icon: "code", SortOrder: 1},
+			{ID: "skill_category_framework", Name: "フレームワーク", Icon: "code", SortOrder: 2},
+			{ID: "skill_category_database", Name: "データベース", Icon: "database", SortOrder: 3},
+			{ID: "skill_category_infrastructure", Name: "インフラ", Icon: "cloud", SortOrder: 4},
+			{ID: "skill_category_tool", Name: "ツール", Icon: "wrench", SortOrder: 5},
+			{ID: "skill_category_other", Name: "その他", Icon: "wrench", SortOrder: 6},
 		},
 	}
 }
@@ -395,15 +466,14 @@ func (r *testProfileRepository) Save(_ context.Context, profile *domain.Profile)
 }
 
 func (r *testProfileRepository) ListSkillOptions(context.Context) (*domain.SkillOptions, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	categories := make([]domain.SkillOption, len(r.categories))
+	copy(categories, r.categories)
+
 	return &domain.SkillOptions{
-		Categories: []domain.SkillOption{
-			{ID: "skill_category_language", Name: "言語", Icon: "code", SortOrder: 1},
-			{ID: "skill_category_framework", Name: "フレームワーク", Icon: "code", SortOrder: 2},
-			{ID: "skill_category_database", Name: "データベース", Icon: "database", SortOrder: 3},
-			{ID: "skill_category_infrastructure", Name: "インフラ", Icon: "cloud", SortOrder: 4},
-			{ID: "skill_category_tool", Name: "ツール", Icon: "wrench", SortOrder: 5},
-			{ID: "skill_category_other", Name: "その他", Icon: "wrench", SortOrder: 6},
-		},
+		Categories: categories,
 		ProficiencyLevels: []domain.SkillOption{
 			{ID: "skill_proficiency_beginner", Name: "初級", SortOrder: 1},
 			{ID: "skill_proficiency_intermediate", Name: "中級", SortOrder: 2},
@@ -411,4 +481,35 @@ func (r *testProfileRepository) ListSkillOptions(context.Context) (*domain.Skill
 			{ID: "skill_proficiency_expert", Name: "エキスパート", SortOrder: 4},
 		},
 	}, nil
+}
+
+func (r *testProfileRepository) CreateSkillCategory(_ context.Context, input domain.SkillCategoryInput) (*domain.SkillOption, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	category := domain.SkillOption{
+		ID:        input.ID,
+		Name:      input.Name,
+		Icon:      input.Icon,
+		SortOrder: int64(len(r.categories) + 1),
+	}
+	r.categories = append(r.categories, category)
+
+	return &category, nil
+}
+
+func (r *testProfileRepository) UpdateSkillCategory(_ context.Context, id string, input domain.SkillCategoryInput) (*domain.SkillOption, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for index, category := range r.categories {
+		if category.ID == id {
+			r.categories[index].Name = input.Name
+			r.categories[index].Icon = input.Icon
+			result := r.categories[index]
+			return &result, nil
+		}
+	}
+
+	return nil, sql.ErrNoRows
 }

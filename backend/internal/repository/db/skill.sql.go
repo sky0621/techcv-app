@@ -9,6 +9,48 @@ import (
 	"context"
 )
 
+const insertSkillCategory = `-- name: InsertSkillCategory :one
+INSERT INTO skill_categories (
+  id,
+  name,
+  icon,
+  sort_order
+)
+SELECT
+  ?,
+  ?,
+  ?,
+  COALESCE(MAX(sort_order), 0) + 1
+FROM skill_categories
+RETURNING
+  id,
+  name,
+  icon,
+  sort_order,
+  created_at,
+  updated_at
+`
+
+type InsertSkillCategoryParams struct {
+	ID   string
+	Name string
+	Icon string
+}
+
+func (q *Queries) InsertSkillCategory(ctx context.Context, arg InsertSkillCategoryParams) (SkillCategory, error) {
+	row := q.db.QueryRowContext(ctx, insertSkillCategory, arg.ID, arg.Name, arg.Icon)
+	var i SkillCategory
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Icon,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listSkillCategories = `-- name: ListSkillCategories :many
 SELECT
   id,
@@ -89,4 +131,40 @@ func (q *Queries) ListSkillProficiencyLevels(ctx context.Context) ([]SkillProfic
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateSkillCategory = `-- name: UpdateSkillCategory :one
+UPDATE skill_categories
+SET
+  name = ?,
+  icon = ?,
+  updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING
+  id,
+  name,
+  icon,
+  sort_order,
+  created_at,
+  updated_at
+`
+
+type UpdateSkillCategoryParams struct {
+	Name string
+	Icon string
+	ID   string
+}
+
+func (q *Queries) UpdateSkillCategory(ctx context.Context, arg UpdateSkillCategoryParams) (SkillCategory, error) {
+	row := q.db.QueryRowContext(ctx, updateSkillCategory, arg.Name, arg.Icon, arg.ID)
+	var i SkillCategory
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Icon,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

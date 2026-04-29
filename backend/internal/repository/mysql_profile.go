@@ -247,6 +247,32 @@ func (r *SQLiteProfileRepository) ListSkillOptions(ctx context.Context) (*domain
 	}, nil
 }
 
+func (r *SQLiteProfileRepository) CreateSkillCategory(ctx context.Context, input domain.SkillCategoryInput) (*domain.SkillOption, error) {
+	row, err := r.queries.InsertSkillCategory(ctx, dbgen.InsertSkillCategoryParams{
+		ID:   input.ID,
+		Name: input.Name,
+		Icon: input.Icon,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("insert skill category: %w", err)
+	}
+
+	return toDomainSkillCategoryOption(row), nil
+}
+
+func (r *SQLiteProfileRepository) UpdateSkillCategory(ctx context.Context, id string, input domain.SkillCategoryInput) (*domain.SkillOption, error) {
+	row, err := r.queries.UpdateSkillCategory(ctx, dbgen.UpdateSkillCategoryParams{
+		ID:   id,
+		Name: input.Name,
+		Icon: input.Icon,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update skill category: %w", err)
+	}
+
+	return toDomainSkillCategoryOption(row), nil
+}
+
 func ensureSQLiteDirectory(dsn string) error {
 	if dsn == ":memory:" || strings.HasPrefix(dsn, "file:") {
 		return nil
@@ -348,13 +374,7 @@ func (r *SQLiteProfileRepository) seedSkillOptions(ctx context.Context) error {
 	for _, category := range categories {
 		if _, err := r.db.ExecContext(
 			ctx,
-			`INSERT INTO skill_categories (id, name, icon, sort_order)
-VALUES (?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-  name = excluded.name,
-  icon = excluded.icon,
-  sort_order = excluded.sort_order,
-  updated_at = CURRENT_TIMESTAMP`,
+			"INSERT OR IGNORE INTO skill_categories (id, name, icon, sort_order) VALUES (?, ?, ?, ?)",
 			category.ID,
 			category.Name,
 			category.Icon,
@@ -474,15 +494,19 @@ func toDomainQualifications(rows []dbgen.ProfileQualification) []domain.Qualific
 func toDomainSkillCategoryOptions(rows []dbgen.SkillCategory) []domain.SkillOption {
 	options := make([]domain.SkillOption, 0, len(rows))
 	for _, row := range rows {
-		options = append(options, domain.SkillOption{
-			ID:        row.ID,
-			Name:      row.Name,
-			Icon:      row.Icon,
-			SortOrder: row.SortOrder,
-		})
+		options = append(options, *toDomainSkillCategoryOption(row))
 	}
 
 	return options
+}
+
+func toDomainSkillCategoryOption(row dbgen.SkillCategory) *domain.SkillOption {
+	return &domain.SkillOption{
+		ID:        row.ID,
+		Name:      row.Name,
+		Icon:      row.Icon,
+		SortOrder: row.SortOrder,
+	}
 }
 
 func toDomainSkillProficiencyLevelOptions(rows []dbgen.SkillProficiencyLevel) []domain.SkillOption {

@@ -11,3 +11,9 @@ type SkillOptions struct {
 	Categories        []SkillOption
 	ProficiencyLevels []SkillOption
 }
+
+type SkillCategoryInput struct {
+	ID   string
+	Name string
+	Icon string
+}
