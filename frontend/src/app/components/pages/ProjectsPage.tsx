@@ -6,6 +6,7 @@ import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Badge } from "../ui/badge";
 import { Checkbox } from "../ui/checkbox";
 
@@ -40,8 +41,18 @@ type ProjectForm = {
   achievements: string;
 };
 
+type JobHistory = {
+  id: string;
+  company: string;
+  displayName: string;
+};
+
 type ProjectsResponse = {
   projects: Project[];
+};
+
+type JobHistoriesResponse = {
+  jobHistories: JobHistory[];
 };
 
 type ProjectResponse = {
@@ -94,6 +105,7 @@ function parseYearMonth(value: string) {
 
 export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [jobHistories, setJobHistories] = useState<JobHistory[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -110,13 +122,21 @@ export function ProjectsPage() {
       setError("");
 
       try {
-        const response = await fetch("/api/projects", { signal: controller.signal });
-        if (!response.ok) {
+        const [projectsResponse, jobHistoriesResponse] = await Promise.all([
+          fetch("/api/projects", { signal: controller.signal }),
+          fetch("/api/job-histories", { signal: controller.signal }),
+        ]);
+        if (!projectsResponse.ok) {
           throw new Error("案件の取得に失敗しました");
         }
+        if (!jobHistoriesResponse.ok) {
+          throw new Error("職歴の取得に失敗しました");
+        }
 
-        const data = (await response.json()) as ProjectsResponse;
-        setProjects(data.projects ?? []);
+        const projectsData = (await projectsResponse.json()) as ProjectsResponse;
+        const jobHistoriesData = (await jobHistoriesResponse.json()) as JobHistoriesResponse;
+        setProjects(projectsData.projects ?? []);
+        setJobHistories(jobHistoriesData.jobHistories ?? []);
       } catch (caught) {
         if (caught instanceof DOMException && caught.name === "AbortError") {
           return;
@@ -142,6 +162,14 @@ export function ProjectsPage() {
     p.technologies.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  const companyOptions = jobHistories.reduce<JobHistory[]>((options, jobHistory) => {
+    if (options.some(option => option.company === jobHistory.company)) {
+      return options;
+    }
+
+    return [...options, jobHistory];
+  }, []);
+
   const handleAdd = () => {
     setEditingProject(null);
     setFormData(emptyForm);
@@ -163,6 +191,7 @@ export function ProjectsPage() {
       teamSize: project.teamSize,
       technologies: project.technologies,
       phases: project.phases,
+      achievements: project.achievements,
     });
     setIsDialogOpen(true);
   };
@@ -256,7 +285,7 @@ export function ProjectsPage() {
             <h1 className="text-3xl font-bold text-gray-900">案件管理</h1>
             <p className="text-gray-600 mt-1">プロジェクト実績を詳細に記録</p>
           </div>
-          <Button onClick={handleAdd} disabled={isLoading}>
+          <Button onClick={handleAdd} disabled={isLoading || companyOptions.length === 0}>
             <Plus className="w-4 h-4 mr-2" />
             案件を追加
           </Button>
@@ -270,6 +299,11 @@ export function ProjectsPage() {
         {error && (
           <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
+          </div>
+        )}
+        {!isLoading && companyOptions.length === 0 && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            案件を登録するには、先に職歴管理で会社名を登録してください。
           </div>
         )}
 
@@ -380,12 +414,24 @@ export function ProjectsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="company">会社名</Label>
-                  <Input
-                    id="company"
+                  <Select
                     value={formData.company}
-                    onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                    placeholder="株式会社〇〇"
-                  />
+                    onValueChange={(value) => setFormData({ ...formData, company: value })}
+                    disabled={companyOptions.length === 0}
+                  >
+                    <SelectTrigger id="company">
+                      <SelectValue placeholder="職歴から選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companyOptions.map((jobHistory) => (
+                        <SelectItem key={jobHistory.id} value={jobHistory.company}>
+                          {jobHistory.displayName && jobHistory.displayName !== jobHistory.company
+                            ? `${jobHistory.displayName}（${jobHistory.company}）`
+                            : jobHistory.company}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
