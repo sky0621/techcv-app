@@ -39,8 +39,8 @@ func (h *JobHistoryHandler) CreateJobHistory(w http.ResponseWriter, r *http.Requ
 	}
 
 	input := toJobHistoryInput(request)
-	if input.Company == "" || input.StartDate == "" || input.EmploymentType == "" {
-		writeJSONError(w, http.StatusBadRequest, "bad_request", "company, startDate and employmentType are required")
+	if !isValidJobHistoryInput(input) {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "company, startYear, startMonth and employmentType are required")
 		return
 	}
 
@@ -69,8 +69,8 @@ func (h *JobHistoryHandler) UpdateJobHistory(w http.ResponseWriter, r *http.Requ
 	}
 
 	input := toJobHistoryInput(request)
-	if input.Company == "" || input.StartDate == "" || input.EmploymentType == "" {
-		writeJSONError(w, http.StatusBadRequest, "bad_request", "company, startDate and employmentType are required")
+	if !isValidJobHistoryInput(input) {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "company, startYear, startMonth and employmentType are required")
 		return
 	}
 
@@ -118,16 +118,20 @@ type jobHistoryResponse struct {
 
 type jobHistoryRequest struct {
 	Company        string `json:"company"`
-	StartDate      string `json:"startDate"`
-	EndDate        string `json:"endDate"`
+	StartYear      int64  `json:"startYear"`
+	StartMonth     int64  `json:"startMonth"`
+	EndYear        *int64 `json:"endYear"`
+	EndMonth       *int64 `json:"endMonth"`
 	EmploymentType string `json:"employmentType"`
 }
 
 type jobHistoryPayload struct {
 	ID             string `json:"id"`
 	Company        string `json:"company"`
-	StartDate      string `json:"startDate"`
-	EndDate        string `json:"endDate"`
+	StartYear      int64  `json:"startYear"`
+	StartMonth     int64  `json:"startMonth"`
+	EndYear        *int64 `json:"endYear"`
+	EndMonth       *int64 `json:"endMonth"`
 	EmploymentType string `json:"employmentType"`
 	ProjectCount   int64  `json:"projectCount"`
 	SortOrder      int64  `json:"sortOrder"`
@@ -146,8 +150,10 @@ func toJobHistoryPayload(value domain.JobHistory) jobHistoryPayload {
 	return jobHistoryPayload{
 		ID:             value.ID,
 		Company:        value.Company,
-		StartDate:      value.StartDate,
-		EndDate:        value.EndDate,
+		StartYear:      value.StartYear,
+		StartMonth:     value.StartMonth,
+		EndYear:        value.EndYear,
+		EndMonth:       value.EndMonth,
 		EmploymentType: value.EmploymentType,
 		ProjectCount:   value.ProjectCount,
 		SortOrder:      value.SortOrder,
@@ -157,8 +163,25 @@ func toJobHistoryPayload(value domain.JobHistory) jobHistoryPayload {
 func toJobHistoryInput(request jobHistoryRequest) domain.JobHistoryInput {
 	return domain.JobHistoryInput{
 		Company:        strings.TrimSpace(request.Company),
-		StartDate:      strings.TrimSpace(request.StartDate),
-		EndDate:        strings.TrimSpace(request.EndDate),
+		StartYear:      request.StartYear,
+		StartMonth:     request.StartMonth,
+		EndYear:        request.EndYear,
+		EndMonth:       request.EndMonth,
 		EmploymentType: strings.TrimSpace(request.EmploymentType),
 	}
+}
+
+func isValidJobHistoryInput(input domain.JobHistoryInput) bool {
+	if input.Company == "" || input.StartYear == 0 || !isValidMonth(input.StartMonth) || input.EmploymentType == "" {
+		return false
+	}
+	if input.EndYear == nil || input.EndMonth == nil {
+		return input.EndYear == nil && input.EndMonth == nil
+	}
+
+	return *input.EndYear != 0 && isValidMonth(*input.EndMonth)
+}
+
+func isValidMonth(value int64) bool {
+	return value >= 1 && value <= 12
 }

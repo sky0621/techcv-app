@@ -530,8 +530,10 @@ func TestJobHistoryRoutes(t *testing.T) {
 		JobHistories []struct {
 			ID             string `json:"id"`
 			Company        string `json:"company"`
-			StartDate      string `json:"startDate"`
-			EndDate        string `json:"endDate"`
+			StartYear      int64  `json:"startYear"`
+			StartMonth     int64  `json:"startMonth"`
+			EndYear        *int64 `json:"endYear"`
+			EndMonth       *int64 `json:"endMonth"`
 			EmploymentType string `json:"employmentType"`
 			ProjectCount   int64  `json:"projectCount"`
 		} `json:"jobHistories"`
@@ -542,14 +544,21 @@ func TestJobHistoryRoutes(t *testing.T) {
 	if len(listResp.JobHistories) != 1 {
 		t.Fatalf("expected one seeded job history, got %#v", listResp.JobHistories)
 	}
-	if listResp.JobHistories[0].Company != "株式会社A" || listResp.JobHistories[0].ProjectCount != 5 {
+	if listResp.JobHistories[0].Company != "株式会社A" ||
+		listResp.JobHistories[0].StartYear != 2023 ||
+		listResp.JobHistories[0].StartMonth != 1 ||
+		listResp.JobHistories[0].EndYear != nil ||
+		listResp.JobHistories[0].EndMonth != nil ||
+		listResp.JobHistories[0].ProjectCount != 5 {
 		t.Fatalf("unexpected seeded job history: %#v", listResp.JobHistories[0])
 	}
 
 	createBody := []byte(`{
 		"company":"株式会社C",
-		"startDate":"2024-01",
-		"endDate":"現在",
+		"startYear":2024,
+		"startMonth":1,
+		"endYear":null,
+		"endMonth":null,
 		"employmentType":"業務委託"
 	}`)
 	createReq := httptest.NewRequest(http.MethodPost, "/api/job-histories", bytes.NewReader(createBody))
@@ -564,8 +573,10 @@ func TestJobHistoryRoutes(t *testing.T) {
 		JobHistory struct {
 			ID             string `json:"id"`
 			Company        string `json:"company"`
-			StartDate      string `json:"startDate"`
-			EndDate        string `json:"endDate"`
+			StartYear      int64  `json:"startYear"`
+			StartMonth     int64  `json:"startMonth"`
+			EndYear        *int64 `json:"endYear"`
+			EndMonth       *int64 `json:"endMonth"`
 			EmploymentType string `json:"employmentType"`
 			ProjectCount   int64  `json:"projectCount"`
 		} `json:"jobHistory"`
@@ -573,14 +584,19 @@ func TestJobHistoryRoutes(t *testing.T) {
 	if err := json.Unmarshal(createRec.Body.Bytes(), &createResp); err != nil {
 		t.Fatalf("failed to decode create response: %v", err)
 	}
-	if createResp.JobHistory.ID == "" || createResp.JobHistory.ProjectCount != 0 {
+	if createResp.JobHistory.ID == "" ||
+		createResp.JobHistory.EndYear != nil ||
+		createResp.JobHistory.EndMonth != nil ||
+		createResp.JobHistory.ProjectCount != 0 {
 		t.Fatalf("unexpected created job history: %#v", createResp.JobHistory)
 	}
 
 	updateBody := []byte(`{
 		"company":"株式会社C Updated",
-		"startDate":"2024-02",
-		"endDate":"2025-03",
+		"startYear":2024,
+		"startMonth":2,
+		"endYear":2025,
+		"endMonth":3,
 		"employmentType":"契約社員"
 	}`)
 	updateReq := httptest.NewRequest(http.MethodPut, "/api/job-histories/"+createResp.JobHistory.ID, bytes.NewReader(updateBody))
@@ -594,8 +610,10 @@ func TestJobHistoryRoutes(t *testing.T) {
 	var updateResp struct {
 		JobHistory struct {
 			Company        string `json:"company"`
-			StartDate      string `json:"startDate"`
-			EndDate        string `json:"endDate"`
+			StartYear      int64  `json:"startYear"`
+			StartMonth     int64  `json:"startMonth"`
+			EndYear        *int64 `json:"endYear"`
+			EndMonth       *int64 `json:"endMonth"`
 			EmploymentType string `json:"employmentType"`
 		} `json:"jobHistory"`
 	}
@@ -603,8 +621,12 @@ func TestJobHistoryRoutes(t *testing.T) {
 		t.Fatalf("failed to decode update response: %v", err)
 	}
 	if updateResp.JobHistory.Company != "株式会社C Updated" ||
-		updateResp.JobHistory.StartDate != "2024-02" ||
-		updateResp.JobHistory.EndDate != "2025-03" ||
+		updateResp.JobHistory.StartYear != 2024 ||
+		updateResp.JobHistory.StartMonth != 2 ||
+		updateResp.JobHistory.EndYear == nil ||
+		*updateResp.JobHistory.EndYear != 2025 ||
+		updateResp.JobHistory.EndMonth == nil ||
+		*updateResp.JobHistory.EndMonth != 3 ||
 		updateResp.JobHistory.EmploymentType != "契約社員" {
 		t.Fatalf("unexpected updated job history: %#v", updateResp.JobHistory)
 	}
@@ -671,8 +693,10 @@ func newTestProfileRepository() *testProfileRepository {
 			{
 				ID:             "job_history_company_a",
 				Company:        "株式会社A",
-				StartDate:      "2023-01",
-				EndDate:        "現在",
+				StartYear:      2023,
+				StartMonth:     1,
+				EndYear:        nil,
+				EndMonth:       nil,
 				EmploymentType: "正社員",
 				ProjectCount:   5,
 				SortOrder:      1,
@@ -853,8 +877,10 @@ func (r *testProfileRepository) CreateJobHistory(_ context.Context, input domain
 	jobHistory := domain.JobHistory{
 		ID:             "job_history_test_new",
 		Company:        input.Company,
-		StartDate:      input.StartDate,
-		EndDate:        input.EndDate,
+		StartYear:      input.StartYear,
+		StartMonth:     input.StartMonth,
+		EndYear:        input.EndYear,
+		EndMonth:       input.EndMonth,
 		EmploymentType: input.EmploymentType,
 		ProjectCount:   0,
 		SortOrder:      int64(len(r.jobHistories) + 1),
@@ -871,8 +897,10 @@ func (r *testProfileRepository) UpdateJobHistory(_ context.Context, id string, i
 	for index, jobHistory := range r.jobHistories {
 		if jobHistory.ID == id {
 			r.jobHistories[index].Company = input.Company
-			r.jobHistories[index].StartDate = input.StartDate
-			r.jobHistories[index].EndDate = input.EndDate
+			r.jobHistories[index].StartYear = input.StartYear
+			r.jobHistories[index].StartMonth = input.StartMonth
+			r.jobHistories[index].EndYear = input.EndYear
+			r.jobHistories[index].EndMonth = input.EndMonth
 			r.jobHistories[index].EmploymentType = input.EmploymentType
 			result := r.jobHistories[index]
 			return &result, nil

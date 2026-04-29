@@ -65,8 +65,10 @@ CREATE TABLE IF NOT EXISTS skills (
 CREATE TABLE IF NOT EXISTS job_histories (
     id TEXT NOT NULL PRIMARY KEY,
     company TEXT NOT NULL,
-    start_date TEXT NOT NULL,
-    end_date TEXT NOT NULL,
+    start_year INTEGER NOT NULL,
+    start_month INTEGER NOT NULL,
+    end_year INTEGER,
+    end_month INTEGER,
     employment_type TEXT NOT NULL,
     project_count INTEGER NOT NULL DEFAULT 0,
     sort_order INTEGER NOT NULL,

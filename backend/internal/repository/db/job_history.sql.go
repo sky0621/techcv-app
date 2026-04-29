@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 const deleteJobHistory = `-- name: DeleteJobHistory :execrows
@@ -26,8 +27,10 @@ const getJobHistory = `-- name: GetJobHistory :one
 SELECT
   id,
   company,
-  start_date,
-  end_date,
+  start_year,
+  start_month,
+  end_year,
+  end_month,
   employment_type,
   project_count,
   sort_order,
@@ -43,8 +46,10 @@ func (q *Queries) GetJobHistory(ctx context.Context, id string) (JobHistory, err
 	err := row.Scan(
 		&i.ID,
 		&i.Company,
-		&i.StartDate,
-		&i.EndDate,
+		&i.StartYear,
+		&i.StartMonth,
+		&i.EndYear,
+		&i.EndMonth,
 		&i.EmploymentType,
 		&i.ProjectCount,
 		&i.SortOrder,
@@ -58,13 +63,17 @@ const insertJobHistory = `-- name: InsertJobHistory :one
 INSERT INTO job_histories (
   id,
   company,
-  start_date,
-  end_date,
+  start_year,
+  start_month,
+  end_year,
+  end_month,
   employment_type,
   project_count,
   sort_order
 )
 SELECT
+  ?,
+  ?,
   ?,
   ?,
   ?,
@@ -76,8 +85,10 @@ FROM job_histories
 RETURNING
   id,
   company,
-  start_date,
-  end_date,
+  start_year,
+  start_month,
+  end_year,
+  end_month,
   employment_type,
   project_count,
   sort_order,
@@ -88,8 +99,10 @@ RETURNING
 type InsertJobHistoryParams struct {
 	ID             string
 	Company        string
-	StartDate      string
-	EndDate        string
+	StartYear      int64
+	StartMonth     int64
+	EndYear        sql.NullInt64
+	EndMonth       sql.NullInt64
 	EmploymentType string
 }
 
@@ -97,16 +110,20 @@ func (q *Queries) InsertJobHistory(ctx context.Context, arg InsertJobHistoryPara
 	row := q.db.QueryRowContext(ctx, insertJobHistory,
 		arg.ID,
 		arg.Company,
-		arg.StartDate,
-		arg.EndDate,
+		arg.StartYear,
+		arg.StartMonth,
+		arg.EndYear,
+		arg.EndMonth,
 		arg.EmploymentType,
 	)
 	var i JobHistory
 	err := row.Scan(
 		&i.ID,
 		&i.Company,
-		&i.StartDate,
-		&i.EndDate,
+		&i.StartYear,
+		&i.StartMonth,
+		&i.EndYear,
+		&i.EndMonth,
 		&i.EmploymentType,
 		&i.ProjectCount,
 		&i.SortOrder,
@@ -120,15 +137,17 @@ const listJobHistories = `-- name: ListJobHistories :many
 SELECT
   id,
   company,
-  start_date,
-  end_date,
+  start_year,
+  start_month,
+  end_year,
+  end_month,
   employment_type,
   project_count,
   sort_order,
   created_at,
   updated_at
 FROM job_histories
-ORDER BY sort_order ASC, start_date DESC, company ASC
+ORDER BY sort_order ASC, start_year DESC, start_month DESC, company ASC
 `
 
 func (q *Queries) ListJobHistories(ctx context.Context) ([]JobHistory, error) {
@@ -143,8 +162,10 @@ func (q *Queries) ListJobHistories(ctx context.Context) ([]JobHistory, error) {
 		if err := rows.Scan(
 			&i.ID,
 			&i.Company,
-			&i.StartDate,
-			&i.EndDate,
+			&i.StartYear,
+			&i.StartMonth,
+			&i.EndYear,
+			&i.EndMonth,
 			&i.EmploymentType,
 			&i.ProjectCount,
 			&i.SortOrder,
@@ -168,16 +189,20 @@ const updateJobHistory = `-- name: UpdateJobHistory :one
 UPDATE job_histories
 SET
   company = ?,
-  start_date = ?,
-  end_date = ?,
+  start_year = ?,
+  start_month = ?,
+  end_year = ?,
+  end_month = ?,
   employment_type = ?,
   updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING
   id,
   company,
-  start_date,
-  end_date,
+  start_year,
+  start_month,
+  end_year,
+  end_month,
   employment_type,
   project_count,
   sort_order,
@@ -187,8 +212,10 @@ RETURNING
 
 type UpdateJobHistoryParams struct {
 	Company        string
-	StartDate      string
-	EndDate        string
+	StartYear      int64
+	StartMonth     int64
+	EndYear        sql.NullInt64
+	EndMonth       sql.NullInt64
 	EmploymentType string
 	ID             string
 }
@@ -196,8 +223,10 @@ type UpdateJobHistoryParams struct {
 func (q *Queries) UpdateJobHistory(ctx context.Context, arg UpdateJobHistoryParams) (JobHistory, error) {
 	row := q.db.QueryRowContext(ctx, updateJobHistory,
 		arg.Company,
-		arg.StartDate,
-		arg.EndDate,
+		arg.StartYear,
+		arg.StartMonth,
+		arg.EndYear,
+		arg.EndMonth,
 		arg.EmploymentType,
 		arg.ID,
 	)
@@ -205,8 +234,10 @@ func (q *Queries) UpdateJobHistory(ctx context.Context, arg UpdateJobHistoryPara
 	err := row.Scan(
 		&i.ID,
 		&i.Company,
-		&i.StartDate,
-		&i.EndDate,
+		&i.StartYear,
+		&i.StartMonth,
+		&i.EndYear,
+		&i.EndMonth,
 		&i.EmploymentType,
 		&i.ProjectCount,
 		&i.SortOrder,

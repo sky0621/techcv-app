@@ -226,6 +226,9 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.seedSkills(ctx); err != nil {
 		return err
 	}
+	if err := r.migrateJobHistoryDateColumns(ctx); err != nil {
+		return err
+	}
 	if err := r.seedJobHistories(ctx); err != nil {
 		return err
 	}
@@ -355,8 +358,10 @@ func (r *SQLiteProfileRepository) CreateJobHistory(ctx context.Context, input do
 	row, err := r.queries.InsertJobHistory(ctx, dbgen.InsertJobHistoryParams{
 		ID:             jobHistoryID(now),
 		Company:        input.Company,
-		StartDate:      input.StartDate,
-		EndDate:        input.EndDate,
+		StartYear:      input.StartYear,
+		StartMonth:     input.StartMonth,
+		EndYear:        toNullInt64(input.EndYear),
+		EndMonth:       toNullInt64(input.EndMonth),
 		EmploymentType: input.EmploymentType,
 	})
 	if err != nil {
@@ -370,8 +375,10 @@ func (r *SQLiteProfileRepository) UpdateJobHistory(ctx context.Context, id strin
 	row, err := r.queries.UpdateJobHistory(ctx, dbgen.UpdateJobHistoryParams{
 		ID:             id,
 		Company:        input.Company,
-		StartDate:      input.StartDate,
-		EndDate:        input.EndDate,
+		StartYear:      input.StartYear,
+		StartMonth:     input.StartMonth,
+		EndYear:        toNullInt64(input.EndYear),
+		EndMonth:       toNullInt64(input.EndMonth),
 		EmploymentType: input.EmploymentType,
 	})
 	if err != nil {
@@ -482,6 +489,68 @@ func (r *SQLiteProfileRepository) addSkillCategoryIconColumn(ctx context.Context
 	return nil
 }
 
+func (r *SQLiteProfileRepository) migrateJobHistoryDateColumns(ctx context.Context) error {
+	hasStartDateColumn, err := r.tableHasColumn(ctx, "job_histories", "start_date")
+	if err != nil {
+		return err
+	}
+	if !hasStartDateColumn {
+		return nil
+	}
+
+	statements := []string{
+		`DROP TABLE IF EXISTS job_histories_new`,
+		`CREATE TABLE IF NOT EXISTS job_histories_new (
+			id TEXT NOT NULL PRIMARY KEY,
+			company TEXT NOT NULL,
+			start_year INTEGER NOT NULL,
+			start_month INTEGER NOT NULL,
+			end_year INTEGER,
+			end_month INTEGER,
+			employment_type TEXT NOT NULL,
+			project_count INTEGER NOT NULL DEFAULT 0,
+			sort_order INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`INSERT INTO job_histories_new (
+			id,
+			company,
+			start_year,
+			start_month,
+			end_year,
+			end_month,
+			employment_type,
+			project_count,
+			sort_order,
+			created_at,
+			updated_at
+		)
+		SELECT
+			id,
+			company,
+			CAST(substr(start_date, 1, 4) AS INTEGER),
+			CAST(substr(start_date, 6, 2) AS INTEGER),
+			CASE WHEN end_date = '' OR end_date = '現在' THEN NULL ELSE CAST(substr(end_date, 1, 4) AS INTEGER) END,
+			CASE WHEN end_date = '' OR end_date = '現在' THEN NULL ELSE CAST(substr(end_date, 6, 2) AS INTEGER) END,
+			employment_type,
+			project_count,
+			sort_order,
+			created_at,
+			updated_at
+		FROM job_histories`,
+		`DROP TABLE job_histories`,
+		`ALTER TABLE job_histories_new RENAME TO job_histories`,
+	}
+	for _, statement := range statements {
+		if _, err := r.db.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("migrate job_histories date columns: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (r *SQLiteProfileRepository) seedSkillOptions(ctx context.Context) error {
 	categories := []domain.SkillOption{
 		{ID: "skill_category_language", Name: "言語", Icon: "code", SortOrder: 1},
@@ -564,24 +633,28 @@ func (r *SQLiteProfileRepository) seedJobHistories(ctx context.Context) error {
 	jobHistories := []struct {
 		id             string
 		company        string
-		startDate      string
-		endDate        string
+		startYear      int64
+		startMonth     int64
+		endYear        *int64
+		endMonth       *int64
 		employmentType string
 		projectCount   int64
 		sortOrder      int64
 	}{
-		{id: "job_history_company_a", company: "株式会社A", startDate: "2023-01", endDate: "現在", employmentType: "正社員", projectCount: 5, sortOrder: 1},
-		{id: "job_history_company_b", company: "株式会社B", startDate: "2021-04", endDate: "2022-12", employmentType: "正社員", projectCount: 4, sortOrder: 2},
-		{id: "job_history_freelance", company: "フリーランス", startDate: "2020-01", endDate: "2021-03", employmentType: "業務委託", projectCount: 3, sortOrder: 3},
+		{id: "job_history_company_a", company: "株式会社A", startYear: 2023, startMonth: 1, endYear: nil, endMonth: nil, employmentType: "正社員", projectCount: 5, sortOrder: 1},
+		{id: "job_history_company_b", company: "株式会社B", startYear: 2021, startMonth: 4, endYear: int64Ptr(2022), endMonth: int64Ptr(12), employmentType: "正社員", projectCount: 4, sortOrder: 2},
+		{id: "job_history_freelance", company: "フリーランス", startYear: 2020, startMonth: 1, endYear: int64Ptr(2021), endMonth: int64Ptr(3), employmentType: "業務委託", projectCount: 3, sortOrder: 3},
 	}
 	for _, jobHistory := range jobHistories {
 		if _, err := r.db.ExecContext(
 			ctx,
-			"INSERT OR IGNORE INTO job_histories (id, company, start_date, end_date, employment_type, project_count, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			"INSERT OR IGNORE INTO job_histories (id, company, start_year, start_month, end_year, end_month, employment_type, project_count, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			jobHistory.id,
 			jobHistory.company,
-			jobHistory.startDate,
-			jobHistory.endDate,
+			jobHistory.startYear,
+			jobHistory.startMonth,
+			toNullInt64(jobHistory.endYear),
+			toNullInt64(jobHistory.endMonth),
 			jobHistory.employmentType,
 			jobHistory.projectCount,
 			jobHistory.sortOrder,
@@ -754,8 +827,10 @@ func toDomainJobHistory(row dbgen.JobHistory) *domain.JobHistory {
 	return &domain.JobHistory{
 		ID:             row.ID,
 		Company:        row.Company,
-		StartDate:      row.StartDate,
-		EndDate:        row.EndDate,
+		StartYear:      row.StartYear,
+		StartMonth:     row.StartMonth,
+		EndYear:        fromNullInt64(row.EndYear),
+		EndMonth:       fromNullInt64(row.EndMonth),
 		EmploymentType: row.EmploymentType,
 		ProjectCount:   row.ProjectCount,
 		SortOrder:      row.SortOrder,
@@ -776,6 +851,26 @@ func skillID(now time.Time) string {
 
 func jobHistoryID(now time.Time) string {
 	return fmt.Sprintf("job_history_%d", now.UnixNano())
+}
+
+func int64Ptr(value int64) *int64 {
+	return &value
+}
+
+func toNullInt64(value *int64) sql.NullInt64 {
+	if value == nil {
+		return sql.NullInt64{}
+	}
+
+	return sql.NullInt64{Int64: *value, Valid: true}
+}
+
+func fromNullInt64(value sql.NullInt64) *int64 {
+	if !value.Valid {
+		return nil
+	}
+
+	return &value.Int64
 }
 
 func sanitizeVisibilitySettings(values map[string]any) map[string]any {

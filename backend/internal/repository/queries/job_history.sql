@@ -2,22 +2,26 @@
 SELECT
   id,
   company,
-  start_date,
-  end_date,
+  start_year,
+  start_month,
+  end_year,
+  end_month,
   employment_type,
   project_count,
   sort_order,
   created_at,
   updated_at
 FROM job_histories
-ORDER BY sort_order ASC, start_date DESC, company ASC;
+ORDER BY sort_order ASC, start_year DESC, start_month DESC, company ASC;
 
 -- name: GetJobHistory :one
 SELECT
   id,
   company,
-  start_date,
-  end_date,
+  start_year,
+  start_month,
+  end_year,
+  end_month,
   employment_type,
   project_count,
   sort_order,
@@ -30,13 +34,17 @@ WHERE id = ?;
 INSERT INTO job_histories (
   id,
   company,
-  start_date,
-  end_date,
+  start_year,
+  start_month,
+  end_year,
+  end_month,
   employment_type,
   project_count,
   sort_order
 )
 SELECT
+  ?,
+  ?,
   ?,
   ?,
   ?,
@@ -48,8 +56,10 @@ FROM job_histories
 RETURNING
   id,
   company,
-  start_date,
-  end_date,
+  start_year,
+  start_month,
+  end_year,
+  end_month,
   employment_type,
   project_count,
   sort_order,
@@ -60,16 +70,20 @@ RETURNING
 UPDATE job_histories
 SET
   company = ?,
-  start_date = ?,
-  end_date = ?,
+  start_year = ?,
+  start_month = ?,
+  end_year = ?,
+  end_month = ?,
   employment_type = ?,
   updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING
   id,
   company,
-  start_date,
-  end_date,
+  start_year,
+  start_month,
+  end_year,
+  end_month,
   employment_type,
   project_count,
   sort_order,

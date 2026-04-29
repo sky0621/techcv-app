@@ -5,14 +5,17 @@
 package db
 
 import (
+	"database/sql"
 	"time"
 )
 
 type JobHistory struct {
 	ID             string
 	Company        string
-	StartDate      string
-	EndDate        string
+	StartYear      int64
+	StartMonth     int64
+	EndYear        sql.NullInt64
+	EndMonth       sql.NullInt64
 	EmploymentType string
 	ProjectCount   int64
 	SortOrder      int64

@@ -11,8 +11,10 @@ import { Badge } from "../ui/badge";
 type JobHistory = {
   id: string;
   company: string;
-  startDate: string;
-  endDate: string;
+  startYear: number;
+  startMonth: number;
+  endYear: number | null;
+  endMonth: number | null;
   employmentType: string;
   projectCount: number;
   sortOrder: number;
@@ -25,6 +27,27 @@ type JobHistoriesResponse = {
 type JobHistoryResponse = {
   jobHistory: JobHistory;
 };
+
+function formatYearMonth(year: number, month: number) {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+function formatEndYearMonth(year: number | null, month: number | null) {
+  if (year === null || month === null) {
+    return "現在";
+  }
+
+  return formatYearMonth(year, month);
+}
+
+function parseYearMonth(value: string) {
+  const [year, month] = value.split("-").map(Number);
+
+  return {
+    year: Number.isFinite(year) ? year : 0,
+    month: Number.isFinite(month) ? month : 0,
+  };
+}
 
 export function JobHistoryPage() {
   const [jobs, setJobs] = useState<JobHistory[]>([]);
@@ -86,8 +109,11 @@ export function JobHistoryPage() {
     setEditingJob(job);
     setFormData({
       company: job.company,
-      startDate: job.startDate,
-      endDate: job.endDate,
+      startDate: formatYearMonth(job.startYear, job.startMonth),
+      endDate:
+        job.endYear === null || job.endMonth === null
+          ? ""
+          : formatYearMonth(job.endYear, job.endMonth),
       employmentType: job.employmentType,
     });
     setIsDialogOpen(true);
@@ -98,6 +124,16 @@ export function JobHistoryPage() {
     setError("");
 
     try {
+      const start = parseYearMonth(formData.startDate);
+      const end = parseYearMonth(formData.endDate);
+      const requestBody = {
+        company: formData.company,
+        startYear: start.year,
+        startMonth: start.month,
+        endYear: formData.endDate.trim() === "" ? null : end.year,
+        endMonth: formData.endDate.trim() === "" ? null : end.month,
+        employmentType: formData.employmentType,
+      };
       const response = await fetch(
         editingJob
           ? `/api/job-histories/${encodeURIComponent(editingJob.id)}`
@@ -105,7 +141,7 @@ export function JobHistoryPage() {
         {
           method: editingJob ? "PUT" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
+          body: JSON.stringify(requestBody),
         },
       );
       if (!response.ok) {
@@ -187,7 +223,10 @@ export function JobHistoryPage() {
                     <div>
                       <CardTitle className="text-xl">{job.company}</CardTitle>
                       <div className="flex items-center gap-3 mt-2 text-sm text-gray-600">
-                        <span>{job.startDate} 〜 {job.endDate}</span>
+                        <span>
+                          {formatYearMonth(job.startYear, job.startMonth)} 〜{" "}
+                          {formatEndYearMonth(job.endYear, job.endMonth)}
+                        </span>
                         <Badge variant="outline">{job.employmentType}</Badge>
                         <span>{job.projectCount}件の案件</span>
                       </div>
@@ -264,9 +303,10 @@ export function JobHistoryPage() {
                   <Label htmlFor="endDate">終了日</Label>
                   <Input
                     id="endDate"
+                    type="month"
                     value={formData.endDate}
                     onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                    placeholder="現在 または 2024-12"
+                    placeholder="空欄なら現在"
                   />
                 </div>
               </div>
