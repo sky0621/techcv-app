@@ -329,6 +329,12 @@ func TestSkillOptionsRoute(t *testing.T) {
 			Name      string `json:"name"`
 			SortOrder int64  `json:"sortOrder"`
 		} `json:"proficiencyLevels"`
+		SkillMasters []struct {
+			ID         string `json:"id"`
+			Name       string `json:"name"`
+			CategoryID string `json:"categoryId"`
+			Category   string `json:"category"`
+		} `json:"skillMasters"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to decode skill options response: %v", err)
@@ -348,6 +354,15 @@ func TestSkillOptionsRoute(t *testing.T) {
 	}
 	if resp.ProficiencyLevels[0].ID != "skill_proficiency_beginner" || resp.ProficiencyLevels[0].Name != "初級" {
 		t.Fatalf("unexpected first proficiency level: %#v", resp.ProficiencyLevels[0])
+	}
+	if len(resp.SkillMasters) != 1 {
+		t.Fatalf("expected one skill master, got %#v", resp.SkillMasters)
+	}
+	if resp.SkillMasters[0].ID != "skill_master_typescript" ||
+		resp.SkillMasters[0].Name != "TypeScript" ||
+		resp.SkillMasters[0].CategoryID != "skill_category_language" ||
+		resp.SkillMasters[0].Category != "言語" {
+		t.Fatalf("unexpected first skill master: %#v", resp.SkillMasters[0])
 	}
 }
 
@@ -412,6 +427,71 @@ func TestSkillCategoryMutationRoutes(t *testing.T) {
 	}
 }
 
+func TestSkillMasterMutationRoutes(t *testing.T) {
+	repository := newTestProfileRepository()
+	router := NewRouter(repository, repository, repository, repository)
+
+	createBody := []byte(`{
+		"id":"skill_master_kotlin",
+		"name":"Kotlin",
+		"categoryId":"skill_category_language"
+	}`)
+	createReq := httptest.NewRequest(http.MethodPost, "/api/skills/masters", bytes.NewReader(createBody))
+	createRec := httptest.NewRecorder()
+	router.ServeHTTP(createRec, createReq)
+
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("expected create status 201, got %d", createRec.Code)
+	}
+
+	var createResp struct {
+		SkillMaster struct {
+			ID         string `json:"id"`
+			Name       string `json:"name"`
+			CategoryID string `json:"categoryId"`
+			Category   string `json:"category"`
+		} `json:"skillMaster"`
+	}
+	if err := json.Unmarshal(createRec.Body.Bytes(), &createResp); err != nil {
+		t.Fatalf("failed to decode create response: %v", err)
+	}
+	if createResp.SkillMaster.ID != "skill_master_kotlin" ||
+		createResp.SkillMaster.Name != "Kotlin" ||
+		createResp.SkillMaster.Category != "言語" {
+		t.Fatalf("unexpected created skill master: %#v", createResp.SkillMaster)
+	}
+
+	updateBody := []byte(`{
+		"name":"Kotlin/JVM",
+		"categoryId":"skill_category_framework"
+	}`)
+	updateReq := httptest.NewRequest(http.MethodPut, "/api/skills/masters/skill_master_kotlin", bytes.NewReader(updateBody))
+	updateRec := httptest.NewRecorder()
+	router.ServeHTTP(updateRec, updateReq)
+
+	if updateRec.Code != http.StatusOK {
+		t.Fatalf("expected update status 200, got %d", updateRec.Code)
+	}
+
+	var updateResp struct {
+		SkillMaster struct {
+			ID         string `json:"id"`
+			Name       string `json:"name"`
+			CategoryID string `json:"categoryId"`
+			Category   string `json:"category"`
+		} `json:"skillMaster"`
+	}
+	if err := json.Unmarshal(updateRec.Body.Bytes(), &updateResp); err != nil {
+		t.Fatalf("failed to decode update response: %v", err)
+	}
+	if updateResp.SkillMaster.ID != "skill_master_kotlin" ||
+		updateResp.SkillMaster.Name != "Kotlin/JVM" ||
+		updateResp.SkillMaster.CategoryID != "skill_category_framework" ||
+		updateResp.SkillMaster.Category != "フレームワーク" {
+		t.Fatalf("unexpected updated skill master: %#v", updateResp.SkillMaster)
+	}
+}
+
 func TestSkillRoutes(t *testing.T) {
 	repository := newTestProfileRepository()
 	router := NewRouter(repository, repository, repository, repository)
@@ -430,7 +510,7 @@ func TestSkillRoutes(t *testing.T) {
 			Name               string `json:"name"`
 			CategoryID         string `json:"categoryId"`
 			Category           string `json:"category"`
-			Experience         string `json:"experience"`
+			Experience         int64  `json:"experience"`
 			ProficiencyLevelID string `json:"proficiencyLevelId"`
 			Proficiency        string `json:"proficiency"`
 		} `json:"skills"`
@@ -448,7 +528,7 @@ func TestSkillRoutes(t *testing.T) {
 	createBody := []byte(`{
 		"name":"React",
 		"categoryId":"skill_category_framework",
-		"experience":"3年",
+		"experience":3,
 		"proficiencyLevelId":"skill_proficiency_advanced"
 	}`)
 	createReq := httptest.NewRequest(http.MethodPost, "/api/skills", bytes.NewReader(createBody))
@@ -465,7 +545,7 @@ func TestSkillRoutes(t *testing.T) {
 			Name               string `json:"name"`
 			CategoryID         string `json:"categoryId"`
 			Category           string `json:"category"`
-			Experience         string `json:"experience"`
+			Experience         int64  `json:"experience"`
 			ProficiencyLevelID string `json:"proficiencyLevelId"`
 			Proficiency        string `json:"proficiency"`
 		} `json:"skill"`
@@ -480,7 +560,7 @@ func TestSkillRoutes(t *testing.T) {
 	updateBody := []byte(`{
 		"name":"React",
 		"categoryId":"skill_category_framework",
-		"experience":"4年",
+		"experience":4,
 		"proficiencyLevelId":"skill_proficiency_expert"
 	}`)
 	updateReq := httptest.NewRequest(http.MethodPut, "/api/skills/"+createResp.Skill.ID, bytes.NewReader(updateBody))
@@ -494,14 +574,14 @@ func TestSkillRoutes(t *testing.T) {
 	var updateResp struct {
 		Skill struct {
 			ID          string `json:"id"`
-			Experience  string `json:"experience"`
+			Experience  int64  `json:"experience"`
 			Proficiency string `json:"proficiency"`
 		} `json:"skill"`
 	}
 	if err := json.Unmarshal(updateRec.Body.Bytes(), &updateResp); err != nil {
 		t.Fatalf("failed to decode update response: %v", err)
 	}
-	if updateResp.Skill.Experience != "4年" || updateResp.Skill.Proficiency != "エキスパート" {
+	if updateResp.Skill.Experience != 4 || updateResp.Skill.Proficiency != "エキスパート" {
 		t.Fatalf("unexpected updated skill: %#v", updateResp.Skill)
 	}
 
@@ -802,6 +882,7 @@ type testProfileRepository struct {
 	profile           *domain.Profile
 	categories        []domain.SkillOption
 	proficiencyLevels []domain.SkillOption
+	skillMasters      []domain.SkillMaster
 	skills            []domain.Skill
 	jobHistories      []domain.JobHistory
 	employmentTypes   []domain.JobEmploymentType
@@ -837,13 +918,22 @@ func newTestProfileRepository() *testProfileRepository {
 			{ID: "skill_proficiency_advanced", Name: "上級", SortOrder: 3},
 			{ID: "skill_proficiency_expert", Name: "エキスパート", SortOrder: 4},
 		},
+		skillMasters: []domain.SkillMaster{
+			{
+				ID:           "skill_master_typescript",
+				Name:         "TypeScript",
+				CategoryID:   "skill_category_language",
+				CategoryName: "言語",
+				SortOrder:    1,
+			},
+		},
 		skills: []domain.Skill{
 			{
 				ID:                 "skill_typescript",
 				Name:               "TypeScript",
 				CategoryID:         "skill_category_language",
 				CategoryName:       "言語",
-				Experience:         "3年",
+				Experience:         3,
 				ProficiencyLevelID: "skill_proficiency_advanced",
 				ProficiencyName:    "上級",
 				SortOrder:          1,
@@ -926,10 +1016,13 @@ func (r *testProfileRepository) ListSkillOptions(context.Context) (*domain.Skill
 	copy(categories, r.categories)
 	proficiencyLevels := make([]domain.SkillOption, len(r.proficiencyLevels))
 	copy(proficiencyLevels, r.proficiencyLevels)
+	skillMasters := make([]domain.SkillMaster, len(r.skillMasters))
+	copy(skillMasters, r.skillMasters)
 
 	return &domain.SkillOptions{
 		Categories:        categories,
 		ProficiencyLevels: proficiencyLevels,
+		SkillMasters:      skillMasters,
 	}, nil
 }
 
@@ -957,6 +1050,49 @@ func (r *testProfileRepository) UpdateSkillCategory(_ context.Context, id string
 			r.categories[index].Name = input.Name
 			r.categories[index].Icon = input.Icon
 			result := r.categories[index]
+			return &result, nil
+		}
+	}
+
+	return nil, sql.ErrNoRows
+}
+
+func (r *testProfileRepository) CreateSkillMaster(_ context.Context, input domain.SkillMasterInput) (*domain.SkillMaster, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	category, ok := r.findCategory(input.CategoryID)
+	if !ok {
+		return nil, sql.ErrNoRows
+	}
+
+	skillMaster := domain.SkillMaster{
+		ID:           input.ID,
+		Name:         input.Name,
+		CategoryID:   input.CategoryID,
+		CategoryName: category.Name,
+		SortOrder:    int64(len(r.skillMasters) + 1),
+	}
+	r.skillMasters = append(r.skillMasters, skillMaster)
+
+	return &skillMaster, nil
+}
+
+func (r *testProfileRepository) UpdateSkillMaster(_ context.Context, id string, input domain.SkillMasterInput) (*domain.SkillMaster, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	category, ok := r.findCategory(input.CategoryID)
+	if !ok {
+		return nil, sql.ErrNoRows
+	}
+
+	for index, skillMaster := range r.skillMasters {
+		if skillMaster.ID == id {
+			r.skillMasters[index].Name = input.Name
+			r.skillMasters[index].CategoryID = input.CategoryID
+			r.skillMasters[index].CategoryName = category.Name
+			result := r.skillMasters[index]
 			return &result, nil
 		}
 	}

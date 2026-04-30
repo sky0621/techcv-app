@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "../ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
 type SkillOption = {
   id: string;
@@ -32,6 +33,15 @@ type SkillOption = {
 type SkillOptionsResponse = {
   categories: SkillOption[];
   proficiencyLevels: SkillOption[];
+  skillMasters: SkillMaster[];
+};
+
+type SkillMaster = {
+  id: string;
+  name: string;
+  categoryId: string;
+  category: string;
+  sortOrder: number;
 };
 
 type JobEmploymentType = {
@@ -50,6 +60,12 @@ type CategoryForm = {
   icon: string;
 };
 
+type SkillMasterForm = {
+  id: string;
+  name: string;
+  categoryId: string;
+};
+
 type EmploymentTypeForm = {
   id: string;
   name: string;
@@ -60,6 +76,11 @@ const emptyCategoryForm: CategoryForm = {
   id: "",
   name: "",
   icon: "wrench",
+};
+const emptySkillMasterForm: SkillMasterForm = {
+  id: "",
+  name: "",
+  categoryId: "",
 };
 const emptyEmploymentTypeForm: EmploymentTypeForm = {
   id: "",
@@ -105,15 +126,20 @@ function getIcon(icon?: string): LucideIcon {
 export function SettingsPage() {
   const [categories, setCategories] = useState<SkillOption[]>([]);
   const [proficiencyLevels, setProficiencyLevels] = useState<SkillOption[]>([]);
+  const [skillMasters, setSkillMasters] = useState<SkillMaster[]>([]);
   const [employmentTypes, setEmploymentTypes] = useState<JobEmploymentType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingCategory, setIsSavingCategory] = useState(false);
+  const [isSavingSkillMaster, setIsSavingSkillMaster] = useState(false);
   const [isSavingEmploymentType, setIsSavingEmploymentType] = useState(false);
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [skillMasterDialogOpen, setSkillMasterDialogOpen] = useState(false);
   const [employmentTypeDialogOpen, setEmploymentTypeDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<SkillOption | null>(null);
+  const [editingSkillMaster, setEditingSkillMaster] = useState<SkillMaster | null>(null);
   const [editingEmploymentType, setEditingEmploymentType] = useState<JobEmploymentType | null>(null);
   const [categoryForm, setCategoryForm] = useState<CategoryForm>(emptyCategoryForm);
+  const [skillMasterForm, setSkillMasterForm] = useState<SkillMasterForm>(emptySkillMasterForm);
   const [employmentTypeForm, setEmploymentTypeForm] = useState<EmploymentTypeForm>(emptyEmploymentTypeForm);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -135,6 +161,7 @@ export function SettingsPage() {
       const jobHistoryOptions = (await jobHistoryOptionsResponse.json()) as JobHistoryOptionsResponse;
       setCategories(skillOptions.categories ?? []);
       setProficiencyLevels(skillOptions.proficiencyLevels ?? []);
+      setSkillMasters(skillOptions.skillMasters ?? []);
       setEmploymentTypes(jobHistoryOptions.employmentTypes ?? []);
     } catch (caught) {
       if (caught instanceof DOMException && caught.name === "AbortError") {
@@ -186,6 +213,29 @@ export function SettingsPage() {
     setError("");
   };
 
+  const openAddSkillMasterDialog = () => {
+    setEditingSkillMaster(null);
+    setSkillMasterForm({
+      ...emptySkillMasterForm,
+      categoryId: categories[0]?.id ?? "",
+    });
+    setSkillMasterDialogOpen(true);
+    setMessage("");
+    setError("");
+  };
+
+  const openEditSkillMasterDialog = (skillMaster: SkillMaster) => {
+    setEditingSkillMaster(skillMaster);
+    setSkillMasterForm({
+      id: skillMaster.id,
+      name: skillMaster.name,
+      categoryId: skillMaster.categoryId,
+    });
+    setSkillMasterDialogOpen(true);
+    setMessage("");
+    setError("");
+  };
+
   const openEditEmploymentTypeDialog = (employmentType: JobEmploymentType) => {
     setEditingEmploymentType(employmentType);
     setEmploymentTypeForm({
@@ -233,6 +283,44 @@ export function SettingsPage() {
     categoryForm.name.trim() !== "" &&
     categoryForm.icon.trim() !== "" &&
     (editingCategory !== null || categoryForm.id.trim() !== "");
+
+  const handleSaveSkillMaster = async () => {
+    setIsSavingSkillMaster(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await fetch(
+        editingSkillMaster
+          ? `/api/skills/masters/${encodeURIComponent(editingSkillMaster.id)}`
+          : "/api/skills/masters",
+        {
+          method: editingSkillMaster ? "PUT" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(skillMasterForm),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(editingSkillMaster ? "スキルマスタの更新に失敗しました" : "スキルマスタの追加に失敗しました");
+      }
+
+      setSkillMasterDialogOpen(false);
+      await loadOptions();
+      setMessage(editingSkillMaster ? "スキルマスタを更新しました" : "スキルマスタを追加しました");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "スキルマスタの保存に失敗しました");
+    } finally {
+      setIsSavingSkillMaster(false);
+    }
+  };
+
+  const canSaveSkillMaster =
+    skillMasterForm.name.trim() !== "" &&
+    skillMasterForm.categoryId.trim() !== "" &&
+    (editingSkillMaster !== null || skillMasterForm.id.trim() !== "");
+
   const handleSaveEmploymentType = async () => {
     setIsSavingEmploymentType(true);
     setMessage("");
@@ -351,6 +439,67 @@ export function SettingsPage() {
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-gray-500">
                         スキルカテゴリは登録されていません。
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4">
+              <div>
+                <CardTitle>スキルマスタ</CardTitle>
+                <CardDescription>skill_masters テーブルの内容</CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={openAddSkillMasterDialog}
+                disabled={categories.length === 0}
+              >
+                <LucideIcons.Plus className="w-4 h-4 mr-2" />
+                追加
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>表示順</TableHead>
+                    <TableHead>名称</TableHead>
+                    <TableHead>カテゴリ</TableHead>
+                    <TableHead>ID</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {skillMasters.map((skillMaster) => (
+                    <TableRow key={skillMaster.id}>
+                      <TableCell>{skillMaster.sortOrder}</TableCell>
+                      <TableCell className="font-medium">{skillMaster.name}</TableCell>
+                      <TableCell>{skillMaster.category}</TableCell>
+                      <TableCell className="font-mono text-xs text-gray-600">
+                        {skillMaster.id}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditSkillMasterDialog(skillMaster)}
+                        >
+                          <LucideIcons.Pencil className="w-4 h-4 mr-2" />
+                          編集
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {!isLoading && skillMasters.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-gray-500">
+                        スキルマスタは登録されていません。
                       </TableCell>
                     </TableRow>
                   )}
@@ -528,6 +677,86 @@ export function SettingsPage() {
                 disabled={!canSaveCategory || isSavingCategory}
               >
                 {isSavingCategory ? "保存中" : "保存"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={skillMasterDialogOpen} onOpenChange={setSkillMasterDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingSkillMaster ? "スキルマスタを編集" : "スキルマスタを追加"}</DialogTitle>
+              <DialogDescription>
+                {editingSkillMaster
+                  ? "スキル名とカテゴリを変更します。"
+                  : "スキルマスタのID、名称、カテゴリを登録します。"}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              {!editingSkillMaster && (
+                <div className="space-y-2">
+                  <Label htmlFor="skill-master-id">ID</Label>
+                  <Input
+                    id="skill-master-id"
+                    value={skillMasterForm.id}
+                    onChange={(e) =>
+                      setSkillMasterForm({ ...skillMasterForm, id: e.target.value })
+                    }
+                    placeholder="skill_master_kotlin"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="skill-master-name">名称</Label>
+                <Input
+                  id="skill-master-name"
+                  value={skillMasterForm.name}
+                  onChange={(e) =>
+                    setSkillMasterForm({ ...skillMasterForm, name: e.target.value })
+                  }
+                  placeholder="Kotlin"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="skill-master-category">カテゴリ</Label>
+                <Select
+                  value={skillMasterForm.categoryId}
+                  onValueChange={(value) =>
+                    setSkillMasterForm({ ...skillMasterForm, categoryId: value })
+                  }
+                  disabled={categories.length === 0}
+                >
+                  <SelectTrigger id="skill-master-category">
+                    <SelectValue placeholder="カテゴリを選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setSkillMasterDialogOpen(false)}
+              >
+                キャンセル
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSaveSkillMaster}
+                disabled={!canSaveSkillMaster || isSavingSkillMaster}
+              >
+                {isSavingSkillMaster ? "保存中" : "保存"}
               </Button>
             </DialogFooter>
           </DialogContent>

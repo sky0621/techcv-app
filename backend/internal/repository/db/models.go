@@ -89,7 +89,7 @@ type Skill struct {
 	ID                 string
 	Name               string
 	CategoryID         string
-	Experience         string
+	Experience         int64
 	ProficiencyLevelID string
 	SortOrder          int64
 	CreatedAt          time.Time
@@ -103,6 +103,15 @@ type SkillCategory struct {
 	SortOrder int64
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type SkillMaster struct {
+	ID         string
+	Name       string
+	CategoryID string
+	SortOrder  int64
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 type SkillProficiencyLevel struct {

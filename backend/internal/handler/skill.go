@@ -29,6 +29,7 @@ func (h *SkillOptionsHandler) ListSkillOptions(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, skillOptionsResponse{
 		Categories:        toSkillOptionPayloads(options.Categories),
 		ProficiencyLevels: toSkillOptionPayloads(options.ProficiencyLevels),
+		SkillMasters:      toSkillMasterPayloads(options.SkillMasters),
 	})
 }
 
@@ -87,6 +88,64 @@ func (h *SkillOptionsHandler) UpdateSkillCategory(w http.ResponseWriter, r *http
 
 	writeJSON(w, http.StatusOK, skillCategoryResponse{
 		Category: toSkillOptionPayload(*category),
+	})
+}
+
+func (h *SkillOptionsHandler) CreateSkillMaster(w http.ResponseWriter, r *http.Request) {
+	var request skillMasterRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+
+	input := toSkillMasterInput(request, true)
+	if input.ID == "" || input.Name == "" || input.CategoryID == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "id, name and categoryId are required")
+		return
+	}
+
+	skillMaster, err := h.usecase.CreateMaster(r.Context(), input)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal_server_error", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, skillMasterResponse{
+		SkillMaster: toSkillMasterPayload(*skillMaster),
+	})
+}
+
+func (h *SkillOptionsHandler) UpdateSkillMaster(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "id is required")
+		return
+	}
+
+	var request skillMasterRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+
+	input := toSkillMasterInput(request, false)
+	if input.Name == "" || input.CategoryID == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "name and categoryId are required")
+		return
+	}
+
+	skillMaster, err := h.usecase.UpdateMaster(r.Context(), id, input)
+	if err != nil {
+		if strings.Contains(err.Error(), sql.ErrNoRows.Error()) {
+			writeJSONError(w, http.StatusNotFound, "not_found", "skill master not found")
+			return
+		}
+		writeJSONError(w, http.StatusInternalServerError, "internal_server_error", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, skillMasterResponse{
+		SkillMaster: toSkillMasterPayload(*skillMaster),
 	})
 }
 
@@ -182,10 +241,15 @@ func (h *SkillOptionsHandler) DeleteSkill(w http.ResponseWriter, r *http.Request
 type skillOptionsResponse struct {
 	Categories        []skillOptionPayload `json:"categories"`
 	ProficiencyLevels []skillOptionPayload `json:"proficiencyLevels"`
+	SkillMasters      []skillMasterPayload `json:"skillMasters"`
 }
 
 type skillCategoryResponse struct {
 	Category skillOptionPayload `json:"category"`
+}
+
+type skillMasterResponse struct {
+	SkillMaster skillMasterPayload `json:"skillMaster"`
 }
 
 type skillsResponse struct {
@@ -202,10 +266,16 @@ type skillCategoryRequest struct {
 	Icon string `json:"icon"`
 }
 
+type skillMasterRequest struct {
+	ID         string `json:"id,omitempty"`
+	Name       string `json:"name"`
+	CategoryID string `json:"categoryId"`
+}
+
 type skillRequest struct {
 	Name               string `json:"name"`
 	CategoryID         string `json:"categoryId"`
-	Experience         string `json:"experience"`
+	Experience         int64  `json:"experience"`
 	ProficiencyLevelID string `json:"proficiencyLevelId"`
 }
 
@@ -221,10 +291,18 @@ type skillPayload struct {
 	Name               string `json:"name"`
 	CategoryID         string `json:"categoryId"`
 	Category           string `json:"category"`
-	Experience         string `json:"experience"`
+	Experience         int64  `json:"experience"`
 	ProficiencyLevelID string `json:"proficiencyLevelId"`
 	Proficiency        string `json:"proficiency"`
 	SortOrder          int64  `json:"sortOrder"`
+}
+
+type skillMasterPayload struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	CategoryID string `json:"categoryId"`
+	Category   string `json:"category"`
+	SortOrder  int64  `json:"sortOrder"`
 }
 
 func toSkillOptionPayloads(values []domain.SkillOption) []skillOptionPayload {
@@ -242,6 +320,25 @@ func toSkillOptionPayload(value domain.SkillOption) skillOptionPayload {
 		Name:      value.Name,
 		Icon:      value.Icon,
 		SortOrder: value.SortOrder,
+	}
+}
+
+func toSkillMasterPayloads(values []domain.SkillMaster) []skillMasterPayload {
+	result := make([]skillMasterPayload, 0, len(values))
+	for _, value := range values {
+		result = append(result, toSkillMasterPayload(value))
+	}
+
+	return result
+}
+
+func toSkillMasterPayload(value domain.SkillMaster) skillMasterPayload {
+	return skillMasterPayload{
+		ID:         value.ID,
+		Name:       value.Name,
+		CategoryID: value.CategoryID,
+		Category:   value.CategoryName,
+		SortOrder:  value.SortOrder,
 	}
 }
 
@@ -279,11 +376,23 @@ func toSkillCategoryInput(request skillCategoryRequest, includeID bool) domain.S
 	return input
 }
 
+func toSkillMasterInput(request skillMasterRequest, includeID bool) domain.SkillMasterInput {
+	input := domain.SkillMasterInput{
+		Name:       strings.TrimSpace(request.Name),
+		CategoryID: strings.TrimSpace(request.CategoryID),
+	}
+	if includeID {
+		input.ID = strings.TrimSpace(request.ID)
+	}
+
+	return input
+}
+
 func toSkillInput(request skillRequest) domain.SkillInput {
 	return domain.SkillInput{
 		Name:               strings.TrimSpace(request.Name),
 		CategoryID:         strings.TrimSpace(request.CategoryID),
-		Experience:         strings.TrimSpace(request.Experience),
+		Experience:         request.Experience,
 		ProficiencyLevelID: strings.TrimSpace(request.ProficiencyLevelID),
 	}
 }

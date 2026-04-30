@@ -42,6 +42,8 @@ func NewRouter(
 	api.Delete("/skills/{id}", skillOptionsServer.DeleteSkill)
 	api.Post("/skills/categories", skillOptionsServer.CreateSkillCategory)
 	api.Put("/skills/categories/{id}", skillOptionsServer.UpdateSkillCategory)
+	api.Post("/skills/masters", skillOptionsServer.CreateSkillMaster)
+	api.Put("/skills/masters/{id}", skillOptionsServer.UpdateSkillMaster)
 	api.Get("/job-histories/options", jobHistoryServer.ListJobHistoryOptions)
 	api.Get("/job-histories", jobHistoryServer.ListJobHistories)
 	api.Post("/job-histories", jobHistoryServer.CreateJobHistory)

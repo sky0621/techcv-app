@@ -15,7 +15,7 @@ type Skill = {
   name: string;
   categoryId: string;
   category: string;
-  experience: string;
+  experience: number;
   proficiencyLevelId: string;
   proficiency: string;
   sortOrder: number;
@@ -162,7 +162,7 @@ export function SkillsPage() {
     setFormData({
       name: skill.name,
       categoryId: skill.categoryId,
-      experience: skill.experience,
+      experience: String(skill.experience),
       proficiencyLevelId: skill.proficiencyLevelId,
     });
     setIsDialogOpen(true);
@@ -178,7 +178,10 @@ export function SkillsPage() {
         {
           method: editingSkill ? "PUT" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
+          body: JSON.stringify({
+            ...formData,
+            experience: Number(formData.experience),
+          }),
         },
       );
       if (!response.ok) {
@@ -291,7 +294,7 @@ export function SkillsPage() {
                           <div className="flex-1">
                             <div className="font-medium text-gray-900">{skill.name}</div>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="text-xs text-gray-600">{skill.experience}</span>
+                              <span className="text-xs text-gray-600">{skill.experience}年</span>
                               <Badge variant="secondary" className={`text-xs ${getProficiencyColor(skill.proficiency)}`}>
                                 {skill.proficiency}
                               </Badge>
@@ -363,7 +366,7 @@ export function SkillsPage() {
                             <div className="flex-1">
                               <div className="font-medium text-gray-900">{skill.name}</div>
                               <div className="flex items-center gap-2 mt-1">
-                                <span className="text-xs text-gray-600">{skill.experience}</span>
+                                <span className="text-xs text-gray-600">{skill.experience}年</span>
                                 <Badge variant="secondary" className={`text-xs ${getProficiencyColor(skill.proficiency)}`}>
                                   {skill.proficiency}
                                 </Badge>
@@ -444,9 +447,11 @@ export function SkillsPage() {
                 <Label htmlFor="experience">経験年数</Label>
                 <Input
                   id="experience"
+                  type="number"
+                  min={0}
                   value={formData.experience}
                   onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
-                  placeholder="3年"
+                  placeholder="3"
                 />
               </div>
 

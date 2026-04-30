@@ -46,7 +46,7 @@ type GetSkillRow struct {
 	Name               string
 	CategoryID         string
 	CategoryName       string
-	Experience         string
+	Experience         int64
 	ProficiencyLevelID string
 	ProficiencyName    string
 	SortOrder          int64
@@ -65,6 +65,45 @@ func (q *Queries) GetSkill(ctx context.Context, id string) (GetSkillRow, error) 
 		&i.Experience,
 		&i.ProficiencyLevelID,
 		&i.ProficiencyName,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getSkillMaster = `-- name: GetSkillMaster :one
+SELECT
+  skill_masters.id,
+  skill_masters.name,
+  skill_masters.category_id,
+  skill_categories.name AS category_name,
+  skill_masters.sort_order,
+  skill_masters.created_at,
+  skill_masters.updated_at
+FROM skill_masters
+JOIN skill_categories ON skill_categories.id = skill_masters.category_id
+WHERE skill_masters.id = ?
+`
+
+type GetSkillMasterRow struct {
+	ID           string
+	Name         string
+	CategoryID   string
+	CategoryName string
+	SortOrder    int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+func (q *Queries) GetSkillMaster(ctx context.Context, id string) (GetSkillMasterRow, error) {
+	row := q.db.QueryRowContext(ctx, getSkillMaster, id)
+	var i GetSkillMasterRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CategoryID,
+		&i.CategoryName,
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -104,7 +143,7 @@ type InsertSkillParams struct {
 	ID                 string
 	Name               string
 	CategoryID         string
-	Experience         string
+	Experience         int64
 	ProficiencyLevelID string
 }
 
@@ -172,6 +211,48 @@ func (q *Queries) InsertSkillCategory(ctx context.Context, arg InsertSkillCatego
 	return i, err
 }
 
+const insertSkillMaster = `-- name: InsertSkillMaster :one
+INSERT INTO skill_masters (
+  id,
+  name,
+  category_id,
+  sort_order
+)
+SELECT
+  ?,
+  ?,
+  ?,
+  COALESCE(MAX(sort_order), 0) + 1
+FROM skill_masters
+RETURNING
+  id,
+  name,
+  category_id,
+  sort_order,
+  created_at,
+  updated_at
+`
+
+type InsertSkillMasterParams struct {
+	ID         string
+	Name       string
+	CategoryID string
+}
+
+func (q *Queries) InsertSkillMaster(ctx context.Context, arg InsertSkillMasterParams) (SkillMaster, error) {
+	row := q.db.QueryRowContext(ctx, insertSkillMaster, arg.ID, arg.Name, arg.CategoryID)
+	var i SkillMaster
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CategoryID,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listSkillCategories = `-- name: ListSkillCategories :many
 SELECT
   id,
@@ -197,6 +278,61 @@ func (q *Queries) ListSkillCategories(ctx context.Context) ([]SkillCategory, err
 			&i.ID,
 			&i.Name,
 			&i.Icon,
+			&i.SortOrder,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSkillMasters = `-- name: ListSkillMasters :many
+SELECT
+  skill_masters.id,
+  skill_masters.name,
+  skill_masters.category_id,
+  skill_categories.name AS category_name,
+  skill_masters.sort_order,
+  skill_masters.created_at,
+  skill_masters.updated_at
+FROM skill_masters
+JOIN skill_categories ON skill_categories.id = skill_masters.category_id
+ORDER BY skill_masters.sort_order ASC, skill_masters.name ASC
+`
+
+type ListSkillMastersRow struct {
+	ID           string
+	Name         string
+	CategoryID   string
+	CategoryName string
+	SortOrder    int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+func (q *Queries) ListSkillMasters(ctx context.Context) ([]ListSkillMastersRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSkillMasters)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSkillMastersRow
+	for rows.Next() {
+		var i ListSkillMastersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CategoryID,
+			&i.CategoryName,
 			&i.SortOrder,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -277,7 +413,7 @@ type ListSkillsRow struct {
 	Name               string
 	CategoryID         string
 	CategoryName       string
-	Experience         string
+	Experience         int64
 	ProficiencyLevelID string
 	ProficiencyName    string
 	SortOrder          int64
@@ -342,7 +478,7 @@ RETURNING
 type UpdateSkillParams struct {
 	Name               string
 	CategoryID         string
-	Experience         string
+	Experience         int64
 	ProficiencyLevelID string
 	ID                 string
 }
@@ -398,6 +534,42 @@ func (q *Queries) UpdateSkillCategory(ctx context.Context, arg UpdateSkillCatego
 		&i.ID,
 		&i.Name,
 		&i.Icon,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateSkillMaster = `-- name: UpdateSkillMaster :one
+UPDATE skill_masters
+SET
+  name = ?,
+  category_id = ?,
+  updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING
+  id,
+  name,
+  category_id,
+  sort_order,
+  created_at,
+  updated_at
+`
+
+type UpdateSkillMasterParams struct {
+	Name       string
+	CategoryID string
+	ID         string
+}
+
+func (q *Queries) UpdateSkillMaster(ctx context.Context, arg UpdateSkillMasterParams) (SkillMaster, error) {
+	row := q.db.QueryRowContext(ctx, updateSkillMaster, arg.Name, arg.CategoryID, arg.ID)
+	var i SkillMaster
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CategoryID,
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
