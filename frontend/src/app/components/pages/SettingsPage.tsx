@@ -616,11 +616,13 @@ export function SettingsPage() {
                   <Label htmlFor="category-id">ID</Label>
                   <Input
                     id="category-id"
+                    type="number"
+                    min={1}
                     value={categoryForm.id}
                     onChange={(e) =>
                       setCategoryForm({ ...categoryForm, id: e.target.value })
                     }
-                    placeholder="skill_category_backend"
+                    placeholder="7"
                   />
                 </div>
               )}
@@ -699,11 +701,13 @@ export function SettingsPage() {
                   <Label htmlFor="skill-master-id">ID</Label>
                   <Input
                     id="skill-master-id"
+                    type="number"
+                    min={1}
                     value={skillMasterForm.id}
                     onChange={(e) =>
                       setSkillMasterForm({ ...skillMasterForm, id: e.target.value })
                     }
-                    placeholder="skill_master_kotlin"
+                    placeholder="12"
                   />
                 </div>
               )}
@@ -779,11 +783,13 @@ export function SettingsPage() {
                   <Label htmlFor="employment-type-id">ID</Label>
                   <Input
                     id="employment-type-id"
+                    type="number"
+                    min={1}
                     value={employmentTypeForm.id}
                     onChange={(e) =>
                       setEmploymentTypeForm({ ...employmentTypeForm, id: e.target.value })
                     }
-                    placeholder="job_employment_type_intern"
+                    placeholder="6"
                   />
                 </div>
               )}

@@ -30,8 +30,8 @@ func TestSQLiteProfileRepositoryGetCreatesDefaultProfile(t *testing.T) {
 		t.Fatalf("Get() error = %v", err)
 	}
 
-	if got.ID != "profile_01" {
-		t.Fatalf("expected default ID profile_01, got %q", got.ID)
+	if got.ID != "1" {
+		t.Fatalf("expected default ID 1, got %q", got.ID)
 	}
 	if got.UserID != "user_01" {
 		t.Fatalf("expected default UserID user_01, got %q", got.UserID)
@@ -101,7 +101,7 @@ func TestSQLiteProfileRepositorySavePersistsProfile(t *testing.T) {
 	if len(reloaded.Qualifications) != 2 {
 		t.Fatalf("expected qualifications to persist, got %#v", reloaded.Qualifications)
 	}
-	if reloaded.Qualifications[0].ID != "qualification_01" || reloaded.Qualifications[0].Name != "AWS Certified Solutions Architect" {
+	if reloaded.Qualifications[0].ID == "" || reloaded.Qualifications[0].Name != "AWS Certified Solutions Architect" {
 		t.Fatalf("unexpected first qualification: %#v", reloaded.Qualifications[0])
 	}
 	if reloaded.Qualifications[0].URL != "https://aws.amazon.com/certification/certified-solutions-architect-associate/" {
@@ -252,13 +252,13 @@ func TestSQLiteProfileRepositorySeedsSkillOptions(t *testing.T) {
 	if len(options.Categories) != 6 {
 		t.Fatalf("expected six categories, got %#v", options.Categories)
 	}
-	if options.Categories[0].ID != "skill_category_language" || options.Categories[0].Name != "言語" {
+	if options.Categories[0].ID != "1" || options.Categories[0].Name != "言語" {
 		t.Fatalf("unexpected first category: %#v", options.Categories[0])
 	}
 	if options.Categories[0].Icon != "code" {
 		t.Fatalf("unexpected first category icon: %#v", options.Categories[0])
 	}
-	if options.Categories[5].ID != "skill_category_other" || options.Categories[5].SortOrder != 6 {
+	if options.Categories[5].ID != "6" || options.Categories[5].SortOrder != 6 {
 		t.Fatalf("unexpected last category: %#v", options.Categories[5])
 	}
 	if options.Categories[5].Icon != "wrench" {
@@ -267,14 +267,14 @@ func TestSQLiteProfileRepositorySeedsSkillOptions(t *testing.T) {
 	if len(options.ProficiencyLevels) != 4 {
 		t.Fatalf("expected four proficiency levels, got %#v", options.ProficiencyLevels)
 	}
-	if options.ProficiencyLevels[0].ID != "skill_proficiency_beginner" || options.ProficiencyLevels[0].Name != "初級" {
+	if options.ProficiencyLevels[0].ID != "1" || options.ProficiencyLevels[0].Name != "初級" {
 		t.Fatalf("unexpected first proficiency level: %#v", options.ProficiencyLevels[0])
 	}
-	if options.ProficiencyLevels[3].ID != "skill_proficiency_expert" || options.ProficiencyLevels[3].SortOrder != 4 {
+	if options.ProficiencyLevels[3].ID != "4" || options.ProficiencyLevels[3].SortOrder != 4 {
 		t.Fatalf("unexpected last proficiency level: %#v", options.ProficiencyLevels[3])
 	}
 
-	updated, err := repo.UpdateSkillCategory(ctx, "skill_category_language", domain.SkillCategoryInput{
+	updated, err := repo.UpdateSkillCategory(ctx, "1", domain.SkillCategoryInput{
 		Name: "プログラミング言語",
 		Icon: "database",
 	})
@@ -296,14 +296,14 @@ func TestSQLiteProfileRepositorySeedsSkillOptions(t *testing.T) {
 	}
 
 	created, err := repo.CreateSkillCategory(ctx, domain.SkillCategoryInput{
-		ID:   "skill_category_backend",
+		ID:   "7",
 		Name: "バックエンド",
 		Icon: "code",
 	})
 	if err != nil {
 		t.Fatalf("CreateSkillCategory() error = %v", err)
 	}
-	if created.ID != "skill_category_backend" || created.Name != "バックエンド" || created.Icon != "code" {
+	if created.ID != "7" || created.Name != "バックエンド" || created.Icon != "code" {
 		t.Fatalf("unexpected created category: %#v", created)
 	}
 	if created.SortOrder != 7 {
@@ -358,7 +358,7 @@ func TestSQLiteProfileRepositoryMigratesSkillCategoryIconColumn(t *testing.T) {
 	}
 	var foundService bool
 	for _, category := range options.Categories {
-		if category.ID == "skill_category_service" {
+		if category.Name == "外部サービス" {
 			foundService = true
 			if category.Icon != "wrench" {
 				t.Fatalf("expected fallback icon for migrated category, got %#v", category)
@@ -397,7 +397,7 @@ func testSchemaPath() string {
 
 func profileFixture(createdAt time.Time) domain.Profile {
 	return domain.Profile{
-		ID:                 "profile_01",
+		ID:                 "1",
 		UserID:             "user_01",
 		FullName:           "Sky Sample",
 		Nickname:           "sky0621",

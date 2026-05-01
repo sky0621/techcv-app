@@ -344,7 +344,7 @@ func TestSkillOptionsRoute(t *testing.T) {
 	if len(resp.Categories) != 6 {
 		t.Fatalf("expected six categories, got %#v", resp.Categories)
 	}
-	if resp.Categories[0].ID != "skill_category_language" || resp.Categories[0].Name != "言語" {
+	if resp.Categories[0].ID != "1" || resp.Categories[0].Name != "言語" {
 		t.Fatalf("unexpected first category: %#v", resp.Categories[0])
 	}
 	if resp.Categories[0].Icon != "code" {
@@ -353,15 +353,15 @@ func TestSkillOptionsRoute(t *testing.T) {
 	if len(resp.ProficiencyLevels) != 4 {
 		t.Fatalf("expected four proficiency levels, got %#v", resp.ProficiencyLevels)
 	}
-	if resp.ProficiencyLevels[0].ID != "skill_proficiency_beginner" || resp.ProficiencyLevels[0].Name != "初級" {
+	if resp.ProficiencyLevels[0].ID != "1" || resp.ProficiencyLevels[0].Name != "初級" {
 		t.Fatalf("unexpected first proficiency level: %#v", resp.ProficiencyLevels[0])
 	}
 	if len(resp.SkillMasters) != 2 {
 		t.Fatalf("expected two skill masters, got %#v", resp.SkillMasters)
 	}
-	if resp.SkillMasters[0].ID != "skill_master_typescript" ||
+	if resp.SkillMasters[0].ID != "1" ||
 		resp.SkillMasters[0].Name != "TypeScript" ||
-		resp.SkillMasters[0].CategoryID != "skill_category_language" ||
+		resp.SkillMasters[0].CategoryID != "1" ||
 		resp.SkillMasters[0].Category != "言語" {
 		t.Fatalf("unexpected first skill master: %#v", resp.SkillMasters[0])
 	}
@@ -372,7 +372,7 @@ func TestSkillCategoryMutationRoutes(t *testing.T) {
 	router := NewRouter(repository, repository, repository, repository)
 
 	createBody := []byte(`{
-		"id":"skill_category_backend",
+		"id":"7",
 		"name":"バックエンド",
 		"icon":"code"
 	}`)
@@ -395,7 +395,7 @@ func TestSkillCategoryMutationRoutes(t *testing.T) {
 	if err := json.Unmarshal(createRec.Body.Bytes(), &createResp); err != nil {
 		t.Fatalf("failed to decode create response: %v", err)
 	}
-	if createResp.Category.ID != "skill_category_backend" || createResp.Category.Name != "バックエンド" {
+	if createResp.Category.ID != "7" || createResp.Category.Name != "バックエンド" {
 		t.Fatalf("unexpected created category: %#v", createResp.Category)
 	}
 
@@ -403,7 +403,7 @@ func TestSkillCategoryMutationRoutes(t *testing.T) {
 		"name":"バックエンド・API",
 		"icon":"database"
 	}`)
-	updateReq := httptest.NewRequest(http.MethodPut, "/api/skills/categories/skill_category_backend", bytes.NewReader(updateBody))
+	updateReq := httptest.NewRequest(http.MethodPut, "/api/skills/categories/7", bytes.NewReader(updateBody))
 	updateRec := httptest.NewRecorder()
 	router.ServeHTTP(updateRec, updateReq)
 
@@ -421,7 +421,7 @@ func TestSkillCategoryMutationRoutes(t *testing.T) {
 	if err := json.Unmarshal(updateRec.Body.Bytes(), &updateResp); err != nil {
 		t.Fatalf("failed to decode update response: %v", err)
 	}
-	if updateResp.Category.ID != "skill_category_backend" ||
+	if updateResp.Category.ID != "7" ||
 		updateResp.Category.Name != "バックエンド・API" ||
 		updateResp.Category.Icon != "database" {
 		t.Fatalf("unexpected updated category: %#v", updateResp.Category)
@@ -433,9 +433,9 @@ func TestSkillMasterMutationRoutes(t *testing.T) {
 	router := NewRouter(repository, repository, repository, repository)
 
 	createBody := []byte(`{
-		"id":"skill_master_kotlin",
+		"id":"12",
 		"name":"Kotlin",
-		"categoryId":"skill_category_language"
+		"categoryId":"1"
 	}`)
 	createReq := httptest.NewRequest(http.MethodPost, "/api/skills/masters", bytes.NewReader(createBody))
 	createRec := httptest.NewRecorder()
@@ -456,7 +456,7 @@ func TestSkillMasterMutationRoutes(t *testing.T) {
 	if err := json.Unmarshal(createRec.Body.Bytes(), &createResp); err != nil {
 		t.Fatalf("failed to decode create response: %v", err)
 	}
-	if createResp.SkillMaster.ID != "skill_master_kotlin" ||
+	if createResp.SkillMaster.ID != "12" ||
 		createResp.SkillMaster.Name != "Kotlin" ||
 		createResp.SkillMaster.Category != "言語" {
 		t.Fatalf("unexpected created skill master: %#v", createResp.SkillMaster)
@@ -464,9 +464,9 @@ func TestSkillMasterMutationRoutes(t *testing.T) {
 
 	updateBody := []byte(`{
 		"name":"Kotlin/JVM",
-		"categoryId":"skill_category_framework"
+		"categoryId":"2"
 	}`)
-	updateReq := httptest.NewRequest(http.MethodPut, "/api/skills/masters/skill_master_kotlin", bytes.NewReader(updateBody))
+	updateReq := httptest.NewRequest(http.MethodPut, "/api/skills/masters/12", bytes.NewReader(updateBody))
 	updateRec := httptest.NewRecorder()
 	router.ServeHTTP(updateRec, updateReq)
 
@@ -485,9 +485,9 @@ func TestSkillMasterMutationRoutes(t *testing.T) {
 	if err := json.Unmarshal(updateRec.Body.Bytes(), &updateResp); err != nil {
 		t.Fatalf("failed to decode update response: %v", err)
 	}
-	if updateResp.SkillMaster.ID != "skill_master_kotlin" ||
+	if updateResp.SkillMaster.ID != "12" ||
 		updateResp.SkillMaster.Name != "Kotlin/JVM" ||
-		updateResp.SkillMaster.CategoryID != "skill_category_framework" ||
+		updateResp.SkillMaster.CategoryID != "2" ||
 		updateResp.SkillMaster.Category != "フレームワーク" {
 		t.Fatalf("unexpected updated skill master: %#v", updateResp.SkillMaster)
 	}
@@ -523,16 +523,16 @@ func TestSkillRoutes(t *testing.T) {
 	if len(listResp.Skills) != 1 {
 		t.Fatalf("expected one seeded skill, got %#v", listResp.Skills)
 	}
-	if listResp.Skills[0].SkillMasterID != "skill_master_typescript" ||
+	if listResp.Skills[0].SkillMasterID != "1" ||
 		listResp.Skills[0].Category != "言語" ||
 		listResp.Skills[0].Proficiency != "上級" {
 		t.Fatalf("expected skill master names, got %#v", listResp.Skills[0])
 	}
 
 	duplicateBody := []byte(`{
-		"skillMasterId":"skill_master_typescript",
+		"skillMasterId":"1",
 		"experience":5,
-		"proficiencyLevelId":"skill_proficiency_advanced"
+		"proficiencyLevelId":"3"
 	}`)
 	duplicateReq := httptest.NewRequest(http.MethodPost, "/api/skills", bytes.NewReader(duplicateBody))
 	duplicateRec := httptest.NewRecorder()
@@ -543,9 +543,9 @@ func TestSkillRoutes(t *testing.T) {
 	}
 
 	createBody := []byte(`{
-		"skillMasterId":"skill_master_react",
+		"skillMasterId":"4",
 		"experience":3,
-		"proficiencyLevelId":"skill_proficiency_advanced"
+		"proficiencyLevelId":"3"
 	}`)
 	createReq := httptest.NewRequest(http.MethodPost, "/api/skills", bytes.NewReader(createBody))
 	createRec := httptest.NewRecorder()
@@ -571,15 +571,15 @@ func TestSkillRoutes(t *testing.T) {
 		t.Fatalf("failed to decode create response: %v", err)
 	}
 	if createResp.Skill.ID == "" ||
-		createResp.Skill.SkillMasterID != "skill_master_react" ||
+		createResp.Skill.SkillMasterID != "4" ||
 		createResp.Skill.Category != "フレームワーク" {
 		t.Fatalf("unexpected created skill: %#v", createResp.Skill)
 	}
 
 	updateBody := []byte(`{
-		"skillMasterId":"skill_master_react",
+		"skillMasterId":"4",
 		"experience":4,
-		"proficiencyLevelId":"skill_proficiency_expert"
+		"proficiencyLevelId":"4"
 	}`)
 	updateReq := httptest.NewRequest(http.MethodPut, "/api/skills/"+createResp.Skill.ID, bytes.NewReader(updateBody))
 	updateRec := httptest.NewRecorder()
@@ -650,7 +650,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 		listResp.JobHistories[0].StartMonth != 1 ||
 		listResp.JobHistories[0].EndYear != nil ||
 		listResp.JobHistories[0].EndMonth != nil ||
-		listResp.JobHistories[0].EmploymentTypeID != "job_employment_type_full_time" ||
+		listResp.JobHistories[0].EmploymentTypeID != "1" ||
 		listResp.JobHistories[0].EmploymentType != "正社員" ||
 		listResp.JobHistories[0].ProjectCount != 5 {
 		t.Fatalf("unexpected seeded job history: %#v", listResp.JobHistories[0])
@@ -663,7 +663,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 		"startMonth":1,
 		"endYear":null,
 		"endMonth":null,
-		"employmentTypeId":"job_employment_type_freelance"
+		"employmentTypeId":"3"
 	}`)
 	createReq := httptest.NewRequest(http.MethodPost, "/api/job-histories", bytes.NewReader(createBody))
 	createRec := httptest.NewRecorder()
@@ -694,7 +694,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 		createResp.JobHistory.DisplayName != "表示用C" ||
 		createResp.JobHistory.EndYear != nil ||
 		createResp.JobHistory.EndMonth != nil ||
-		createResp.JobHistory.EmploymentTypeID != "job_employment_type_freelance" ||
+		createResp.JobHistory.EmploymentTypeID != "3" ||
 		createResp.JobHistory.EmploymentType != "業務委託" ||
 		createResp.JobHistory.ProjectCount != 0 {
 		t.Fatalf("unexpected created job history: %#v", createResp.JobHistory)
@@ -707,7 +707,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 		"startMonth":2,
 		"endYear":2025,
 		"endMonth":3,
-		"employmentTypeId":"job_employment_type_contract"
+		"employmentTypeId":"2"
 	}`)
 	updateReq := httptest.NewRequest(http.MethodPut, "/api/job-histories/"+createResp.JobHistory.ID, bytes.NewReader(updateBody))
 	updateRec := httptest.NewRecorder()
@@ -740,7 +740,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 		*updateResp.JobHistory.EndYear != 2025 ||
 		updateResp.JobHistory.EndMonth == nil ||
 		*updateResp.JobHistory.EndMonth != 3 ||
-		updateResp.JobHistory.EmploymentTypeID != "job_employment_type_contract" ||
+		updateResp.JobHistory.EmploymentTypeID != "2" ||
 		updateResp.JobHistory.EmploymentType != "契約社員" {
 		t.Fatalf("unexpected updated job history: %#v", updateResp.JobHistory)
 	}
@@ -915,7 +915,7 @@ func newTestProfileRepository() *testProfileRepository {
 
 	return &testProfileRepository{
 		profile: &domain.Profile{
-			ID:                 "profile_01",
+			ID:                 "1",
 			UserID:             "user_01",
 			FullName:           "Initial User",
 			VisibilitySettings: map[string]any{"email": false},
@@ -923,31 +923,31 @@ func newTestProfileRepository() *testProfileRepository {
 			UpdatedAt:          now,
 		},
 		categories: []domain.SkillOption{
-			{ID: "skill_category_language", Name: "言語", Icon: "code", SortOrder: 1},
-			{ID: "skill_category_framework", Name: "フレームワーク", Icon: "code", SortOrder: 2},
-			{ID: "skill_category_database", Name: "データベース", Icon: "database", SortOrder: 3},
-			{ID: "skill_category_infrastructure", Name: "インフラ", Icon: "cloud", SortOrder: 4},
-			{ID: "skill_category_tool", Name: "ツール", Icon: "wrench", SortOrder: 5},
-			{ID: "skill_category_other", Name: "その他", Icon: "wrench", SortOrder: 6},
+			{ID: "1", Name: "言語", Icon: "code", SortOrder: 1},
+			{ID: "2", Name: "フレームワーク", Icon: "code", SortOrder: 2},
+			{ID: "3", Name: "データベース", Icon: "database", SortOrder: 3},
+			{ID: "4", Name: "インフラ", Icon: "cloud", SortOrder: 4},
+			{ID: "5", Name: "ツール", Icon: "wrench", SortOrder: 5},
+			{ID: "6", Name: "その他", Icon: "wrench", SortOrder: 6},
 		},
 		proficiencyLevels: []domain.SkillOption{
-			{ID: "skill_proficiency_beginner", Name: "初級", SortOrder: 1},
-			{ID: "skill_proficiency_intermediate", Name: "中級", SortOrder: 2},
-			{ID: "skill_proficiency_advanced", Name: "上級", SortOrder: 3},
-			{ID: "skill_proficiency_expert", Name: "エキスパート", SortOrder: 4},
+			{ID: "1", Name: "初級", SortOrder: 1},
+			{ID: "2", Name: "中級", SortOrder: 2},
+			{ID: "3", Name: "上級", SortOrder: 3},
+			{ID: "4", Name: "エキスパート", SortOrder: 4},
 		},
 		skillMasters: []domain.SkillMaster{
 			{
-				ID:           "skill_master_typescript",
+				ID:           "1",
 				Name:         "TypeScript",
-				CategoryID:   "skill_category_language",
+				CategoryID:   "1",
 				CategoryName: "言語",
 				SortOrder:    1,
 			},
 			{
-				ID:           "skill_master_react",
+				ID:           "4",
 				Name:         "React",
-				CategoryID:   "skill_category_framework",
+				CategoryID:   "2",
 				CategoryName: "フレームワーク",
 				SortOrder:    2,
 			},
@@ -955,39 +955,39 @@ func newTestProfileRepository() *testProfileRepository {
 		skills: []domain.Skill{
 			{
 				ID:                 "skill_typescript",
-				SkillMasterID:      "skill_master_typescript",
+				SkillMasterID:      "1",
 				Name:               "TypeScript",
-				CategoryID:         "skill_category_language",
+				CategoryID:         "1",
 				CategoryName:       "言語",
 				Experience:         3,
-				ProficiencyLevelID: "skill_proficiency_advanced",
+				ProficiencyLevelID: "3",
 				ProficiencyName:    "上級",
 				SortOrder:          1,
 			},
 		},
 		jobHistories: []domain.JobHistory{
 			{
-				ID:               "job_history_company_a",
+				ID:               "1",
 				Company:          "株式会社A",
 				DisplayName:      "株式会社A",
 				StartYear:        2023,
 				StartMonth:       1,
 				EndYear:          nil,
 				EndMonth:         nil,
-				EmploymentTypeID: "job_employment_type_full_time",
+				EmploymentTypeID: "1",
 				EmploymentType:   "正社員",
 				ProjectCount:     5,
 				SortOrder:        1,
 			},
 		},
 		employmentTypes: []domain.JobEmploymentType{
-			{ID: "job_employment_type_full_time", Name: "正社員", SortOrder: 1},
-			{ID: "job_employment_type_contract", Name: "契約社員", SortOrder: 2},
-			{ID: "job_employment_type_freelance", Name: "業務委託", SortOrder: 3},
+			{ID: "1", Name: "正社員", SortOrder: 1},
+			{ID: "2", Name: "契約社員", SortOrder: 2},
+			{ID: "3", Name: "業務委託", SortOrder: 3},
 		},
 		projects: []domain.Project{
 			{
-				ID:           "project_ec_renewal",
+				ID:           "1",
 				Name:         "ECサイトリニューアル",
 				Company:      "株式会社A",
 				StartYear:    2024,

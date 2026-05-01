@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -79,7 +80,7 @@ func (r *SQLiteProfileRepository) Get(ctx context.Context) (*domain.Profile, err
 
 	now := time.Now().UTC()
 	profile := domain.Profile{
-		ID:                 "profile_01",
+		ID:                 "1",
 		UserID:             "user_01",
 		VisibilitySettings: map[string]any{"email": true, "location": true},
 		CreatedAt:          now,
@@ -90,6 +91,10 @@ func (r *SQLiteProfileRepository) Get(ctx context.Context) (*domain.Profile, err
 }
 
 func (r *SQLiteProfileRepository) Save(ctx context.Context, profile *domain.Profile) (*domain.Profile, error) {
+	if _, err := strconv.ParseInt(profile.ID, 10, 64); err != nil {
+		profile.ID = "1"
+	}
+
 	visibilitySettings := sanitizeVisibilitySettings(profile.VisibilitySettings)
 
 	visibilityBytes, err := json.Marshal(visibilitySettings)
@@ -232,6 +237,12 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.migrateSkillMasterReference(ctx); err != nil {
 		return err
 	}
+	if err := r.addQualificationURLColumn(ctx); err != nil {
+		return err
+	}
+	if err := r.migrateIntegerPrimaryKeys(ctx); err != nil {
+		return err
+	}
 	if err := r.seedSkills(ctx); err != nil {
 		return err
 	}
@@ -254,7 +265,7 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 		return err
 	}
 
-	return r.addQualificationURLColumn(ctx)
+	return nil
 }
 
 func (r *SQLiteProfileRepository) ListSkillOptions(ctx context.Context) (*domain.SkillOptions, error) {
@@ -995,14 +1006,337 @@ func (r *SQLiteProfileRepository) migrateSkillMasterReference(ctx context.Contex
 	return nil
 }
 
+func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context) error {
+	tables := []string{
+		"profiles",
+		"profile_qualifications",
+		"skill_categories",
+		"skill_proficiency_levels",
+		"skill_masters",
+		"skills",
+		"job_employment_types",
+		"job_histories",
+		"projects",
+	}
+	needsMigration := false
+	for _, table := range tables {
+		idType, err := r.tableColumnType(ctx, table, "id")
+		if err != nil {
+			return err
+		}
+		if !strings.EqualFold(idType, "INTEGER") {
+			needsMigration = true
+			break
+		}
+	}
+	if !needsMigration {
+		return nil
+	}
+
+	statements := []string{
+		`PRAGMA foreign_keys = OFF`,
+		`DROP TABLE IF EXISTS profile_qualifications_new`,
+		`DROP TABLE IF EXISTS profiles_new`,
+		`DROP TABLE IF EXISTS skills_new`,
+		`DROP TABLE IF EXISTS skill_masters_new`,
+		`DROP TABLE IF EXISTS skill_categories_new`,
+		`DROP TABLE IF EXISTS skill_proficiency_levels_new`,
+		`DROP TABLE IF EXISTS job_histories_new`,
+		`DROP TABLE IF EXISTS job_employment_types_new`,
+		`DROP TABLE IF EXISTS projects_new`,
+		`DROP TABLE IF EXISTS _profile_id_map`,
+		`DROP TABLE IF EXISTS _qualification_id_map`,
+		`DROP TABLE IF EXISTS _skill_category_id_map`,
+		`DROP TABLE IF EXISTS _skill_proficiency_id_map`,
+		`DROP TABLE IF EXISTS _skill_master_id_map`,
+		`DROP TABLE IF EXISTS _skill_id_map`,
+		`DROP TABLE IF EXISTS _job_employment_type_id_map`,
+		`DROP TABLE IF EXISTS _job_history_id_map`,
+		`DROP TABLE IF EXISTS _project_id_map`,
+		`CREATE TEMP TABLE _profile_id_map AS
+		SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY created_at ASC, id ASC) AS new_id
+		FROM profiles`,
+		`CREATE TEMP TABLE _qualification_id_map AS
+		SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, created_at ASC, id ASC) AS new_id
+		FROM profile_qualifications`,
+		`CREATE TEMP TABLE _skill_category_id_map AS
+		SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, name ASC, id ASC) AS new_id
+		FROM skill_categories`,
+		`CREATE TEMP TABLE _skill_proficiency_id_map AS
+		SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, name ASC, id ASC) AS new_id
+		FROM skill_proficiency_levels`,
+		`CREATE TEMP TABLE _skill_master_id_map AS
+		SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, name ASC, id ASC) AS new_id
+		FROM skill_masters`,
+		`CREATE TEMP TABLE _skill_id_map AS
+		SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, id ASC) AS new_id
+		FROM skills`,
+		`CREATE TEMP TABLE _job_employment_type_id_map AS
+		SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, name ASC, id ASC) AS new_id
+		FROM job_employment_types`,
+		`CREATE TEMP TABLE _job_history_id_map AS
+		SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, id ASC) AS new_id
+		FROM job_histories`,
+		`CREATE TEMP TABLE _project_id_map AS
+		SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, id ASC) AS new_id
+		FROM projects`,
+		`CREATE TABLE profiles_new (
+			id INTEGER PRIMARY KEY,
+			user_id TEXT NOT NULL UNIQUE,
+			full_name TEXT NOT NULL,
+			nickname TEXT NOT NULL,
+			location TEXT NOT NULL,
+			email TEXT NOT NULL,
+			summary TEXT NOT NULL,
+			github_url TEXT NOT NULL,
+			zenn_url TEXT NOT NULL,
+			qiita_url TEXT NOT NULL,
+			website_url TEXT NOT NULL,
+			occupation TEXT NOT NULL,
+			employment_type TEXT NOT NULL,
+			preferred_work_style TEXT NOT NULL,
+			visibility_settings TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`INSERT INTO profiles_new
+		SELECT
+			_profile_id_map.new_id,
+			profiles.user_id,
+			profiles.full_name,
+			profiles.nickname,
+			profiles.location,
+			profiles.email,
+			profiles.summary,
+			profiles.github_url,
+			profiles.zenn_url,
+			profiles.qiita_url,
+			profiles.website_url,
+			profiles.occupation,
+			profiles.employment_type,
+			profiles.preferred_work_style,
+			profiles.visibility_settings,
+			profiles.created_at,
+			profiles.updated_at
+		FROM profiles
+		JOIN _profile_id_map ON _profile_id_map.old_id = profiles.id`,
+		`CREATE TABLE profile_qualifications_new (
+			id INTEGER PRIMARY KEY,
+			profile_id INTEGER NOT NULL,
+			name TEXT NOT NULL,
+			acquired_date TEXT NOT NULL,
+			organization TEXT NOT NULL,
+			url TEXT NOT NULL,
+			memo TEXT NOT NULL,
+			sort_order INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+		)`,
+		`INSERT INTO profile_qualifications_new
+		SELECT
+			_qualification_id_map.new_id,
+			_profile_id_map.new_id,
+			profile_qualifications.name,
+			profile_qualifications.acquired_date,
+			profile_qualifications.organization,
+			profile_qualifications.url,
+			profile_qualifications.memo,
+			profile_qualifications.sort_order,
+			profile_qualifications.created_at,
+			profile_qualifications.updated_at
+		FROM profile_qualifications
+		JOIN _qualification_id_map ON _qualification_id_map.old_id = profile_qualifications.id
+		JOIN _profile_id_map ON _profile_id_map.old_id = profile_qualifications.profile_id`,
+		`CREATE TABLE skill_categories_new (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL UNIQUE,
+			icon TEXT NOT NULL,
+			sort_order INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`INSERT INTO skill_categories_new
+		SELECT _skill_category_id_map.new_id, skill_categories.name, skill_categories.icon, skill_categories.sort_order, skill_categories.created_at, skill_categories.updated_at
+		FROM skill_categories
+		JOIN _skill_category_id_map ON _skill_category_id_map.old_id = skill_categories.id`,
+		`CREATE TABLE skill_proficiency_levels_new (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL UNIQUE,
+			sort_order INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`INSERT INTO skill_proficiency_levels_new
+		SELECT _skill_proficiency_id_map.new_id, skill_proficiency_levels.name, skill_proficiency_levels.sort_order, skill_proficiency_levels.created_at, skill_proficiency_levels.updated_at
+		FROM skill_proficiency_levels
+		JOIN _skill_proficiency_id_map ON _skill_proficiency_id_map.old_id = skill_proficiency_levels.id`,
+		`CREATE TABLE skill_masters_new (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL UNIQUE,
+			category_id INTEGER NOT NULL,
+			sort_order INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (category_id) REFERENCES skill_categories(id)
+		)`,
+		`INSERT INTO skill_masters_new
+		SELECT
+			_skill_master_id_map.new_id,
+			skill_masters.name,
+			_skill_category_id_map.new_id,
+			skill_masters.sort_order,
+			skill_masters.created_at,
+			skill_masters.updated_at
+		FROM skill_masters
+		JOIN _skill_master_id_map ON _skill_master_id_map.old_id = skill_masters.id
+		JOIN _skill_category_id_map ON _skill_category_id_map.old_id = skill_masters.category_id`,
+		`CREATE TABLE skills_new (
+			id INTEGER PRIMARY KEY,
+			skill_master_id INTEGER NOT NULL UNIQUE,
+			experience INTEGER NOT NULL,
+			proficiency_level_id INTEGER NOT NULL,
+			sort_order INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (skill_master_id) REFERENCES skill_masters(id),
+			FOREIGN KEY (proficiency_level_id) REFERENCES skill_proficiency_levels(id)
+		)`,
+		`INSERT OR IGNORE INTO skills_new
+		SELECT
+			_skill_id_map.new_id,
+			_skill_master_id_map.new_id,
+			skills.experience,
+			_skill_proficiency_id_map.new_id,
+			skills.sort_order,
+			skills.created_at,
+			skills.updated_at
+		FROM skills
+		JOIN _skill_id_map ON _skill_id_map.old_id = skills.id
+		JOIN _skill_master_id_map ON _skill_master_id_map.old_id = skills.skill_master_id
+		JOIN _skill_proficiency_id_map ON _skill_proficiency_id_map.old_id = skills.proficiency_level_id`,
+		`CREATE TABLE job_employment_types_new (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL UNIQUE,
+			sort_order INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`INSERT INTO job_employment_types_new
+		SELECT _job_employment_type_id_map.new_id, job_employment_types.name, job_employment_types.sort_order, job_employment_types.created_at, job_employment_types.updated_at
+		FROM job_employment_types
+		JOIN _job_employment_type_id_map ON _job_employment_type_id_map.old_id = job_employment_types.id`,
+		`CREATE TABLE job_histories_new (
+			id INTEGER PRIMARY KEY,
+			company TEXT NOT NULL,
+			display_name TEXT NOT NULL,
+			start_year INTEGER NOT NULL,
+			start_month INTEGER NOT NULL,
+			end_year INTEGER,
+			end_month INTEGER,
+			employment_type_id INTEGER NOT NULL,
+			project_count INTEGER NOT NULL DEFAULT 0,
+			sort_order INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (employment_type_id) REFERENCES job_employment_types(id)
+		)`,
+		`INSERT INTO job_histories_new
+		SELECT
+			_job_history_id_map.new_id,
+			job_histories.company,
+			job_histories.display_name,
+			job_histories.start_year,
+			job_histories.start_month,
+			job_histories.end_year,
+			job_histories.end_month,
+			_job_employment_type_id_map.new_id,
+			job_histories.project_count,
+			job_histories.sort_order,
+			job_histories.created_at,
+			job_histories.updated_at
+		FROM job_histories
+		JOIN _job_history_id_map ON _job_history_id_map.old_id = job_histories.id
+		JOIN _job_employment_type_id_map ON _job_employment_type_id_map.old_id = job_histories.employment_type_id`,
+		`CREATE TABLE projects_new (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL,
+			company TEXT NOT NULL,
+			start_year INTEGER NOT NULL,
+			start_month INTEGER NOT NULL,
+			end_year INTEGER,
+			end_month INTEGER,
+			description TEXT NOT NULL,
+			role TEXT NOT NULL,
+			team_size TEXT NOT NULL,
+			technologies TEXT NOT NULL,
+			phases TEXT NOT NULL,
+			achievements TEXT NOT NULL,
+			is_draft INTEGER NOT NULL DEFAULT 0,
+			sort_order INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`INSERT INTO projects_new
+		SELECT
+			_project_id_map.new_id,
+			projects.name,
+			projects.company,
+			projects.start_year,
+			projects.start_month,
+			projects.end_year,
+			projects.end_month,
+			projects.description,
+			projects.role,
+			projects.team_size,
+			projects.technologies,
+			projects.phases,
+			projects.achievements,
+			projects.is_draft,
+			projects.sort_order,
+			projects.created_at,
+			projects.updated_at
+		FROM projects
+		JOIN _project_id_map ON _project_id_map.old_id = projects.id`,
+		`DROP TABLE profile_qualifications`,
+		`DROP TABLE profiles`,
+		`DROP TABLE skills`,
+		`DROP TABLE skill_masters`,
+		`DROP TABLE skill_categories`,
+		`DROP TABLE skill_proficiency_levels`,
+		`DROP TABLE job_histories`,
+		`DROP TABLE job_employment_types`,
+		`DROP TABLE projects`,
+		`ALTER TABLE profiles_new RENAME TO profiles`,
+		`ALTER TABLE profile_qualifications_new RENAME TO profile_qualifications`,
+		`ALTER TABLE skill_categories_new RENAME TO skill_categories`,
+		`ALTER TABLE skill_proficiency_levels_new RENAME TO skill_proficiency_levels`,
+		`ALTER TABLE skill_masters_new RENAME TO skill_masters`,
+		`ALTER TABLE skills_new RENAME TO skills`,
+		`ALTER TABLE job_employment_types_new RENAME TO job_employment_types`,
+		`ALTER TABLE job_histories_new RENAME TO job_histories`,
+		`ALTER TABLE projects_new RENAME TO projects`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_skill_master_id_unique ON skills(skill_master_id)`,
+		`PRAGMA foreign_keys = ON`,
+	}
+	for _, statement := range statements {
+		if _, err := r.db.ExecContext(ctx, statement); err != nil {
+			_, _ = r.db.ExecContext(ctx, "PRAGMA foreign_keys = ON")
+			return fmt.Errorf("migrate integer primary keys: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (r *SQLiteProfileRepository) seedSkillOptions(ctx context.Context) error {
 	categories := []domain.SkillOption{
-		{ID: "skill_category_language", Name: "言語", Icon: "code", SortOrder: 1},
-		{ID: "skill_category_framework", Name: "フレームワーク", Icon: "code", SortOrder: 2},
-		{ID: "skill_category_database", Name: "データベース", Icon: "database", SortOrder: 3},
-		{ID: "skill_category_infrastructure", Name: "インフラ", Icon: "cloud", SortOrder: 4},
-		{ID: "skill_category_tool", Name: "ツール", Icon: "wrench", SortOrder: 5},
-		{ID: "skill_category_other", Name: "その他", Icon: "wrench", SortOrder: 6},
+		{ID: "1", Name: "言語", Icon: "code", SortOrder: 1},
+		{ID: "2", Name: "フレームワーク", Icon: "code", SortOrder: 2},
+		{ID: "3", Name: "データベース", Icon: "database", SortOrder: 3},
+		{ID: "4", Name: "インフラ", Icon: "cloud", SortOrder: 4},
+		{ID: "5", Name: "ツール", Icon: "wrench", SortOrder: 5},
+		{ID: "6", Name: "その他", Icon: "wrench", SortOrder: 6},
 	}
 	for _, category := range categories {
 		if _, err := r.db.ExecContext(
@@ -1018,10 +1352,10 @@ func (r *SQLiteProfileRepository) seedSkillOptions(ctx context.Context) error {
 	}
 
 	proficiencyLevels := []domain.SkillOption{
-		{ID: "skill_proficiency_beginner", Name: "初級", SortOrder: 1},
-		{ID: "skill_proficiency_intermediate", Name: "中級", SortOrder: 2},
-		{ID: "skill_proficiency_advanced", Name: "上級", SortOrder: 3},
-		{ID: "skill_proficiency_expert", Name: "エキスパート", SortOrder: 4},
+		{ID: "1", Name: "初級", SortOrder: 1},
+		{ID: "2", Name: "中級", SortOrder: 2},
+		{ID: "3", Name: "上級", SortOrder: 3},
+		{ID: "4", Name: "エキスパート", SortOrder: 4},
 	}
 	for _, level := range proficiencyLevels {
 		if _, err := r.db.ExecContext(
@@ -1046,13 +1380,13 @@ func (r *SQLiteProfileRepository) seedSkills(ctx context.Context) error {
 		proficiencyLevelID string
 		sortOrder          int64
 	}{
-		{id: "skill_typescript", skillMasterID: "skill_master_typescript", experience: 3, proficiencyLevelID: "skill_proficiency_advanced", sortOrder: 1},
-		{id: "skill_react", skillMasterID: "skill_master_react", experience: 3, proficiencyLevelID: "skill_proficiency_advanced", sortOrder: 2},
-		{id: "skill_nodejs", skillMasterID: "skill_master_nodejs", experience: 2, proficiencyLevelID: "skill_proficiency_intermediate", sortOrder: 3},
-		{id: "skill_postgresql", skillMasterID: "skill_master_postgresql", experience: 2, proficiencyLevelID: "skill_proficiency_intermediate", sortOrder: 4},
-		{id: "skill_docker", skillMasterID: "skill_master_docker", experience: 2, proficiencyLevelID: "skill_proficiency_intermediate", sortOrder: 5},
-		{id: "skill_aws", skillMasterID: "skill_master_aws", experience: 1, proficiencyLevelID: "skill_proficiency_beginner", sortOrder: 6},
-		{id: "skill_git", skillMasterID: "skill_master_git", experience: 4, proficiencyLevelID: "skill_proficiency_advanced", sortOrder: 7},
+		{id: "1", skillMasterID: "1", experience: 3, proficiencyLevelID: "3", sortOrder: 1},
+		{id: "2", skillMasterID: "4", experience: 3, proficiencyLevelID: "3", sortOrder: 2},
+		{id: "3", skillMasterID: "6", experience: 2, proficiencyLevelID: "2", sortOrder: 3},
+		{id: "4", skillMasterID: "7", experience: 2, proficiencyLevelID: "2", sortOrder: 4},
+		{id: "5", skillMasterID: "9", experience: 2, proficiencyLevelID: "2", sortOrder: 5},
+		{id: "6", skillMasterID: "10", experience: 1, proficiencyLevelID: "1", sortOrder: 6},
+		{id: "7", skillMasterID: "11", experience: 4, proficiencyLevelID: "3", sortOrder: 7},
 	}
 	for _, skill := range skills {
 		if _, err := r.db.ExecContext(
@@ -1073,17 +1407,17 @@ func (r *SQLiteProfileRepository) seedSkills(ctx context.Context) error {
 
 func (r *SQLiteProfileRepository) seedSkillMasters(ctx context.Context) error {
 	skillMasters := []domain.SkillMaster{
-		{ID: "skill_master_typescript", Name: "TypeScript", CategoryID: "skill_category_language", SortOrder: 1},
-		{ID: "skill_master_javascript", Name: "JavaScript", CategoryID: "skill_category_language", SortOrder: 2},
-		{ID: "skill_master_go", Name: "Go", CategoryID: "skill_category_language", SortOrder: 3},
-		{ID: "skill_master_react", Name: "React", CategoryID: "skill_category_framework", SortOrder: 4},
-		{ID: "skill_master_nextjs", Name: "Next.js", CategoryID: "skill_category_framework", SortOrder: 5},
-		{ID: "skill_master_nodejs", Name: "Node.js", CategoryID: "skill_category_framework", SortOrder: 6},
-		{ID: "skill_master_postgresql", Name: "PostgreSQL", CategoryID: "skill_category_database", SortOrder: 7},
-		{ID: "skill_master_sqlite", Name: "SQLite", CategoryID: "skill_category_database", SortOrder: 8},
-		{ID: "skill_master_docker", Name: "Docker", CategoryID: "skill_category_infrastructure", SortOrder: 9},
-		{ID: "skill_master_aws", Name: "AWS", CategoryID: "skill_category_infrastructure", SortOrder: 10},
-		{ID: "skill_master_git", Name: "Git", CategoryID: "skill_category_tool", SortOrder: 11},
+		{ID: "1", Name: "TypeScript", CategoryID: "1", SortOrder: 1},
+		{ID: "2", Name: "JavaScript", CategoryID: "1", SortOrder: 2},
+		{ID: "3", Name: "Go", CategoryID: "1", SortOrder: 3},
+		{ID: "4", Name: "React", CategoryID: "2", SortOrder: 4},
+		{ID: "5", Name: "Next.js", CategoryID: "2", SortOrder: 5},
+		{ID: "6", Name: "Node.js", CategoryID: "2", SortOrder: 6},
+		{ID: "7", Name: "PostgreSQL", CategoryID: "3", SortOrder: 7},
+		{ID: "8", Name: "SQLite", CategoryID: "3", SortOrder: 8},
+		{ID: "9", Name: "Docker", CategoryID: "4", SortOrder: 9},
+		{ID: "10", Name: "AWS", CategoryID: "4", SortOrder: 10},
+		{ID: "11", Name: "Git", CategoryID: "5", SortOrder: 11},
 	}
 	for _, skillMaster := range skillMasters {
 		if _, err := r.db.ExecContext(
@@ -1103,11 +1437,11 @@ func (r *SQLiteProfileRepository) seedSkillMasters(ctx context.Context) error {
 
 func (r *SQLiteProfileRepository) seedJobEmploymentTypes(ctx context.Context) error {
 	employmentTypes := []domain.JobEmploymentType{
-		{ID: "job_employment_type_full_time", Name: "正社員", SortOrder: 1},
-		{ID: "job_employment_type_contract", Name: "契約社員", SortOrder: 2},
-		{ID: "job_employment_type_freelance", Name: "業務委託", SortOrder: 3},
-		{ID: "job_employment_type_dispatch", Name: "派遣", SortOrder: 4},
-		{ID: "job_employment_type_part_time", Name: "アルバイト", SortOrder: 5},
+		{ID: "1", Name: "正社員", SortOrder: 1},
+		{ID: "2", Name: "契約社員", SortOrder: 2},
+		{ID: "3", Name: "業務委託", SortOrder: 3},
+		{ID: "4", Name: "派遣", SortOrder: 4},
+		{ID: "5", Name: "アルバイト", SortOrder: 5},
 	}
 	for _, employmentType := range employmentTypes {
 		if _, err := r.db.ExecContext(
@@ -1137,9 +1471,9 @@ func (r *SQLiteProfileRepository) seedJobHistories(ctx context.Context) error {
 		projectCount     int64
 		sortOrder        int64
 	}{
-		{id: "job_history_company_a", company: "株式会社A", displayName: "株式会社A", startYear: 2023, startMonth: 1, endYear: nil, endMonth: nil, employmentTypeID: "job_employment_type_full_time", projectCount: 5, sortOrder: 1},
-		{id: "job_history_company_b", company: "株式会社B", displayName: "株式会社B", startYear: 2021, startMonth: 4, endYear: int64Ptr(2022), endMonth: int64Ptr(12), employmentTypeID: "job_employment_type_full_time", projectCount: 4, sortOrder: 2},
-		{id: "job_history_freelance", company: "フリーランス", displayName: "フリーランス", startYear: 2020, startMonth: 1, endYear: int64Ptr(2021), endMonth: int64Ptr(3), employmentTypeID: "job_employment_type_freelance", projectCount: 3, sortOrder: 3},
+		{id: "1", company: "株式会社A", displayName: "株式会社A", startYear: 2023, startMonth: 1, endYear: nil, endMonth: nil, employmentTypeID: "1", projectCount: 5, sortOrder: 1},
+		{id: "2", company: "株式会社B", displayName: "株式会社B", startYear: 2021, startMonth: 4, endYear: int64Ptr(2022), endMonth: int64Ptr(12), employmentTypeID: "1", projectCount: 4, sortOrder: 2},
+		{id: "3", company: "フリーランス", displayName: "フリーランス", startYear: 2020, startMonth: 1, endYear: int64Ptr(2021), endMonth: int64Ptr(3), employmentTypeID: "3", projectCount: 3, sortOrder: 3},
 	}
 	for _, jobHistory := range jobHistories {
 		if _, err := r.db.ExecContext(
@@ -1166,7 +1500,7 @@ func (r *SQLiteProfileRepository) seedJobHistories(ctx context.Context) error {
 func (r *SQLiteProfileRepository) seedProjects(ctx context.Context) error {
 	projects := []domain.Project{
 		{
-			ID:           "project_ec_renewal",
+			ID:           "1",
 			Name:         "ECサイトリニューアル",
 			Company:      "株式会社A",
 			StartYear:    2024,
@@ -1183,7 +1517,7 @@ func (r *SQLiteProfileRepository) seedProjects(ctx context.Context) error {
 			SortOrder:    1,
 		},
 		{
-			ID:           "project_business_system",
+			ID:           "2",
 			Name:         "業務管理システム開発",
 			Company:      "株式会社B",
 			StartYear:    2023,
@@ -1556,23 +1890,23 @@ func toDomainJobEmploymentType(row dbgen.JobEmploymentType) *domain.JobEmploymen
 }
 
 func qualificationID(qualification domain.Qualification, index int, now time.Time) string {
-	if qualification.ID != "" {
+	if _, err := strconv.ParseInt(qualification.ID, 10, 64); err == nil && qualification.ID != "" {
 		return qualification.ID
 	}
 
-	return fmt.Sprintf("qualification_%d_%d", now.UnixNano(), index+1)
+	return fmt.Sprintf("%d", now.UnixNano()+int64(index)+1)
 }
 
 func skillID(now time.Time) string {
-	return fmt.Sprintf("skill_%d", now.UnixNano())
+	return fmt.Sprintf("%d", now.UnixNano())
 }
 
 func jobHistoryID(now time.Time) string {
-	return fmt.Sprintf("job_history_%d", now.UnixNano())
+	return fmt.Sprintf("%d", now.UnixNano())
 }
 
 func projectID(now time.Time) string {
-	return fmt.Sprintf("project_%d", now.UnixNano())
+	return fmt.Sprintf("%d", now.UnixNano())
 }
 
 func int64Ptr(value int64) *int64 {

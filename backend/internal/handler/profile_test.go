@@ -17,7 +17,7 @@ func TestGetProfileMapsDomainToResponse(t *testing.T) {
 	now := time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC)
 	repo := &profileRepositoryStub{
 		profile: &domain.Profile{
-			ID:                 "profile_01",
+			ID:                 "1",
 			UserID:             "user_01",
 			FullName:           "Sky Sample",
 			Email:              "me@example.com",
@@ -117,7 +117,7 @@ func TestUpdateProfileMapsRequestToUseCase(t *testing.T) {
 	now := time.Date(2026, 4, 19, 12, 30, 0, 0, time.UTC)
 	repo := &profileRepositoryStub{
 		profile: &domain.Profile{
-			ID:                 "profile_01",
+			ID:                 "1",
 			UserID:             "user_01",
 			VisibilitySettings: map[string]any{"email": true},
 			CreatedAt:          now,
