@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -523,6 +524,20 @@ func TestSkillRoutes(t *testing.T) {
 	}
 	if listResp.Skills[0].Category != "言語" || listResp.Skills[0].Proficiency != "上級" {
 		t.Fatalf("expected skill master names, got %#v", listResp.Skills[0])
+	}
+
+	duplicateBody := []byte(`{
+		"name":"TypeScript",
+		"categoryId":"skill_category_language",
+		"experience":5,
+		"proficiencyLevelId":"skill_proficiency_advanced"
+	}`)
+	duplicateReq := httptest.NewRequest(http.MethodPost, "/api/skills", bytes.NewReader(duplicateBody))
+	duplicateRec := httptest.NewRecorder()
+	router.ServeHTTP(duplicateRec, duplicateReq)
+
+	if duplicateRec.Code != http.StatusConflict {
+		t.Fatalf("expected duplicate create status 409, got %d", duplicateRec.Code)
 	}
 
 	createBody := []byte(`{
@@ -1122,6 +1137,11 @@ func (r *testProfileRepository) CreateSkill(_ context.Context, input domain.Skil
 	if !ok {
 		return nil, sql.ErrNoRows
 	}
+	for _, skill := range r.skills {
+		if skill.Name == input.Name {
+			return nil, errors.New("UNIQUE constraint failed: skills.name")
+		}
+	}
 
 	r.nextSkillID++
 	skill := domain.Skill{
@@ -1150,6 +1170,11 @@ func (r *testProfileRepository) UpdateSkill(_ context.Context, id string, input 
 	proficiencyLevel, ok := r.findProficiencyLevel(input.ProficiencyLevelID)
 	if !ok {
 		return nil, sql.ErrNoRows
+	}
+	for _, skill := range r.skills {
+		if skill.ID != id && skill.Name == input.Name {
+			return nil, errors.New("UNIQUE constraint failed: skills.name")
+		}
 	}
 
 	for index, skill := range r.skills {

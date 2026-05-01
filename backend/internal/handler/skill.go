@@ -176,6 +176,10 @@ func (h *SkillOptionsHandler) CreateSkill(w http.ResponseWriter, r *http.Request
 
 	skill, err := h.usecase.CreateSkill(r.Context(), input)
 	if err != nil {
+		if isUniqueConstraintError(err) {
+			writeJSONError(w, http.StatusConflict, "conflict", "skill already exists")
+			return
+		}
 		writeJSONError(w, http.StatusInternalServerError, "internal_server_error", err.Error())
 		return
 	}
@@ -210,6 +214,10 @@ func (h *SkillOptionsHandler) UpdateSkill(w http.ResponseWriter, r *http.Request
 			writeJSONError(w, http.StatusNotFound, "not_found", "skill not found")
 			return
 		}
+		if isUniqueConstraintError(err) {
+			writeJSONError(w, http.StatusConflict, "conflict", "skill already exists")
+			return
+		}
 		writeJSONError(w, http.StatusInternalServerError, "internal_server_error", err.Error())
 		return
 	}
@@ -236,6 +244,10 @@ func (h *SkillOptionsHandler) DeleteSkill(w http.ResponseWriter, r *http.Request
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func isUniqueConstraintError(err error) bool {
+	return strings.Contains(err.Error(), "UNIQUE constraint failed")
 }
 
 type skillOptionsResponse struct {

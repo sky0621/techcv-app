@@ -150,7 +150,9 @@ export function SkillsPage() {
     };
   }, []);
 
-  const selectedDefaultSkillMaster = skillMasters[0];
+  const availableSkillMasters = skillMasters.filter(
+    (master) => !skills.some((skill) => skill.name === master.name && skill.id !== editingSkill?.id),
+  );
   const selectedDefaultProficiencyLevelId =
     proficiencyLevels.find((level) => level.name === "中級")?.id ?? proficiencyLevels[0]?.id ?? "";
 
@@ -160,11 +162,15 @@ export function SkillsPage() {
   }, {} as Record<string, Skill[]>);
 
   const handleAdd = () => {
+    const firstAvailableSkillMaster = skillMasters.find(
+      (master) => !skills.some((skill) => skill.name === master.name),
+    );
+
     setEditingSkill(null);
     setFormData({
-      skillMasterId: selectedDefaultSkillMaster?.id ?? "",
-      name: selectedDefaultSkillMaster?.name ?? "",
-      categoryId: selectedDefaultSkillMaster?.categoryId ?? "",
+      skillMasterId: firstAvailableSkillMaster?.id ?? "",
+      name: firstAvailableSkillMaster?.name ?? "",
+      categoryId: firstAvailableSkillMaster?.categoryId ?? "",
       experience: "",
       proficiencyLevelId: selectedDefaultProficiencyLevelId,
     });
@@ -218,6 +224,9 @@ export function SkillsPage() {
         },
       );
       if (!response.ok) {
+        if (response.status === 409) {
+          throw new Error("同じスキルは重複登録できません");
+        }
         throw new Error(editingSkill ? "スキルの更新に失敗しました" : "スキルの追加に失敗しました");
       }
 
@@ -278,7 +287,7 @@ export function SkillsPage() {
             <h1 className="text-3xl font-bold text-gray-900">スキル管理</h1>
             <p className="text-gray-600 mt-1">技術スキルと習熟度を管理</p>
           </div>
-          <Button onClick={handleAdd} disabled={isLoading || skillMasters.length === 0 || proficiencyLevels.length === 0}>
+          <Button onClick={handleAdd} disabled={isLoading || availableSkillMasters.length === 0 || proficiencyLevels.length === 0}>
             <LucideIcons.Plus className="w-4 h-4 mr-2" />
             スキルを追加
           </Button>
@@ -297,6 +306,11 @@ export function SkillsPage() {
         {!isLoading && skillMasters.length === 0 && (
           <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             スキルを登録するには、先に設定画面でスキルマスタを登録してください。
+          </div>
+        )}
+        {!isLoading && skillMasters.length > 0 && availableSkillMasters.length === 0 && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            登録可能なスキルマスタはすべて登録済みです。
           </div>
         )}
 
@@ -371,7 +385,7 @@ export function SkillsPage() {
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <LucideIcons.Code className="w-12 h-12 text-gray-400 mb-4" />
                   <p className="text-gray-600 mb-4">スキルがまだ登録されていません</p>
-                  <Button onClick={handleAdd} disabled={skillMasters.length === 0 || proficiencyLevels.length === 0}>
+                  <Button onClick={handleAdd} disabled={availableSkillMasters.length === 0 || proficiencyLevels.length === 0}>
                     <LucideIcons.Plus className="w-4 h-4 mr-2" />
                     最初のスキルを追加
                   </Button>
@@ -462,13 +476,13 @@ export function SkillsPage() {
                 <Select
                   value={formData.skillMasterId}
                   onValueChange={handleSkillMasterChange}
-                  disabled={skillMasters.length === 0}
+                  disabled={availableSkillMasters.length === 0}
                 >
                   <SelectTrigger id="skillMaster">
                     <SelectValue placeholder="スキルマスタから選択" />
                   </SelectTrigger>
                   <SelectContent>
-                    {skillMasters.map(skillMaster => (
+                    {availableSkillMasters.map(skillMaster => (
                       <SelectItem key={skillMaster.id} value={skillMaster.id}>
                         {skillMaster.name}
                       </SelectItem>

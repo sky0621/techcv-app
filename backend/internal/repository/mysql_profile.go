@@ -229,6 +229,9 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.migrateSkillExperienceColumn(ctx); err != nil {
 		return err
 	}
+	if err := r.ensureUniqueSkillNames(ctx); err != nil {
+		return err
+	}
 	if err := r.seedSkills(ctx); err != nil {
 		return err
 	}
@@ -929,6 +932,25 @@ func (r *SQLiteProfileRepository) migrateSkillExperienceColumn(ctx context.Conte
 	for _, statement := range statements {
 		if _, err := r.db.ExecContext(ctx, statement); err != nil {
 			return fmt.Errorf("migrate skills experience column: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) ensureUniqueSkillNames(ctx context.Context) error {
+	statements := []string{
+		`DELETE FROM skills
+		WHERE rowid NOT IN (
+			SELECT MIN(rowid)
+			FROM skills
+			GROUP BY name
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_name_unique ON skills(name)`,
+	}
+	for _, statement := range statements {
+		if _, err := r.db.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("ensure unique skill names: %w", err)
 		}
 	}
 
