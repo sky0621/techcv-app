@@ -31,6 +31,15 @@ type SkillOption = {
 type SkillOptionsResponse = {
   categories: SkillOption[];
   proficiencyLevels: SkillOption[];
+  skillMasters: SkillMaster[];
+};
+
+type SkillMaster = {
+  id: string;
+  name: string;
+  categoryId: string;
+  category: string;
+  sortOrder: number;
 };
 
 type SkillsResponse = {
@@ -42,6 +51,7 @@ type SkillResponse = {
 };
 
 type SkillFormData = {
+  skillMasterId: string;
   name: string;
   categoryId: string;
   experience: string;
@@ -82,12 +92,14 @@ export function SkillsPage() {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [categories, setCategories] = useState<SkillOption[]>([]);
   const [proficiencyLevels, setProficiencyLevels] = useState<SkillOption[]>([]);
+  const [skillMasters, setSkillMasters] = useState<SkillMaster[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
   const [formData, setFormData] = useState<SkillFormData>({
+    skillMasterId: "",
     name: "",
     categoryId: "",
     experience: "",
@@ -117,6 +129,7 @@ export function SkillsPage() {
         const skillsData = (await skillsResponse.json()) as SkillsResponse;
         setCategories(optionsData.categories ?? []);
         setProficiencyLevels(optionsData.proficiencyLevels ?? []);
+        setSkillMasters(optionsData.skillMasters ?? []);
         setSkills(skillsData.skills ?? []);
       } catch (caught) {
         if (caught instanceof DOMException && caught.name === "AbortError") {
@@ -137,7 +150,7 @@ export function SkillsPage() {
     };
   }, []);
 
-  const selectedDefaultCategoryId = categories[0]?.id ?? "";
+  const selectedDefaultSkillMaster = skillMasters[0];
   const selectedDefaultProficiencyLevelId =
     proficiencyLevels.find((level) => level.name === "中級")?.id ?? proficiencyLevels[0]?.id ?? "";
 
@@ -149,8 +162,9 @@ export function SkillsPage() {
   const handleAdd = () => {
     setEditingSkill(null);
     setFormData({
-      name: "",
-      categoryId: selectedDefaultCategoryId,
+      skillMasterId: selectedDefaultSkillMaster?.id ?? "",
+      name: selectedDefaultSkillMaster?.name ?? "",
+      categoryId: selectedDefaultSkillMaster?.categoryId ?? "",
       experience: "",
       proficiencyLevelId: selectedDefaultProficiencyLevelId,
     });
@@ -158,14 +172,31 @@ export function SkillsPage() {
   };
 
   const handleEdit = (skill: Skill) => {
+    const skillMaster = skillMasters.find((master) => master.name === skill.name);
+
     setEditingSkill(skill);
     setFormData({
+      skillMasterId: skillMaster?.id ?? "",
       name: skill.name,
       categoryId: skill.categoryId,
       experience: String(skill.experience),
       proficiencyLevelId: skill.proficiencyLevelId,
     });
     setIsDialogOpen(true);
+  };
+
+  const handleSkillMasterChange = (skillMasterId: string) => {
+    const skillMaster = skillMasters.find((master) => master.id === skillMasterId);
+    if (!skillMaster) {
+      return;
+    }
+
+    setFormData({
+      ...formData,
+      skillMasterId: skillMaster.id,
+      name: skillMaster.name,
+      categoryId: skillMaster.categoryId,
+    });
   };
 
   const handleSave = async () => {
@@ -179,8 +210,10 @@ export function SkillsPage() {
           method: editingSkill ? "PUT" : "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            ...formData,
+            name: formData.name,
+            categoryId: formData.categoryId,
             experience: Number(formData.experience),
+            proficiencyLevelId: formData.proficiencyLevelId,
           }),
         },
       );
@@ -231,7 +264,11 @@ export function SkillsPage() {
     }
   };
 
-  const canSave = formData.name.trim() !== "" && formData.categoryId !== "" && formData.proficiencyLevelId !== "";
+  const canSave =
+    formData.skillMasterId !== "" &&
+    formData.name.trim() !== "" &&
+    formData.categoryId !== "" &&
+    formData.proficiencyLevelId !== "";
 
   return (
     <div className="p-8">
@@ -241,7 +278,7 @@ export function SkillsPage() {
             <h1 className="text-3xl font-bold text-gray-900">スキル管理</h1>
             <p className="text-gray-600 mt-1">技術スキルと習熟度を管理</p>
           </div>
-          <Button onClick={handleAdd} disabled={isLoading || categories.length === 0 || proficiencyLevels.length === 0}>
+          <Button onClick={handleAdd} disabled={isLoading || skillMasters.length === 0 || proficiencyLevels.length === 0}>
             <LucideIcons.Plus className="w-4 h-4 mr-2" />
             スキルを追加
           </Button>
@@ -255,6 +292,11 @@ export function SkillsPage() {
         {error && (
           <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
+          </div>
+        )}
+        {!isLoading && skillMasters.length === 0 && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            スキルを登録するには、先に設定画面でスキルマスタを登録してください。
           </div>
         )}
 
@@ -329,7 +371,7 @@ export function SkillsPage() {
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <LucideIcons.Code className="w-12 h-12 text-gray-400 mb-4" />
                   <p className="text-gray-600 mb-4">スキルがまだ登録されていません</p>
-                  <Button onClick={handleAdd} disabled={categories.length === 0 || proficiencyLevels.length === 0}>
+                  <Button onClick={handleAdd} disabled={skillMasters.length === 0 || proficiencyLevels.length === 0}>
                     <LucideIcons.Plus className="w-4 h-4 mr-2" />
                     最初のスキルを追加
                   </Button>
@@ -416,13 +458,23 @@ export function SkillsPage() {
 
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="name">スキル名</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="TypeScript"
-                />
+                <Label htmlFor="skillMaster">スキル名</Label>
+                <Select
+                  value={formData.skillMasterId}
+                  onValueChange={handleSkillMasterChange}
+                  disabled={skillMasters.length === 0}
+                >
+                  <SelectTrigger id="skillMaster">
+                    <SelectValue placeholder="スキルマスタから選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {skillMasters.map(skillMaster => (
+                      <SelectItem key={skillMaster.id} value={skillMaster.id}>
+                        {skillMaster.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -430,7 +482,7 @@ export function SkillsPage() {
                 <Select
                   value={formData.categoryId}
                   onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
-                  disabled={categories.length === 0}
+                  disabled
                 >
                   <SelectTrigger>
                     <SelectValue />
