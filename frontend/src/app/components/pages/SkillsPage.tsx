@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 
 type Skill = {
   id: string;
+  skillMasterId: string;
   name: string;
   categoryId: string;
   category: string;
@@ -151,7 +152,7 @@ export function SkillsPage() {
   }, []);
 
   const availableSkillMasters = skillMasters.filter(
-    (master) => !skills.some((skill) => skill.name === master.name && skill.id !== editingSkill?.id),
+    (master) => !skills.some((skill) => skill.skillMasterId === master.id && skill.id !== editingSkill?.id),
   );
   const selectedDefaultProficiencyLevelId =
     proficiencyLevels.find((level) => level.name === "中級")?.id ?? proficiencyLevels[0]?.id ?? "";
@@ -163,7 +164,7 @@ export function SkillsPage() {
 
   const handleAdd = () => {
     const firstAvailableSkillMaster = skillMasters.find(
-      (master) => !skills.some((skill) => skill.name === master.name),
+      (master) => !skills.some((skill) => skill.skillMasterId === master.id),
     );
 
     setEditingSkill(null);
@@ -178,7 +179,7 @@ export function SkillsPage() {
   };
 
   const handleEdit = (skill: Skill) => {
-    const skillMaster = skillMasters.find((master) => master.name === skill.name);
+    const skillMaster = skillMasters.find((master) => master.id === skill.skillMasterId);
 
     setEditingSkill(skill);
     setFormData({
@@ -216,8 +217,7 @@ export function SkillsPage() {
           method: editingSkill ? "PUT" : "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: formData.name,
-            categoryId: formData.categoryId,
+            skillMasterId: formData.skillMasterId,
             experience: Number(formData.experience),
             proficiencyLevelId: formData.proficiencyLevelId,
           }),

@@ -229,7 +229,7 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.migrateSkillExperienceColumn(ctx); err != nil {
 		return err
 	}
-	if err := r.ensureUniqueSkillNames(ctx); err != nil {
+	if err := r.migrateSkillMasterReference(ctx); err != nil {
 		return err
 	}
 	if err := r.seedSkills(ctx); err != nil {
@@ -354,8 +354,7 @@ func (r *SQLiteProfileRepository) CreateSkill(ctx context.Context, input domain.
 	now := time.Now().UTC()
 	row, err := r.queries.InsertSkill(ctx, dbgen.InsertSkillParams{
 		ID:                 skillID(now),
-		Name:               input.Name,
-		CategoryID:         input.CategoryID,
+		SkillMasterID:      input.SkillMasterID,
 		Experience:         input.Experience,
 		ProficiencyLevelID: input.ProficiencyLevelID,
 	})
@@ -374,8 +373,7 @@ func (r *SQLiteProfileRepository) CreateSkill(ctx context.Context, input domain.
 func (r *SQLiteProfileRepository) UpdateSkill(ctx context.Context, id string, input domain.SkillInput) (*domain.Skill, error) {
 	row, err := r.queries.UpdateSkill(ctx, dbgen.UpdateSkillParams{
 		ID:                 id,
-		Name:               input.Name,
-		CategoryID:         input.CategoryID,
+		SkillMasterID:      input.SkillMasterID,
 		Experience:         input.Experience,
 		ProficiencyLevelID: input.ProficiencyLevelID,
 	})
@@ -938,19 +936,59 @@ func (r *SQLiteProfileRepository) migrateSkillExperienceColumn(ctx context.Conte
 	return nil
 }
 
-func (r *SQLiteProfileRepository) ensureUniqueSkillNames(ctx context.Context) error {
+func (r *SQLiteProfileRepository) migrateSkillMasterReference(ctx context.Context) error {
+	hasSkillMasterIDColumn, err := r.tableHasColumn(ctx, "skills", "skill_master_id")
+	if err != nil {
+		return err
+	}
+	if hasSkillMasterIDColumn {
+		if _, err := r.db.ExecContext(ctx, `CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_skill_master_id_unique ON skills(skill_master_id)`); err != nil {
+			return fmt.Errorf("ensure unique skill master ids: %w", err)
+		}
+
+		return nil
+	}
+
 	statements := []string{
-		`DELETE FROM skills
-		WHERE rowid NOT IN (
-			SELECT MIN(rowid)
-			FROM skills
-			GROUP BY name
+		`DROP TABLE IF EXISTS skills_new`,
+		`CREATE TABLE IF NOT EXISTS skills_new (
+			id TEXT NOT NULL PRIMARY KEY,
+			skill_master_id TEXT NOT NULL UNIQUE,
+			experience INTEGER NOT NULL,
+			proficiency_level_id TEXT NOT NULL,
+			sort_order INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (skill_master_id) REFERENCES skill_masters(id),
+			FOREIGN KEY (proficiency_level_id) REFERENCES skill_proficiency_levels(id)
 		)`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_name_unique ON skills(name)`,
+		`INSERT OR IGNORE INTO skills_new (
+			id,
+			skill_master_id,
+			experience,
+			proficiency_level_id,
+			sort_order,
+			created_at,
+			updated_at
+		)
+		SELECT
+			skills.id,
+			skill_masters.id,
+			skills.experience,
+			skills.proficiency_level_id,
+			skills.sort_order,
+			skills.created_at,
+			skills.updated_at
+		FROM skills
+		JOIN skill_masters ON skill_masters.name = skills.name
+		ORDER BY skills.sort_order ASC, skills.name ASC`,
+		`DROP TABLE skills`,
+		`ALTER TABLE skills_new RENAME TO skills`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_skill_master_id_unique ON skills(skill_master_id)`,
 	}
 	for _, statement := range statements {
 		if _, err := r.db.ExecContext(ctx, statement); err != nil {
-			return fmt.Errorf("ensure unique skill names: %w", err)
+			return fmt.Errorf("migrate skills skill_master_id reference: %w", err)
 		}
 	}
 
@@ -1003,27 +1041,25 @@ func (r *SQLiteProfileRepository) seedSkillOptions(ctx context.Context) error {
 func (r *SQLiteProfileRepository) seedSkills(ctx context.Context) error {
 	skills := []struct {
 		id                 string
-		name               string
-		categoryID         string
+		skillMasterID      string
 		experience         int64
 		proficiencyLevelID string
 		sortOrder          int64
 	}{
-		{id: "skill_typescript", name: "TypeScript", categoryID: "skill_category_language", experience: 3, proficiencyLevelID: "skill_proficiency_advanced", sortOrder: 1},
-		{id: "skill_react", name: "React", categoryID: "skill_category_framework", experience: 3, proficiencyLevelID: "skill_proficiency_advanced", sortOrder: 2},
-		{id: "skill_nodejs", name: "Node.js", categoryID: "skill_category_framework", experience: 2, proficiencyLevelID: "skill_proficiency_intermediate", sortOrder: 3},
-		{id: "skill_postgresql", name: "PostgreSQL", categoryID: "skill_category_database", experience: 2, proficiencyLevelID: "skill_proficiency_intermediate", sortOrder: 4},
-		{id: "skill_docker", name: "Docker", categoryID: "skill_category_infrastructure", experience: 2, proficiencyLevelID: "skill_proficiency_intermediate", sortOrder: 5},
-		{id: "skill_aws", name: "AWS", categoryID: "skill_category_infrastructure", experience: 1, proficiencyLevelID: "skill_proficiency_beginner", sortOrder: 6},
-		{id: "skill_git", name: "Git", categoryID: "skill_category_tool", experience: 4, proficiencyLevelID: "skill_proficiency_advanced", sortOrder: 7},
+		{id: "skill_typescript", skillMasterID: "skill_master_typescript", experience: 3, proficiencyLevelID: "skill_proficiency_advanced", sortOrder: 1},
+		{id: "skill_react", skillMasterID: "skill_master_react", experience: 3, proficiencyLevelID: "skill_proficiency_advanced", sortOrder: 2},
+		{id: "skill_nodejs", skillMasterID: "skill_master_nodejs", experience: 2, proficiencyLevelID: "skill_proficiency_intermediate", sortOrder: 3},
+		{id: "skill_postgresql", skillMasterID: "skill_master_postgresql", experience: 2, proficiencyLevelID: "skill_proficiency_intermediate", sortOrder: 4},
+		{id: "skill_docker", skillMasterID: "skill_master_docker", experience: 2, proficiencyLevelID: "skill_proficiency_intermediate", sortOrder: 5},
+		{id: "skill_aws", skillMasterID: "skill_master_aws", experience: 1, proficiencyLevelID: "skill_proficiency_beginner", sortOrder: 6},
+		{id: "skill_git", skillMasterID: "skill_master_git", experience: 4, proficiencyLevelID: "skill_proficiency_advanced", sortOrder: 7},
 	}
 	for _, skill := range skills {
 		if _, err := r.db.ExecContext(
 			ctx,
-			"INSERT OR IGNORE INTO skills (id, name, category_id, experience, proficiency_level_id, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+			"INSERT OR IGNORE INTO skills (id, skill_master_id, experience, proficiency_level_id, sort_order) VALUES (?, ?, ?, ?, ?)",
 			skill.id,
-			skill.name,
-			skill.categoryID,
+			skill.skillMasterID,
 			skill.experience,
 			skill.proficiencyLevelID,
 			skill.sortOrder,
@@ -1395,6 +1431,7 @@ func toDomainSkills(rows []dbgen.ListSkillsRow) []domain.Skill {
 	for _, row := range rows {
 		skills = append(skills, domain.Skill{
 			ID:                 row.ID,
+			SkillMasterID:      row.SkillMasterID,
 			Name:               row.Name,
 			CategoryID:         row.CategoryID,
 			CategoryName:       row.CategoryName,
@@ -1411,6 +1448,7 @@ func toDomainSkills(rows []dbgen.ListSkillsRow) []domain.Skill {
 func toDomainSkill(row dbgen.GetSkillRow) *domain.Skill {
 	return &domain.Skill{
 		ID:                 row.ID,
+		SkillMasterID:      row.SkillMasterID,
 		Name:               row.Name,
 		CategoryID:         row.CategoryID,
 		CategoryName:       row.CategoryName,

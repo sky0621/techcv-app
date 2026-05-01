@@ -35,6 +35,7 @@ type SkillMasterInput struct {
 
 type Skill struct {
 	ID                 string
+	SkillMasterID      string
 	Name               string
 	CategoryID         string
 	CategoryName       string
@@ -45,8 +46,7 @@ type Skill struct {
 }
 
 type SkillInput struct {
-	Name               string
-	CategoryID         string
+	SkillMasterID      string
 	Experience         int64
 	ProficiencyLevelID string
 }

@@ -356,8 +356,8 @@ func TestSkillOptionsRoute(t *testing.T) {
 	if resp.ProficiencyLevels[0].ID != "skill_proficiency_beginner" || resp.ProficiencyLevels[0].Name != "初級" {
 		t.Fatalf("unexpected first proficiency level: %#v", resp.ProficiencyLevels[0])
 	}
-	if len(resp.SkillMasters) != 1 {
-		t.Fatalf("expected one skill master, got %#v", resp.SkillMasters)
+	if len(resp.SkillMasters) != 2 {
+		t.Fatalf("expected two skill masters, got %#v", resp.SkillMasters)
 	}
 	if resp.SkillMasters[0].ID != "skill_master_typescript" ||
 		resp.SkillMasters[0].Name != "TypeScript" ||
@@ -508,6 +508,7 @@ func TestSkillRoutes(t *testing.T) {
 	var listResp struct {
 		Skills []struct {
 			ID                 string `json:"id"`
+			SkillMasterID      string `json:"skillMasterId"`
 			Name               string `json:"name"`
 			CategoryID         string `json:"categoryId"`
 			Category           string `json:"category"`
@@ -522,13 +523,14 @@ func TestSkillRoutes(t *testing.T) {
 	if len(listResp.Skills) != 1 {
 		t.Fatalf("expected one seeded skill, got %#v", listResp.Skills)
 	}
-	if listResp.Skills[0].Category != "言語" || listResp.Skills[0].Proficiency != "上級" {
+	if listResp.Skills[0].SkillMasterID != "skill_master_typescript" ||
+		listResp.Skills[0].Category != "言語" ||
+		listResp.Skills[0].Proficiency != "上級" {
 		t.Fatalf("expected skill master names, got %#v", listResp.Skills[0])
 	}
 
 	duplicateBody := []byte(`{
-		"name":"TypeScript",
-		"categoryId":"skill_category_language",
+		"skillMasterId":"skill_master_typescript",
 		"experience":5,
 		"proficiencyLevelId":"skill_proficiency_advanced"
 	}`)
@@ -541,8 +543,7 @@ func TestSkillRoutes(t *testing.T) {
 	}
 
 	createBody := []byte(`{
-		"name":"React",
-		"categoryId":"skill_category_framework",
+		"skillMasterId":"skill_master_react",
 		"experience":3,
 		"proficiencyLevelId":"skill_proficiency_advanced"
 	}`)
@@ -557,6 +558,7 @@ func TestSkillRoutes(t *testing.T) {
 	var createResp struct {
 		Skill struct {
 			ID                 string `json:"id"`
+			SkillMasterID      string `json:"skillMasterId"`
 			Name               string `json:"name"`
 			CategoryID         string `json:"categoryId"`
 			Category           string `json:"category"`
@@ -568,13 +570,14 @@ func TestSkillRoutes(t *testing.T) {
 	if err := json.Unmarshal(createRec.Body.Bytes(), &createResp); err != nil {
 		t.Fatalf("failed to decode create response: %v", err)
 	}
-	if createResp.Skill.ID == "" || createResp.Skill.Category != "フレームワーク" {
+	if createResp.Skill.ID == "" ||
+		createResp.Skill.SkillMasterID != "skill_master_react" ||
+		createResp.Skill.Category != "フレームワーク" {
 		t.Fatalf("unexpected created skill: %#v", createResp.Skill)
 	}
 
 	updateBody := []byte(`{
-		"name":"React",
-		"categoryId":"skill_category_framework",
+		"skillMasterId":"skill_master_react",
 		"experience":4,
 		"proficiencyLevelId":"skill_proficiency_expert"
 	}`)
@@ -941,10 +944,18 @@ func newTestProfileRepository() *testProfileRepository {
 				CategoryName: "言語",
 				SortOrder:    1,
 			},
+			{
+				ID:           "skill_master_react",
+				Name:         "React",
+				CategoryID:   "skill_category_framework",
+				CategoryName: "フレームワーク",
+				SortOrder:    2,
+			},
 		},
 		skills: []domain.Skill{
 			{
 				ID:                 "skill_typescript",
+				SkillMasterID:      "skill_master_typescript",
 				Name:               "TypeScript",
 				CategoryID:         "skill_category_language",
 				CategoryName:       "言語",
@@ -1129,7 +1140,7 @@ func (r *testProfileRepository) CreateSkill(_ context.Context, input domain.Skil
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	category, ok := r.findCategory(input.CategoryID)
+	skillMaster, ok := r.findSkillMaster(input.SkillMasterID)
 	if !ok {
 		return nil, sql.ErrNoRows
 	}
@@ -1138,17 +1149,18 @@ func (r *testProfileRepository) CreateSkill(_ context.Context, input domain.Skil
 		return nil, sql.ErrNoRows
 	}
 	for _, skill := range r.skills {
-		if skill.Name == input.Name {
-			return nil, errors.New("UNIQUE constraint failed: skills.name")
+		if skill.SkillMasterID == input.SkillMasterID {
+			return nil, errors.New("UNIQUE constraint failed: skills.skill_master_id")
 		}
 	}
 
 	r.nextSkillID++
 	skill := domain.Skill{
 		ID:                 "skill_test_new",
-		Name:               input.Name,
-		CategoryID:         input.CategoryID,
-		CategoryName:       category.Name,
+		SkillMasterID:      skillMaster.ID,
+		Name:               skillMaster.Name,
+		CategoryID:         skillMaster.CategoryID,
+		CategoryName:       skillMaster.CategoryName,
 		Experience:         input.Experience,
 		ProficiencyLevelID: input.ProficiencyLevelID,
 		ProficiencyName:    proficiencyLevel.Name,
@@ -1163,7 +1175,7 @@ func (r *testProfileRepository) UpdateSkill(_ context.Context, id string, input 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	category, ok := r.findCategory(input.CategoryID)
+	skillMaster, ok := r.findSkillMaster(input.SkillMasterID)
 	if !ok {
 		return nil, sql.ErrNoRows
 	}
@@ -1172,16 +1184,17 @@ func (r *testProfileRepository) UpdateSkill(_ context.Context, id string, input 
 		return nil, sql.ErrNoRows
 	}
 	for _, skill := range r.skills {
-		if skill.ID != id && skill.Name == input.Name {
-			return nil, errors.New("UNIQUE constraint failed: skills.name")
+		if skill.ID != id && skill.SkillMasterID == input.SkillMasterID {
+			return nil, errors.New("UNIQUE constraint failed: skills.skill_master_id")
 		}
 	}
 
 	for index, skill := range r.skills {
 		if skill.ID == id {
-			r.skills[index].Name = input.Name
-			r.skills[index].CategoryID = input.CategoryID
-			r.skills[index].CategoryName = category.Name
+			r.skills[index].SkillMasterID = skillMaster.ID
+			r.skills[index].Name = skillMaster.Name
+			r.skills[index].CategoryID = skillMaster.CategoryID
+			r.skills[index].CategoryName = skillMaster.CategoryName
 			r.skills[index].Experience = input.Experience
 			r.skills[index].ProficiencyLevelID = input.ProficiencyLevelID
 			r.skills[index].ProficiencyName = proficiencyLevel.Name
@@ -1411,6 +1424,16 @@ func (r *testProfileRepository) findCategory(id string) (domain.SkillOption, boo
 	}
 
 	return domain.SkillOption{}, false
+}
+
+func (r *testProfileRepository) findSkillMaster(id string) (domain.SkillMaster, bool) {
+	for _, skillMaster := range r.skillMasters {
+		if skillMaster.ID == id {
+			return skillMaster, true
+		}
+	}
+
+	return domain.SkillMaster{}, false
 }
 
 func (r *testProfileRepository) findProficiencyLevel(id string) (domain.SkillOption, bool) {

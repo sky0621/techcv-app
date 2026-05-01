@@ -61,14 +61,13 @@ CREATE TABLE IF NOT EXISTS skill_masters (
 
 CREATE TABLE IF NOT EXISTS skills (
     id TEXT NOT NULL PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    category_id TEXT NOT NULL,
+    skill_master_id TEXT NOT NULL UNIQUE,
     experience INTEGER NOT NULL,
     proficiency_level_id TEXT NOT NULL,
     sort_order INTEGER NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (category_id) REFERENCES skill_categories(id),
+    FOREIGN KEY (skill_master_id) REFERENCES skill_masters(id),
     FOREIGN KEY (proficiency_level_id) REFERENCES skill_proficiency_levels(id)
 );
 

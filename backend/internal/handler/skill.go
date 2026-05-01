@@ -169,8 +169,8 @@ func (h *SkillOptionsHandler) CreateSkill(w http.ResponseWriter, r *http.Request
 	}
 
 	input := toSkillInput(request)
-	if input.Name == "" || input.CategoryID == "" || input.ProficiencyLevelID == "" {
-		writeJSONError(w, http.StatusBadRequest, "bad_request", "name, categoryId and proficiencyLevelId are required")
+	if input.SkillMasterID == "" || input.ProficiencyLevelID == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "skillMasterId and proficiencyLevelId are required")
 		return
 	}
 
@@ -203,8 +203,8 @@ func (h *SkillOptionsHandler) UpdateSkill(w http.ResponseWriter, r *http.Request
 	}
 
 	input := toSkillInput(request)
-	if input.Name == "" || input.CategoryID == "" || input.ProficiencyLevelID == "" {
-		writeJSONError(w, http.StatusBadRequest, "bad_request", "name, categoryId and proficiencyLevelId are required")
+	if input.SkillMasterID == "" || input.ProficiencyLevelID == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "skillMasterId and proficiencyLevelId are required")
 		return
 	}
 
@@ -285,8 +285,7 @@ type skillMasterRequest struct {
 }
 
 type skillRequest struct {
-	Name               string `json:"name"`
-	CategoryID         string `json:"categoryId"`
+	SkillMasterID      string `json:"skillMasterId"`
 	Experience         int64  `json:"experience"`
 	ProficiencyLevelID string `json:"proficiencyLevelId"`
 }
@@ -300,6 +299,7 @@ type skillOptionPayload struct {
 
 type skillPayload struct {
 	ID                 string `json:"id"`
+	SkillMasterID      string `json:"skillMasterId"`
 	Name               string `json:"name"`
 	CategoryID         string `json:"categoryId"`
 	Category           string `json:"category"`
@@ -366,6 +366,7 @@ func toSkillPayloads(values []domain.Skill) []skillPayload {
 func toSkillPayload(value domain.Skill) skillPayload {
 	return skillPayload{
 		ID:                 value.ID,
+		SkillMasterID:      value.SkillMasterID,
 		Name:               value.Name,
 		CategoryID:         value.CategoryID,
 		Category:           value.CategoryName,
@@ -402,8 +403,7 @@ func toSkillMasterInput(request skillMasterRequest, includeID bool) domain.Skill
 
 func toSkillInput(request skillRequest) domain.SkillInput {
 	return domain.SkillInput{
-		Name:               strings.TrimSpace(request.Name),
-		CategoryID:         strings.TrimSpace(request.CategoryID),
+		SkillMasterID:      strings.TrimSpace(request.SkillMasterID),
 		Experience:         request.Experience,
 		ProficiencyLevelID: strings.TrimSpace(request.ProficiencyLevelID),
 	}

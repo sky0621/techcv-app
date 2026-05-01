@@ -120,8 +120,9 @@ RETURNING
 -- name: ListSkills :many
 SELECT
   skills.id,
-  skills.name,
-  skills.category_id,
+  skills.skill_master_id,
+  skill_masters.name,
+  skill_masters.category_id,
   skill_categories.name AS category_name,
   skills.experience,
   skills.proficiency_level_id,
@@ -130,15 +131,17 @@ SELECT
   skills.created_at,
   skills.updated_at
 FROM skills
-JOIN skill_categories ON skill_categories.id = skills.category_id
+JOIN skill_masters ON skill_masters.id = skills.skill_master_id
+JOIN skill_categories ON skill_categories.id = skill_masters.category_id
 JOIN skill_proficiency_levels ON skill_proficiency_levels.id = skills.proficiency_level_id
-ORDER BY skills.sort_order ASC, skills.name ASC;
+ORDER BY skills.sort_order ASC, skill_masters.name ASC;
 
 -- name: GetSkill :one
 SELECT
   skills.id,
-  skills.name,
-  skills.category_id,
+  skills.skill_master_id,
+  skill_masters.name,
+  skill_masters.category_id,
   skill_categories.name AS category_name,
   skills.experience,
   skills.proficiency_level_id,
@@ -147,15 +150,15 @@ SELECT
   skills.created_at,
   skills.updated_at
 FROM skills
-JOIN skill_categories ON skill_categories.id = skills.category_id
+JOIN skill_masters ON skill_masters.id = skills.skill_master_id
+JOIN skill_categories ON skill_categories.id = skill_masters.category_id
 JOIN skill_proficiency_levels ON skill_proficiency_levels.id = skills.proficiency_level_id
 WHERE skills.id = ?;
 
 -- name: InsertSkill :one
 INSERT INTO skills (
   id,
-  name,
-  category_id,
+  skill_master_id,
   experience,
   proficiency_level_id,
   sort_order
@@ -165,13 +168,11 @@ SELECT
   ?,
   ?,
   ?,
-  ?,
   COALESCE(MAX(sort_order), 0) + 1
 FROM skills
 RETURNING
   id,
-  name,
-  category_id,
+  skill_master_id,
   experience,
   proficiency_level_id,
   sort_order,
@@ -181,16 +182,14 @@ RETURNING
 -- name: UpdateSkill :one
 UPDATE skills
 SET
-  name = ?,
-  category_id = ?,
+  skill_master_id = ?,
   experience = ?,
   proficiency_level_id = ?,
   updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING
   id,
-  name,
-  category_id,
+  skill_master_id,
   experience,
   proficiency_level_id,
   sort_order,

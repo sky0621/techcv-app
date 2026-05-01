@@ -87,8 +87,7 @@ type Project struct {
 
 type Skill struct {
 	ID                 string
-	Name               string
-	CategoryID         string
+	SkillMasterID      string
 	Experience         int64
 	ProficiencyLevelID string
 	SortOrder          int64
