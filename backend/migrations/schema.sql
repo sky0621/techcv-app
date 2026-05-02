@@ -32,6 +32,30 @@ CREATE TABLE IF NOT EXISTS profile_qualifications (
     FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS profile_link_masters (
+    id INTEGER PRIMARY KEY,
+    key TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    icon TEXT NOT NULL,
+    placeholder TEXT NOT NULL,
+    sort_order INTEGER NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS profile_links (
+    id INTEGER PRIMARY KEY,
+    profile_id INTEGER NOT NULL,
+    link_master_id INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    sort_order INTEGER NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE,
+    FOREIGN KEY (link_master_id) REFERENCES profile_link_masters(id),
+    UNIQUE(profile_id, link_master_id)
+);
+
 CREATE TABLE IF NOT EXISTS skill_categories (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,

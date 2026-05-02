@@ -128,7 +128,7 @@ SELECT
   ?,
   ?,
   ?,
-  COALESCE(MAX(sort_order), 0) + 1
+  COALESCE(NULLIF(?, 0), COALESCE(MAX(sort_order), 0) + 1)
 FROM skills
 RETURNING
   id,
@@ -190,13 +190,14 @@ RETURNING
 `
 
 type InsertSkillCategoryParams struct {
-	ID   string
-	Name string
-	Icon string
+	ID        string
+	Name      string
+	Icon      string
+	SortOrder int64
 }
 
 func (q *Queries) InsertSkillCategory(ctx context.Context, arg InsertSkillCategoryParams) (SkillCategory, error) {
-	row := q.db.QueryRowContext(ctx, insertSkillCategory, arg.ID, arg.Name, arg.Icon)
+	row := q.db.QueryRowContext(ctx, insertSkillCategory, arg.ID, arg.Name, arg.Icon, arg.SortOrder)
 	var i SkillCategory
 	err := row.Scan(
 		&i.ID,
@@ -220,7 +221,7 @@ SELECT
   ?,
   ?,
   ?,
-  COALESCE(MAX(sort_order), 0) + 1
+  COALESCE(NULLIF(?, 0), COALESCE(MAX(sort_order), 0) + 1)
 FROM skill_masters
 RETURNING
   id,
@@ -235,10 +236,11 @@ type InsertSkillMasterParams struct {
 	ID         string
 	Name       string
 	CategoryID string
+	SortOrder  int64
 }
 
 func (q *Queries) InsertSkillMaster(ctx context.Context, arg InsertSkillMasterParams) (SkillMaster, error) {
-	row := q.db.QueryRowContext(ctx, insertSkillMaster, arg.ID, arg.Name, arg.CategoryID)
+	row := q.db.QueryRowContext(ctx, insertSkillMaster, arg.ID, arg.Name, arg.CategoryID, arg.SortOrder)
 	var i SkillMaster
 	err := row.Scan(
 		&i.ID,
@@ -507,6 +509,7 @@ UPDATE skill_categories
 SET
   name = ?,
   icon = ?,
+  sort_order = COALESCE(NULLIF(?, 0), sort_order),
   updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING
@@ -519,13 +522,14 @@ RETURNING
 `
 
 type UpdateSkillCategoryParams struct {
-	Name string
-	Icon string
-	ID   string
+	Name      string
+	Icon      string
+	SortOrder int64
+	ID        string
 }
 
 func (q *Queries) UpdateSkillCategory(ctx context.Context, arg UpdateSkillCategoryParams) (SkillCategory, error) {
-	row := q.db.QueryRowContext(ctx, updateSkillCategory, arg.Name, arg.Icon, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateSkillCategory, arg.Name, arg.Icon, arg.SortOrder, arg.ID)
 	var i SkillCategory
 	err := row.Scan(
 		&i.ID,
@@ -538,11 +542,46 @@ func (q *Queries) UpdateSkillCategory(ctx context.Context, arg UpdateSkillCatego
 	return i, err
 }
 
+const updateSkillProficiencyLevel = `-- name: UpdateSkillProficiencyLevel :one
+UPDATE skill_proficiency_levels
+SET
+  name = ?,
+  sort_order = COALESCE(NULLIF(?, 0), sort_order),
+  updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING
+  id,
+  name,
+  sort_order,
+  created_at,
+  updated_at
+`
+
+type UpdateSkillProficiencyLevelParams struct {
+	Name      string
+	SortOrder int64
+	ID        string
+}
+
+func (q *Queries) UpdateSkillProficiencyLevel(ctx context.Context, arg UpdateSkillProficiencyLevelParams) (SkillProficiencyLevel, error) {
+	row := q.db.QueryRowContext(ctx, updateSkillProficiencyLevel, arg.Name, arg.SortOrder, arg.ID)
+	var i SkillProficiencyLevel
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateSkillMaster = `-- name: UpdateSkillMaster :one
 UPDATE skill_masters
 SET
   name = ?,
   category_id = ?,
+  sort_order = COALESCE(NULLIF(?, 0), sort_order),
   updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING
@@ -557,11 +596,12 @@ RETURNING
 type UpdateSkillMasterParams struct {
 	Name       string
 	CategoryID string
+	SortOrder  int64
 	ID         string
 }
 
 func (q *Queries) UpdateSkillMaster(ctx context.Context, arg UpdateSkillMasterParams) (SkillMaster, error) {
-	row := q.db.QueryRowContext(ctx, updateSkillMaster, arg.Name, arg.CategoryID, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateSkillMaster, arg.Name, arg.CategoryID, arg.SortOrder, arg.ID)
 	var i SkillMaster
 	err := row.Scan(
 		&i.ID,

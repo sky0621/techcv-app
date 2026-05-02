@@ -20,7 +20,7 @@ SELECT
   ?,
   ?,
   ?,
-  COALESCE(MAX(sort_order), 0) + 1
+  COALESCE(NULLIF(?, 0), COALESCE(MAX(sort_order), 0) + 1)
 FROM skill_categories
 RETURNING
   id,
@@ -35,12 +35,27 @@ UPDATE skill_categories
 SET
   name = ?,
   icon = ?,
+  sort_order = COALESCE(NULLIF(?, 0), sort_order),
   updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING
   id,
   name,
   icon,
+  sort_order,
+  created_at,
+  updated_at;
+
+-- name: UpdateSkillProficiencyLevel :one
+UPDATE skill_proficiency_levels
+SET
+  name = ?,
+  sort_order = COALESCE(NULLIF(?, 0), sort_order),
+  updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING
+  id,
+  name,
   sort_order,
   created_at,
   updated_at;
@@ -92,7 +107,7 @@ SELECT
   ?,
   ?,
   ?,
-  COALESCE(MAX(sort_order), 0) + 1
+  COALESCE(NULLIF(?, 0), COALESCE(MAX(sort_order), 0) + 1)
 FROM skill_masters
 RETURNING
   id,
@@ -107,6 +122,7 @@ UPDATE skill_masters
 SET
   name = ?,
   category_id = ?,
+  sort_order = COALESCE(NULLIF(?, 0), sort_order),
   updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING

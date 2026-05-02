@@ -91,6 +91,40 @@ func (h *SkillOptionsHandler) UpdateSkillCategory(w http.ResponseWriter, r *http
 	})
 }
 
+func (h *SkillOptionsHandler) UpdateSkillProficiencyLevel(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "id is required")
+		return
+	}
+
+	var request skillProficiencyLevelRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+
+	input := toSkillProficiencyLevelInput(request)
+	if input.Name == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "name is required")
+		return
+	}
+
+	level, err := h.usecase.UpdateProficiencyLevel(r.Context(), id, input)
+	if err != nil {
+		if strings.Contains(err.Error(), sql.ErrNoRows.Error()) {
+			writeJSONError(w, http.StatusNotFound, "not_found", "skill proficiency level not found")
+			return
+		}
+		writeJSONError(w, http.StatusInternalServerError, "internal_server_error", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, skillProficiencyLevelResponse{
+		ProficiencyLevel: toSkillOptionPayload(*level),
+	})
+}
+
 func (h *SkillOptionsHandler) CreateSkillMaster(w http.ResponseWriter, r *http.Request) {
 	var request skillMasterRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -260,6 +294,10 @@ type skillCategoryResponse struct {
 	Category skillOptionPayload `json:"category"`
 }
 
+type skillProficiencyLevelResponse struct {
+	ProficiencyLevel skillOptionPayload `json:"proficiencyLevel"`
+}
+
 type skillMasterResponse struct {
 	SkillMaster skillMasterPayload `json:"skillMaster"`
 }
@@ -273,15 +311,22 @@ type skillResponse struct {
 }
 
 type skillCategoryRequest struct {
-	ID   string `json:"id,omitempty"`
-	Name string `json:"name"`
-	Icon string `json:"icon"`
+	ID        string `json:"id,omitempty"`
+	Name      string `json:"name"`
+	Icon      string `json:"icon"`
+	SortOrder int64  `json:"sortOrder"`
 }
 
 type skillMasterRequest struct {
 	ID         string `json:"id,omitempty"`
 	Name       string `json:"name"`
 	CategoryID string `json:"categoryId"`
+	SortOrder  int64  `json:"sortOrder"`
+}
+
+type skillProficiencyLevelRequest struct {
+	Name      string `json:"name"`
+	SortOrder int64  `json:"sortOrder"`
 }
 
 type skillRequest struct {
@@ -379,8 +424,9 @@ func toSkillPayload(value domain.Skill) skillPayload {
 
 func toSkillCategoryInput(request skillCategoryRequest, includeID bool) domain.SkillCategoryInput {
 	input := domain.SkillCategoryInput{
-		Name: strings.TrimSpace(request.Name),
-		Icon: strings.TrimSpace(request.Icon),
+		Name:      strings.TrimSpace(request.Name),
+		Icon:      strings.TrimSpace(request.Icon),
+		SortOrder: request.SortOrder,
 	}
 	if includeID {
 		input.ID = strings.TrimSpace(request.ID)
@@ -389,10 +435,18 @@ func toSkillCategoryInput(request skillCategoryRequest, includeID bool) domain.S
 	return input
 }
 
+func toSkillProficiencyLevelInput(request skillProficiencyLevelRequest) domain.SkillProficiencyLevelInput {
+	return domain.SkillProficiencyLevelInput{
+		Name:      strings.TrimSpace(request.Name),
+		SortOrder: request.SortOrder,
+	}
+}
+
 func toSkillMasterInput(request skillMasterRequest, includeID bool) domain.SkillMasterInput {
 	input := domain.SkillMasterInput{
 		Name:       strings.TrimSpace(request.Name),
 		CategoryID: strings.TrimSpace(request.CategoryID),
+		SortOrder:  request.SortOrder,
 	}
 	if includeID {
 		input.ID = strings.TrimSpace(request.ID)

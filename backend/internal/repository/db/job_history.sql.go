@@ -90,7 +90,7 @@ INSERT INTO job_employment_types (
 SELECT
   ?,
   ?,
-  COALESCE(MAX(sort_order), 0) + 1
+  COALESCE(NULLIF(?, 0), COALESCE(MAX(sort_order), 0) + 1)
 FROM job_employment_types
 RETURNING
   id,
@@ -101,12 +101,13 @@ RETURNING
 `
 
 type InsertJobEmploymentTypeParams struct {
-	ID   string
-	Name string
+	ID        string
+	Name      string
+	SortOrder int64
 }
 
 func (q *Queries) InsertJobEmploymentType(ctx context.Context, arg InsertJobEmploymentTypeParams) (JobEmploymentType, error) {
-	row := q.db.QueryRowContext(ctx, insertJobEmploymentType, arg.ID, arg.Name)
+	row := q.db.QueryRowContext(ctx, insertJobEmploymentType, arg.ID, arg.Name, arg.SortOrder)
 	var i JobEmploymentType
 	err := row.Scan(
 		&i.ID,
@@ -315,6 +316,7 @@ const updateJobEmploymentType = `-- name: UpdateJobEmploymentType :one
 UPDATE job_employment_types
 SET
   name = ?,
+  sort_order = COALESCE(NULLIF(?, 0), sort_order),
   updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING
@@ -326,12 +328,13 @@ RETURNING
 `
 
 type UpdateJobEmploymentTypeParams struct {
-	Name string
-	ID   string
+	Name      string
+	SortOrder int64
+	ID        string
 }
 
 func (q *Queries) UpdateJobEmploymentType(ctx context.Context, arg UpdateJobEmploymentTypeParams) (JobEmploymentType, error) {
-	row := q.db.QueryRowContext(ctx, updateJobEmploymentType, arg.Name, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateJobEmploymentType, arg.Name, arg.SortOrder, arg.ID)
 	var i JobEmploymentType
 	err := row.Scan(
 		&i.ID,

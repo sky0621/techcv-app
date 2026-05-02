@@ -124,7 +124,7 @@ INSERT INTO job_employment_types (
 SELECT
   ?,
   ?,
-  COALESCE(MAX(sort_order), 0) + 1
+  COALESCE(NULLIF(?, 0), COALESCE(MAX(sort_order), 0) + 1)
 FROM job_employment_types
 RETURNING
   id,
@@ -137,6 +137,7 @@ RETURNING
 UPDATE job_employment_types
 SET
   name = ?,
+  sort_order = COALESCE(NULLIF(?, 0), sort_order),
   updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING

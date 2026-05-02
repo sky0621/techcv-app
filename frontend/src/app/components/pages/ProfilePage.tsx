@@ -6,7 +6,9 @@ import { Textarea } from "../ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Switch } from "../ui/switch";
-import { Award, BookOpen, Github, Globe, Plus, Trash2 } from "lucide-react";
+import * as LucideIcons from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { Award, Plus, Trash2 } from "lucide-react";
 
 type QualificationForm = {
   id: string;
@@ -30,6 +32,18 @@ type ProfileForm = {
   employmentType: string;
   workStyle: string;
   qualifications: QualificationForm[];
+  links: ProfileLinkForm[];
+};
+
+type ProfileLinkForm = {
+  id: string;
+  linkMasterId: string;
+  key: string;
+  name: string;
+  icon: string;
+  placeholder: string;
+  url: string;
+  sortOrder: number;
 };
 
 type VisibilityForm = {
@@ -50,11 +64,25 @@ type ProfilePayload = {
   employmentType?: string;
   workStyle?: string;
   qualifications?: QualificationForm[];
+  links?: ProfileLinkForm[];
   visibilitySettings?: Partial<VisibilityForm>;
 };
 
 type ProfileResponse = {
   profile: ProfilePayload;
+};
+
+type ProfileLinkMastersResponse = {
+  linkMasters: ProfileLinkMaster[];
+};
+
+type ProfileLinkMaster = {
+  id: string;
+  key: string;
+  name: string;
+  icon: string;
+  placeholder: string;
+  sortOrder: number;
 };
 
 const initialProfile: ProfileForm = {
@@ -70,6 +98,7 @@ const initialProfile: ProfileForm = {
   employmentType: "",
   workStyle: "",
   qualifications: [],
+  links: [],
 };
 
 const initialVisibility: VisibilityForm = {
@@ -91,6 +120,7 @@ function toProfileForm(profile: ProfilePayload): ProfileForm {
     employmentType: profile.employmentType ?? "",
     workStyle: profile.workStyle ?? "",
     qualifications: (profile.qualifications ?? []).map(toQualificationForm),
+    links: (profile.links ?? []).map(toProfileLinkForm),
   };
 }
 
@@ -108,8 +138,52 @@ function toProfilePayload(profile: ProfileForm, visibility: VisibilityForm): Pro
     employmentType: profile.employmentType,
     workStyle: profile.workStyle,
     qualifications: profile.qualifications,
+    links: profile.links,
     visibilitySettings: visibility,
   };
+}
+
+function toProfileLinkForm(link: ProfileLinkForm): ProfileLinkForm {
+  return {
+    id: link.id ?? "",
+    linkMasterId: link.linkMasterId ?? "",
+    key: link.key ?? "",
+    name: link.name ?? "",
+    icon: link.icon ?? "link",
+    placeholder: link.placeholder ?? "",
+    url: link.url ?? "",
+    sortOrder: link.sortOrder ?? 0,
+  };
+}
+
+function normalizeIconName(icon?: string) {
+  return (icon ?? "").trim().replace(/^lucide-/i, "");
+}
+
+function toLucideExportName(icon?: string) {
+  const normalizedIcon = normalizeIconName(icon);
+  if (!normalizedIcon) return "Link";
+
+  return normalizedIcon
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
+}
+
+function isLucideIcon(candidate: unknown): candidate is LucideIcon {
+  return (
+    candidate !== null &&
+    typeof candidate === "object" &&
+    "displayName" in candidate &&
+    typeof candidate.displayName === "string"
+  );
+}
+
+function getIcon(icon?: string): LucideIcon {
+  const candidate = (LucideIcons as Record<string, unknown>)[toLucideExportName(icon)];
+
+  return isLucideIcon(candidate) ? candidate : LucideIcons.Link;
 }
 
 function toQualificationForm(qualification: QualificationForm): QualificationForm {
@@ -150,15 +224,29 @@ export function ProfilePage() {
       setError("");
 
       try {
-        const response = await fetch("/api/profile", {
-          signal: controller.signal,
-        });
-        if (!response.ok) {
+        const [profileResponse, linkMastersResponse] = await Promise.all([
+          fetch("/api/profile", { signal: controller.signal }),
+          fetch("/api/profile/link-masters", { signal: controller.signal }),
+        ]);
+        if (!profileResponse.ok || !linkMastersResponse.ok) {
           throw new Error("プロフィールの取得に失敗しました");
         }
 
-        const data = (await response.json()) as ProfileResponse;
-        setProfile(toProfileForm(data.profile));
+        const data = (await profileResponse.json()) as ProfileResponse;
+        const linkMasterData = (await linkMastersResponse.json()) as ProfileLinkMastersResponse;
+        const form = toProfileForm(data.profile);
+        const linkByMasterId = new Map(form.links.map((link) => [link.linkMasterId, link]));
+        form.links = (linkMasterData.linkMasters ?? []).map((master) => ({
+          id: linkByMasterId.get(master.id)?.id ?? "",
+          linkMasterId: master.id,
+          key: master.key,
+          name: master.name,
+          icon: master.icon,
+          placeholder: master.placeholder,
+          url: linkByMasterId.get(master.id)?.url ?? "",
+          sortOrder: master.sortOrder,
+        }));
+        setProfile(form);
         setVisibility({
           ...initialVisibility,
           ...data.profile.visibilitySettings,
@@ -240,6 +328,15 @@ export function ProfilePage() {
       ...current,
       qualifications: current.qualifications.filter((_, qualificationIndex) =>
         qualificationIndex !== index
+      ),
+    }));
+  };
+
+  const updateLink = (index: number, url: string) => {
+    setProfile((current) => ({
+      ...current,
+      links: current.links.map((link, linkIndex) =>
+        linkIndex === index ? { ...link, url } : link
       ),
     }));
   };
@@ -364,65 +461,25 @@ export function ProfilePage() {
                 <CardDescription>GitHub、Zenn、Qiitaなどのリンク</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="github" className="flex items-center gap-2">
-                    <Github className="w-4 h-4" />
-                    GitHub
-                  </Label>
-                  <Input
-                    id="github"
-                    placeholder="https://github.com/username"
-                    value={profile.githubUrl}
-                    onChange={(e) =>
-                      setProfile({ ...profile, githubUrl: e.target.value })
-                    }
-                  />
-                </div>
+                {profile.links.map((link, index) => {
+                  const Icon = getIcon(link.icon);
+                  const inputID = `profile-link-${link.linkMasterId}`;
 
-                <div className="space-y-2">
-                  <Label htmlFor="zenn" className="flex items-center gap-2">
-                    <BookOpen className="w-4 h-4" />
-                    Zenn
-                  </Label>
-                  <Input
-                    id="zenn"
-                    placeholder="https://zenn.dev/username"
-                    value={profile.zennUrl}
-                    onChange={(e) =>
-                      setProfile({ ...profile, zennUrl: e.target.value })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="qiita" className="flex items-center gap-2">
-                    <BookOpen className="w-4 h-4" />
-                    Qiita
-                  </Label>
-                  <Input
-                    id="qiita"
-                    placeholder="https://qiita.com/username"
-                    value={profile.qiitaUrl}
-                    onChange={(e) =>
-                      setProfile({ ...profile, qiitaUrl: e.target.value })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="website" className="flex items-center gap-2">
-                    <Globe className="w-4 h-4" />
-                    個人サイト
-                  </Label>
-                  <Input
-                    id="website"
-                    placeholder="https://example.com"
-                    value={profile.websiteUrl}
-                    onChange={(e) =>
-                      setProfile({ ...profile, websiteUrl: e.target.value })
-                    }
-                  />
-                </div>
+                  return (
+                    <div key={link.linkMasterId} className="space-y-2">
+                      <Label htmlFor={inputID} className="flex items-center gap-2">
+                        <Icon className="w-4 h-4" />
+                        {link.name}
+                      </Label>
+                      <Input
+                        id={inputID}
+                        placeholder={link.placeholder}
+                        value={link.url}
+                        onChange={(e) => updateLink(index, e.target.value)}
+                      />
+                    </div>
+                  );
+                })}
               </CardContent>
             </Card>
           </TabsContent>

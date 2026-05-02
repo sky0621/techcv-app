@@ -54,21 +54,51 @@ type JobHistoryOptionsResponse = {
   employmentTypes: JobEmploymentType[];
 };
 
+type ProfileLinkMaster = {
+  id: string;
+  key: string;
+  name: string;
+  icon: string;
+  placeholder: string;
+  sortOrder: number;
+};
+
+type ProfileLinkMastersResponse = {
+  linkMasters: ProfileLinkMaster[];
+};
+
 type CategoryForm = {
   id: string;
   name: string;
   icon: string;
+  sortOrder: number;
 };
 
 type SkillMasterForm = {
   id: string;
   name: string;
   categoryId: string;
+  sortOrder: number;
+};
+
+type ProficiencyLevelForm = {
+  name: string;
+  sortOrder: number;
 };
 
 type EmploymentTypeForm = {
   id: string;
   name: string;
+  sortOrder: number;
+};
+
+type ProfileLinkMasterForm = {
+  id: string;
+  key: string;
+  name: string;
+  icon: string;
+  placeholder: string;
+  sortOrder: number;
 };
 
 const iconExamples = "code, database, cloud, wrench, frame";
@@ -76,15 +106,30 @@ const emptyCategoryForm: CategoryForm = {
   id: "",
   name: "",
   icon: "wrench",
+  sortOrder: 0,
 };
 const emptySkillMasterForm: SkillMasterForm = {
   id: "",
   name: "",
   categoryId: "",
+  sortOrder: 0,
+};
+const emptyProficiencyLevelForm: ProficiencyLevelForm = {
+  name: "",
+  sortOrder: 0,
 };
 const emptyEmploymentTypeForm: EmploymentTypeForm = {
   id: "",
   name: "",
+  sortOrder: 0,
+};
+const emptyProfileLinkMasterForm: ProfileLinkMasterForm = {
+  id: "",
+  key: "",
+  name: "",
+  icon: "link",
+  placeholder: "",
+  sortOrder: 0,
 };
 
 function normalizeIconName(icon?: string) {
@@ -128,19 +173,28 @@ export function SettingsPage() {
   const [proficiencyLevels, setProficiencyLevels] = useState<SkillOption[]>([]);
   const [skillMasters, setSkillMasters] = useState<SkillMaster[]>([]);
   const [employmentTypes, setEmploymentTypes] = useState<JobEmploymentType[]>([]);
+  const [profileLinkMasters, setProfileLinkMasters] = useState<ProfileLinkMaster[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingCategory, setIsSavingCategory] = useState(false);
   const [isSavingSkillMaster, setIsSavingSkillMaster] = useState(false);
+  const [isSavingProficiencyLevel, setIsSavingProficiencyLevel] = useState(false);
   const [isSavingEmploymentType, setIsSavingEmploymentType] = useState(false);
+  const [isSavingProfileLinkMaster, setIsSavingProfileLinkMaster] = useState(false);
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [skillMasterDialogOpen, setSkillMasterDialogOpen] = useState(false);
+  const [proficiencyLevelDialogOpen, setProficiencyLevelDialogOpen] = useState(false);
   const [employmentTypeDialogOpen, setEmploymentTypeDialogOpen] = useState(false);
+  const [profileLinkMasterDialogOpen, setProfileLinkMasterDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<SkillOption | null>(null);
   const [editingSkillMaster, setEditingSkillMaster] = useState<SkillMaster | null>(null);
+  const [editingProficiencyLevel, setEditingProficiencyLevel] = useState<SkillOption | null>(null);
   const [editingEmploymentType, setEditingEmploymentType] = useState<JobEmploymentType | null>(null);
+  const [editingProfileLinkMaster, setEditingProfileLinkMaster] = useState<ProfileLinkMaster | null>(null);
   const [categoryForm, setCategoryForm] = useState<CategoryForm>(emptyCategoryForm);
   const [skillMasterForm, setSkillMasterForm] = useState<SkillMasterForm>(emptySkillMasterForm);
+  const [proficiencyLevelForm, setProficiencyLevelForm] = useState<ProficiencyLevelForm>(emptyProficiencyLevelForm);
   const [employmentTypeForm, setEmploymentTypeForm] = useState<EmploymentTypeForm>(emptyEmploymentTypeForm);
+  const [profileLinkMasterForm, setProfileLinkMasterForm] = useState<ProfileLinkMasterForm>(emptyProfileLinkMasterForm);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -149,20 +203,23 @@ export function SettingsPage() {
     setError("");
 
     try {
-      const [skillOptionsResponse, jobHistoryOptionsResponse] = await Promise.all([
+      const [skillOptionsResponse, jobHistoryOptionsResponse, profileLinkMastersResponse] = await Promise.all([
         fetch("/api/skills/options", { signal }),
         fetch("/api/job-histories/options", { signal }),
+        fetch("/api/profile/link-masters", { signal }),
       ]);
-      if (!skillOptionsResponse.ok || !jobHistoryOptionsResponse.ok) {
+      if (!skillOptionsResponse.ok || !jobHistoryOptionsResponse.ok || !profileLinkMastersResponse.ok) {
         throw new Error("設定情報の取得に失敗しました");
       }
 
       const skillOptions = (await skillOptionsResponse.json()) as SkillOptionsResponse;
       const jobHistoryOptions = (await jobHistoryOptionsResponse.json()) as JobHistoryOptionsResponse;
+      const profileLinkMastersData = (await profileLinkMastersResponse.json()) as ProfileLinkMastersResponse;
       setCategories(skillOptions.categories ?? []);
       setProficiencyLevels(skillOptions.proficiencyLevels ?? []);
       setSkillMasters(skillOptions.skillMasters ?? []);
       setEmploymentTypes(jobHistoryOptions.employmentTypes ?? []);
+      setProfileLinkMasters(profileLinkMastersData.linkMasters ?? []);
     } catch (caught) {
       if (caught instanceof DOMException && caught.name === "AbortError") {
         return;
@@ -193,12 +250,36 @@ export function SettingsPage() {
     setError("");
   };
 
+  const openAddProfileLinkMasterDialog = () => {
+    setEditingProfileLinkMaster(null);
+    setProfileLinkMasterForm(emptyProfileLinkMasterForm);
+    setProfileLinkMasterDialogOpen(true);
+    setMessage("");
+    setError("");
+  };
+
+  const openEditProfileLinkMasterDialog = (linkMaster: ProfileLinkMaster) => {
+    setEditingProfileLinkMaster(linkMaster);
+    setProfileLinkMasterForm({
+      id: linkMaster.id,
+      key: linkMaster.key,
+      name: linkMaster.name,
+      icon: linkMaster.icon,
+      placeholder: linkMaster.placeholder,
+      sortOrder: linkMaster.sortOrder,
+    });
+    setProfileLinkMasterDialogOpen(true);
+    setMessage("");
+    setError("");
+  };
+
   const openEditCategoryDialog = (category: SkillOption) => {
     setEditingCategory(category);
     setCategoryForm({
       id: category.id,
       name: category.name,
       icon: category.icon || "wrench",
+      sortOrder: category.sortOrder,
     });
     setCategoryDialogOpen(true);
     setMessage("");
@@ -230,8 +311,20 @@ export function SettingsPage() {
       id: skillMaster.id,
       name: skillMaster.name,
       categoryId: skillMaster.categoryId,
+      sortOrder: skillMaster.sortOrder,
     });
     setSkillMasterDialogOpen(true);
+    setMessage("");
+    setError("");
+  };
+
+  const openEditProficiencyLevelDialog = (level: SkillOption) => {
+    setEditingProficiencyLevel(level);
+    setProficiencyLevelForm({
+      name: level.name,
+      sortOrder: level.sortOrder,
+    });
+    setProficiencyLevelDialogOpen(true);
     setMessage("");
     setError("");
   };
@@ -241,6 +334,7 @@ export function SettingsPage() {
     setEmploymentTypeForm({
       id: employmentType.id,
       name: employmentType.name,
+      sortOrder: employmentType.sortOrder,
     });
     setEmploymentTypeDialogOpen(true);
     setMessage("");
@@ -321,6 +415,43 @@ export function SettingsPage() {
     skillMasterForm.categoryId.trim() !== "" &&
     (editingSkillMaster !== null || skillMasterForm.id.trim() !== "");
 
+  const handleSaveProficiencyLevel = async () => {
+    if (!editingProficiencyLevel) {
+      return;
+    }
+
+    setIsSavingProficiencyLevel(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await fetch(
+        `/api/skills/proficiency-levels/${encodeURIComponent(editingProficiencyLevel.id)}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(proficiencyLevelForm),
+        },
+      );
+      if (!response.ok) {
+        throw new Error("習熟度の更新に失敗しました");
+      }
+
+      setProficiencyLevelDialogOpen(false);
+      await loadOptions();
+      setMessage("習熟度を更新しました");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "習熟度の保存に失敗しました");
+    } finally {
+      setIsSavingProficiencyLevel(false);
+    }
+  };
+
+  const canSaveProficiencyLevel =
+    proficiencyLevelForm.name.trim() !== "";
+
   const handleSaveEmploymentType = async () => {
     setIsSavingEmploymentType(true);
     setMessage("");
@@ -357,6 +488,44 @@ export function SettingsPage() {
     employmentTypeForm.name.trim() !== "" &&
     (editingEmploymentType !== null || employmentTypeForm.id.trim() !== "");
 
+  const handleSaveProfileLinkMaster = async () => {
+    setIsSavingProfileLinkMaster(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await fetch(
+        editingProfileLinkMaster
+          ? `/api/profile/link-masters/${encodeURIComponent(editingProfileLinkMaster.id)}`
+          : "/api/profile/link-masters",
+        {
+          method: editingProfileLinkMaster ? "PUT" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(profileLinkMasterForm),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(editingProfileLinkMaster ? "SNSリンク種別の更新に失敗しました" : "SNSリンク種別の追加に失敗しました");
+      }
+
+      setProfileLinkMasterDialogOpen(false);
+      await loadOptions();
+      setMessage(editingProfileLinkMaster ? "SNSリンク種別を更新しました" : "SNSリンク種別を追加しました");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "SNSリンク種別の保存に失敗しました");
+    } finally {
+      setIsSavingProfileLinkMaster(false);
+    }
+  };
+
+  const canSaveProfileLinkMaster =
+    profileLinkMasterForm.key.trim() !== "" &&
+    profileLinkMasterForm.name.trim() !== "" &&
+    profileLinkMasterForm.icon.trim() !== "" &&
+    (editingProfileLinkMaster !== null || profileLinkMasterForm.id.trim() !== "");
+
   return (
     <div className="p-8">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -382,6 +551,71 @@ export function SettingsPage() {
         )}
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4">
+              <div>
+                <CardTitle>SNS・外部リンク</CardTitle>
+                <CardDescription>profile_link_masters テーブルの内容</CardDescription>
+              </div>
+              <Button type="button" variant="outline" onClick={openAddProfileLinkMasterDialog}>
+                <LucideIcons.Plus className="w-4 h-4 mr-2" />
+                追加
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>表示順</TableHead>
+                    <TableHead>名称</TableHead>
+                    <TableHead>アイコン</TableHead>
+                    <TableHead>キー</TableHead>
+                    <TableHead>ID</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {profileLinkMasters.map((linkMaster) => {
+                    const Icon = getIcon(linkMaster.icon);
+
+                    return (
+                      <TableRow key={linkMaster.id}>
+                        <TableCell>{linkMaster.sortOrder}</TableCell>
+                        <TableCell className="font-medium">{linkMaster.name}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Icon className="w-4 h-4 text-gray-600" />
+                            <span>{getLucideIconLabel(linkMaster.icon)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-gray-600">{linkMaster.key}</TableCell>
+                        <TableCell className="font-mono text-xs text-gray-600">{linkMaster.id}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditProfileLinkMasterDialog(linkMaster)}
+                          >
+                            <LucideIcons.Pencil className="w-4 h-4 mr-2" />
+                            編集
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {!isLoading && profileLinkMasters.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-gray-500">
+                        SNS・外部リンク種別は登録されていません。
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4">
               <div>
@@ -520,6 +754,7 @@ export function SettingsPage() {
                     <TableHead>表示順</TableHead>
                     <TableHead>名称</TableHead>
                     <TableHead>ID</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -530,11 +765,22 @@ export function SettingsPage() {
                       <TableCell className="font-mono text-xs text-gray-600">
                         {level.id}
                       </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditProficiencyLevelDialog(level)}
+                        >
+                          <LucideIcons.Pencil className="w-4 h-4 mr-2" />
+                          編集
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                   {!isLoading && proficiencyLevels.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center text-gray-500">
+                      <TableCell colSpan={4} className="text-center text-gray-500">
                         習熟度は登録されていません。
                       </TableCell>
                     </TableRow>
@@ -599,14 +845,134 @@ export function SettingsPage() {
           </Card>
         </div>
 
+        <Dialog open={profileLinkMasterDialogOpen} onOpenChange={setProfileLinkMasterDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingProfileLinkMaster ? "SNSリンク種別を編集" : "SNSリンク種別を追加"}</DialogTitle>
+              <DialogDescription>
+                {editingProfileLinkMaster
+                  ? "プロフィールのSNS・リンクタブに表示する名称、アイコン、プレースホルダー、表示順を変更します。"
+                  : "プロフィールのSNS・リンクタブに表示するID、キー、名称、アイコン、プレースホルダー、表示順を登録します。"}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              {!editingProfileLinkMaster && (
+                <div className="space-y-2">
+                  <Label htmlFor="profile-link-master-id">ID</Label>
+                  <Input
+                    id="profile-link-master-id"
+                    type="number"
+                    min={1}
+                    value={profileLinkMasterForm.id}
+                    onChange={(e) =>
+                      setProfileLinkMasterForm({ ...profileLinkMasterForm, id: e.target.value })
+                    }
+                    placeholder="5"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="profile-link-master-key">キー</Label>
+                  <Input
+                    id="profile-link-master-key"
+                    value={profileLinkMasterForm.key}
+                    onChange={(e) =>
+                      setProfileLinkMasterForm({ ...profileLinkMasterForm, key: e.target.value })
+                    }
+                    placeholder="x"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="profile-link-master-name">名称</Label>
+                  <Input
+                    id="profile-link-master-name"
+                    value={profileLinkMasterForm.name}
+                    onChange={(e) =>
+                      setProfileLinkMasterForm({ ...profileLinkMasterForm, name: e.target.value })
+                    }
+                    placeholder="X"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="profile-link-master-icon">アイコン</Label>
+                <div className="flex items-center gap-3">
+                  <Input
+                    id="profile-link-master-icon"
+                    value={profileLinkMasterForm.icon}
+                    onChange={(e) =>
+                      setProfileLinkMasterForm({ ...profileLinkMasterForm, icon: e.target.value })
+                    }
+                    placeholder="link"
+                  />
+                  <div className="flex h-9 min-w-28 items-center gap-2 rounded-md border bg-gray-50 px-3 text-sm text-gray-700">
+                    {(() => {
+                      const Icon = getIcon(profileLinkMasterForm.icon);
+
+                      return <Icon className="w-4 h-4 text-gray-600" />;
+                    })()}
+                    <span>{getLucideIconLabel(profileLinkMasterForm.icon)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="profile-link-master-placeholder">未入力時の文言</Label>
+                <Input
+                  id="profile-link-master-placeholder"
+                  value={profileLinkMasterForm.placeholder}
+                  onChange={(e) =>
+                    setProfileLinkMasterForm({ ...profileLinkMasterForm, placeholder: e.target.value })
+                  }
+                  placeholder="https://example.com/username"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="profile-link-master-sort-order">表示順</Label>
+                <Input
+                  id="profile-link-master-sort-order"
+                  type="number"
+                  value={profileLinkMasterForm.sortOrder}
+                  onChange={(e) =>
+                    setProfileLinkMasterForm({ ...profileLinkMasterForm, sortOrder: Number(e.target.value) })
+                  }
+                  placeholder="5"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setProfileLinkMasterDialogOpen(false)}
+              >
+                キャンセル
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSaveProfileLinkMaster}
+                disabled={!canSaveProfileLinkMaster || isSavingProfileLinkMaster}
+              >
+                {isSavingProfileLinkMaster ? "保存中" : "保存"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{editingCategory ? "カテゴリを編集" : "カテゴリを追加"}</DialogTitle>
               <DialogDescription>
                 {editingCategory
-                  ? "カテゴリの名称とアイコンを変更します。"
-                  : "カテゴリのID、名称、アイコンを登録します。"}
+                  ? "カテゴリの名称、アイコン、表示順を変更します。"
+                  : "カテゴリのID、名称、アイコン、表示順を登録します。"}
               </DialogDescription>
             </DialogHeader>
 
@@ -663,6 +1029,19 @@ export function SettingsPage() {
                   例: {iconExamples}。プレビューでは lucide- と組み合わせて表示します。
                 </p>
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="category-sort-order">表示順</Label>
+                <Input
+                  id="category-sort-order"
+                  type="number"
+                  value={categoryForm.sortOrder}
+                  onChange={(e) =>
+                    setCategoryForm({ ...categoryForm, sortOrder: Number(e.target.value) })
+                  }
+                  placeholder="7"
+                />
+              </div>
             </div>
 
             <DialogFooter>
@@ -690,8 +1069,8 @@ export function SettingsPage() {
               <DialogTitle>{editingSkillMaster ? "スキルマスタを編集" : "スキルマスタを追加"}</DialogTitle>
               <DialogDescription>
                 {editingSkillMaster
-                  ? "スキル名とカテゴリを変更します。"
-                  : "スキルマスタのID、名称、カテゴリを登録します。"}
+                  ? "スキル名、カテゴリ、表示順を変更します。"
+                  : "スキルマスタのID、名称、カテゴリ、表示順を登録します。"}
               </DialogDescription>
             </DialogHeader>
 
@@ -745,6 +1124,19 @@ export function SettingsPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="skill-master-sort-order">表示順</Label>
+                <Input
+                  id="skill-master-sort-order"
+                  type="number"
+                  value={skillMasterForm.sortOrder}
+                  onChange={(e) =>
+                    setSkillMasterForm({ ...skillMasterForm, sortOrder: Number(e.target.value) })
+                  }
+                  placeholder="12"
+                />
+              </div>
             </div>
 
             <DialogFooter>
@@ -766,14 +1158,69 @@ export function SettingsPage() {
           </DialogContent>
         </Dialog>
 
+        <Dialog open={proficiencyLevelDialogOpen} onOpenChange={setProficiencyLevelDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>習熟度を編集</DialogTitle>
+              <DialogDescription>
+                習熟度の名称と表示順を変更します。
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="proficiency-level-name">名称</Label>
+                <Input
+                  id="proficiency-level-name"
+                  value={proficiencyLevelForm.name}
+                  onChange={(e) =>
+                    setProficiencyLevelForm({ ...proficiencyLevelForm, name: e.target.value })
+                  }
+                  placeholder="中級"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="proficiency-level-sort-order">表示順</Label>
+                <Input
+                  id="proficiency-level-sort-order"
+                  type="number"
+                  value={proficiencyLevelForm.sortOrder}
+                  onChange={(e) =>
+                    setProficiencyLevelForm({ ...proficiencyLevelForm, sortOrder: Number(e.target.value) })
+                  }
+                  placeholder="2"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setProficiencyLevelDialogOpen(false)}
+              >
+                キャンセル
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSaveProficiencyLevel}
+                disabled={!canSaveProficiencyLevel || isSavingProficiencyLevel}
+              >
+                {isSavingProficiencyLevel ? "保存中" : "保存"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={employmentTypeDialogOpen} onOpenChange={setEmploymentTypeDialogOpen}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{editingEmploymentType ? "雇用形態を編集" : "雇用形態を追加"}</DialogTitle>
               <DialogDescription>
                 {editingEmploymentType
-                  ? "雇用形態の名称を変更します。"
-                  : "雇用形態のIDと名称を登録します。"}
+                  ? "雇用形態の名称と表示順を変更します。"
+                  : "雇用形態のID、名称、表示順を登録します。"}
               </DialogDescription>
             </DialogHeader>
 
@@ -803,6 +1250,19 @@ export function SettingsPage() {
                     setEmploymentTypeForm({ ...employmentTypeForm, name: e.target.value })
                   }
                   placeholder="インターン"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="employment-type-sort-order">表示順</Label>
+                <Input
+                  id="employment-type-sort-order"
+                  type="number"
+                  value={employmentTypeForm.sortOrder}
+                  onChange={(e) =>
+                    setEmploymentTypeForm({ ...employmentTypeForm, sortOrder: Number(e.target.value) })
+                  }
+                  placeholder="6"
                 />
               </div>
             </div>

@@ -27,6 +27,10 @@ func (u *SkillOptionsUseCase) UpdateCategory(ctx context.Context, id string, inp
 	return u.repository.UpdateSkillCategory(ctx, id, input)
 }
 
+func (u *SkillOptionsUseCase) UpdateProficiencyLevel(ctx context.Context, id string, input domain.SkillProficiencyLevelInput) (*domain.SkillOption, error) {
+	return u.repository.UpdateSkillProficiencyLevel(ctx, id, input)
+}
+
 func (u *SkillOptionsUseCase) CreateMaster(ctx context.Context, input domain.SkillMasterInput) (*domain.SkillMaster, error) {
 	return u.repository.CreateSkillMaster(ctx, input)
 }

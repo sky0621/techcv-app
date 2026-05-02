@@ -219,8 +219,9 @@ type jobHistoryPayload struct {
 }
 
 type jobEmploymentTypeRequest struct {
-	ID   string `json:"id,omitempty"`
-	Name string `json:"name"`
+	ID        string `json:"id,omitempty"`
+	Name      string `json:"name"`
+	SortOrder int64  `json:"sortOrder"`
 }
 
 type jobEmploymentTypePayload struct {
@@ -300,7 +301,8 @@ func toJobEmploymentTypePayload(value domain.JobEmploymentType) jobEmploymentTyp
 
 func toJobEmploymentTypeInput(request jobEmploymentTypeRequest, includeID bool) domain.JobEmploymentTypeInput {
 	input := domain.JobEmploymentTypeInput{
-		Name: strings.TrimSpace(request.Name),
+		Name:      strings.TrimSpace(request.Name),
+		SortOrder: request.SortOrder,
 	}
 	if includeID {
 		input.ID = strings.TrimSpace(request.ID)

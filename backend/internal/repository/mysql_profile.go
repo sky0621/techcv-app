@@ -71,7 +71,12 @@ func (r *SQLiteProfileRepository) Get(ctx context.Context) (*domain.Profile, err
 			return nil, fmt.Errorf("query profile qualifications: %w", err)
 		}
 
-		return toDomainProfile(row, qualifications)
+		links, err := r.listProfileLinks(ctx, row.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		return toDomainProfile(row, qualifications, links)
 	}
 
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -94,6 +99,7 @@ func (r *SQLiteProfileRepository) Save(ctx context.Context, profile *domain.Prof
 	if _, err := strconv.ParseInt(profile.ID, 10, 64); err != nil {
 		profile.ID = "1"
 	}
+	syncLegacyProfileLinkColumns(profile)
 
 	visibilitySettings := sanitizeVisibilitySettings(profile.VisibilitySettings)
 
@@ -162,6 +168,16 @@ func (r *SQLiteProfileRepository) Save(ctx context.Context, profile *domain.Prof
 		}
 	}
 
+	if err := r.saveProfileLinks(ctx, tx, profile.ID, profile.Links); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit profile transaction: %w", err)
+	}
+
+	queries = r.queries
+
 	row, err := queries.GetProfileByUserID(ctx, profile.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("reload profile: %w", err)
@@ -172,13 +188,14 @@ func (r *SQLiteProfileRepository) Save(ctx context.Context, profile *domain.Prof
 		return nil, fmt.Errorf("reload profile qualifications: %w", err)
 	}
 
-	result, err := toDomainProfile(row, qualifications)
+	links, err := r.listProfileLinks(ctx, row.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit profile transaction: %w", err)
+	result, err := toDomainProfile(row, qualifications, links)
+	if err != nil {
+		return nil, err
 	}
 
 	return result, nil
@@ -225,6 +242,12 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.addSkillCategoryIconColumn(ctx); err != nil {
 		return err
 	}
+	if err := r.seedProfileLinkMasters(ctx); err != nil {
+		return err
+	}
+	if err := r.migrateProfileLinks(ctx); err != nil {
+		return err
+	}
 	if err := r.seedSkillOptions(ctx); err != nil {
 		return err
 	}
@@ -268,6 +291,64 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	return nil
 }
 
+func (r *SQLiteProfileRepository) ListProfileLinkMasters(ctx context.Context) ([]domain.ProfileLinkMaster, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, key, name, icon, placeholder, sort_order
+		FROM profile_link_masters
+		ORDER BY sort_order ASC, name ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query profile link masters: %w", err)
+	}
+	defer rows.Close()
+
+	masters := []domain.ProfileLinkMaster{}
+	for rows.Next() {
+		var master domain.ProfileLinkMaster
+		if err := rows.Scan(&master.ID, &master.Key, &master.Name, &master.Icon, &master.Placeholder, &master.SortOrder); err != nil {
+			return nil, fmt.Errorf("scan profile link master: %w", err)
+		}
+		masters = append(masters, master)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate profile link masters: %w", err)
+	}
+
+	return masters, nil
+}
+
+func (r *SQLiteProfileRepository) CreateProfileLinkMaster(ctx context.Context, input domain.ProfileLinkMasterInput) (*domain.ProfileLinkMaster, error) {
+	row := r.db.QueryRowContext(ctx, `
+		INSERT INTO profile_link_masters (id, key, name, icon, placeholder, sort_order)
+		SELECT ?, ?, ?, ?, ?, COALESCE(NULLIF(?, 0), COALESCE(MAX(sort_order), 0) + 1)
+		FROM profile_link_masters
+		RETURNING id, key, name, icon, placeholder, sort_order
+	`, input.ID, input.Key, input.Name, input.Icon, input.Placeholder, input.SortOrder)
+
+	var master domain.ProfileLinkMaster
+	if err := row.Scan(&master.ID, &master.Key, &master.Name, &master.Icon, &master.Placeholder, &master.SortOrder); err != nil {
+		return nil, fmt.Errorf("insert profile link master: %w", err)
+	}
+
+	return &master, nil
+}
+
+func (r *SQLiteProfileRepository) UpdateProfileLinkMaster(ctx context.Context, id string, input domain.ProfileLinkMasterInput) (*domain.ProfileLinkMaster, error) {
+	row := r.db.QueryRowContext(ctx, `
+		UPDATE profile_link_masters
+		SET key = ?, name = ?, icon = ?, placeholder = ?, sort_order = COALESCE(NULLIF(?, 0), sort_order), updated_at = CURRENT_TIMESTAMP
+		WHERE id = ?
+		RETURNING id, key, name, icon, placeholder, sort_order
+	`, input.Key, input.Name, input.Icon, input.Placeholder, input.SortOrder, id)
+
+	var master domain.ProfileLinkMaster
+	if err := row.Scan(&master.ID, &master.Key, &master.Name, &master.Icon, &master.Placeholder, &master.SortOrder); err != nil {
+		return nil, fmt.Errorf("update profile link master: %w", err)
+	}
+
+	return &master, nil
+}
+
 func (r *SQLiteProfileRepository) ListSkillOptions(ctx context.Context) (*domain.SkillOptions, error) {
 	categories, err := r.queries.ListSkillCategories(ctx)
 	if err != nil {
@@ -292,9 +373,10 @@ func (r *SQLiteProfileRepository) ListSkillOptions(ctx context.Context) (*domain
 
 func (r *SQLiteProfileRepository) CreateSkillCategory(ctx context.Context, input domain.SkillCategoryInput) (*domain.SkillOption, error) {
 	row, err := r.queries.InsertSkillCategory(ctx, dbgen.InsertSkillCategoryParams{
-		ID:   input.ID,
-		Name: input.Name,
-		Icon: input.Icon,
+		ID:        input.ID,
+		Name:      input.Name,
+		Icon:      input.Icon,
+		SortOrder: input.SortOrder,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("insert skill category: %w", err)
@@ -305,9 +387,10 @@ func (r *SQLiteProfileRepository) CreateSkillCategory(ctx context.Context, input
 
 func (r *SQLiteProfileRepository) UpdateSkillCategory(ctx context.Context, id string, input domain.SkillCategoryInput) (*domain.SkillOption, error) {
 	row, err := r.queries.UpdateSkillCategory(ctx, dbgen.UpdateSkillCategoryParams{
-		ID:   id,
-		Name: input.Name,
-		Icon: input.Icon,
+		ID:        id,
+		Name:      input.Name,
+		Icon:      input.Icon,
+		SortOrder: input.SortOrder,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("update skill category: %w", err)
@@ -316,11 +399,25 @@ func (r *SQLiteProfileRepository) UpdateSkillCategory(ctx context.Context, id st
 	return toDomainSkillCategoryOption(row), nil
 }
 
+func (r *SQLiteProfileRepository) UpdateSkillProficiencyLevel(ctx context.Context, id string, input domain.SkillProficiencyLevelInput) (*domain.SkillOption, error) {
+	row, err := r.queries.UpdateSkillProficiencyLevel(ctx, dbgen.UpdateSkillProficiencyLevelParams{
+		ID:        id,
+		Name:      input.Name,
+		SortOrder: input.SortOrder,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update skill proficiency level: %w", err)
+	}
+
+	return toDomainSkillProficiencyLevelOption(row), nil
+}
+
 func (r *SQLiteProfileRepository) CreateSkillMaster(ctx context.Context, input domain.SkillMasterInput) (*domain.SkillMaster, error) {
 	row, err := r.queries.InsertSkillMaster(ctx, dbgen.InsertSkillMasterParams{
 		ID:         input.ID,
 		Name:       input.Name,
 		CategoryID: input.CategoryID,
+		SortOrder:  input.SortOrder,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("insert skill master: %w", err)
@@ -339,6 +436,7 @@ func (r *SQLiteProfileRepository) UpdateSkillMaster(ctx context.Context, id stri
 		ID:         id,
 		Name:       input.Name,
 		CategoryID: input.CategoryID,
+		SortOrder:  input.SortOrder,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("update skill master: %w", err)
@@ -591,8 +689,9 @@ func (r *SQLiteProfileRepository) ListJobHistoryOptions(ctx context.Context) (*d
 
 func (r *SQLiteProfileRepository) CreateJobEmploymentType(ctx context.Context, input domain.JobEmploymentTypeInput) (*domain.JobEmploymentType, error) {
 	row, err := r.queries.InsertJobEmploymentType(ctx, dbgen.InsertJobEmploymentTypeParams{
-		ID:   input.ID,
-		Name: input.Name,
+		ID:        input.ID,
+		Name:      input.Name,
+		SortOrder: input.SortOrder,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("insert job employment type: %w", err)
@@ -603,8 +702,9 @@ func (r *SQLiteProfileRepository) CreateJobEmploymentType(ctx context.Context, i
 
 func (r *SQLiteProfileRepository) UpdateJobEmploymentType(ctx context.Context, id string, input domain.JobEmploymentTypeInput) (*domain.JobEmploymentType, error) {
 	row, err := r.queries.UpdateJobEmploymentType(ctx, dbgen.UpdateJobEmploymentTypeParams{
-		ID:   id,
-		Name: input.Name,
+		ID:        id,
+		Name:      input.Name,
+		SortOrder: input.SortOrder,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("update job employment type: %w", err)
@@ -1372,6 +1472,125 @@ func (r *SQLiteProfileRepository) seedSkillOptions(ctx context.Context) error {
 	return nil
 }
 
+func (r *SQLiteProfileRepository) seedProfileLinkMasters(ctx context.Context) error {
+	masters := []domain.ProfileLinkMaster{
+		{ID: "1", Key: "github", Name: "GitHub", Icon: "github", Placeholder: "https://github.com/username", SortOrder: 1},
+		{ID: "2", Key: "zenn", Name: "Zenn", Icon: "book-open", Placeholder: "https://zenn.dev/username", SortOrder: 2},
+		{ID: "3", Key: "qiita", Name: "Qiita", Icon: "book-open", Placeholder: "https://qiita.com/username", SortOrder: 3},
+		{ID: "4", Key: "website", Name: "個人サイト", Icon: "globe", Placeholder: "https://example.com", SortOrder: 4},
+	}
+	for _, master := range masters {
+		if _, err := r.db.ExecContext(
+			ctx,
+			"INSERT OR IGNORE INTO profile_link_masters (id, key, name, icon, placeholder, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+			master.ID,
+			master.Key,
+			master.Name,
+			master.Icon,
+			master.Placeholder,
+			master.SortOrder,
+		); err != nil {
+			return fmt.Errorf("seed profile link master %s: %w", master.Key, err)
+		}
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) migrateProfileLinks(ctx context.Context) error {
+	_, err := r.db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO profile_links (profile_id, link_master_id, url, sort_order)
+		SELECT profiles.id, profile_link_masters.id,
+			CASE profile_link_masters.key
+				WHEN 'github' THEN profiles.github_url
+				WHEN 'zenn' THEN profiles.zenn_url
+				WHEN 'qiita' THEN profiles.qiita_url
+				WHEN 'website' THEN profiles.website_url
+				ELSE ''
+			END,
+			profile_link_masters.sort_order
+		FROM profiles
+		JOIN profile_link_masters ON profile_link_masters.key IN ('github', 'zenn', 'qiita', 'website')
+		WHERE CASE profile_link_masters.key
+				WHEN 'github' THEN profiles.github_url
+				WHEN 'zenn' THEN profiles.zenn_url
+				WHEN 'qiita' THEN profiles.qiita_url
+				WHEN 'website' THEN profiles.website_url
+				ELSE ''
+			END <> ''
+	`)
+	if err != nil {
+		return fmt.Errorf("migrate profile links: %w", err)
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) listProfileLinks(ctx context.Context, profileID string) ([]domain.ProfileLink, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT
+			COALESCE(profile_links.id, 0),
+			profile_link_masters.id,
+			profile_link_masters.key,
+			profile_link_masters.name,
+			profile_link_masters.icon,
+			profile_link_masters.placeholder,
+			COALESCE(profile_links.url, ''),
+			profile_link_masters.sort_order
+		FROM profile_link_masters
+		LEFT JOIN profile_links
+			ON profile_links.link_master_id = profile_link_masters.id
+			AND profile_links.profile_id = ?
+		ORDER BY profile_link_masters.sort_order ASC, profile_link_masters.name ASC
+	`, profileID)
+	if err != nil {
+		return nil, fmt.Errorf("query profile links: %w", err)
+	}
+	defer rows.Close()
+
+	links := []domain.ProfileLink{}
+	for rows.Next() {
+		var link domain.ProfileLink
+		if err := rows.Scan(&link.ID, &link.LinkMasterID, &link.Key, &link.Name, &link.Icon, &link.Placeholder, &link.URL, &link.SortOrder); err != nil {
+			return nil, fmt.Errorf("scan profile link: %w", err)
+		}
+		if link.ID == "0" {
+			link.ID = ""
+		}
+		links = append(links, link)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate profile links: %w", err)
+	}
+
+	return links, nil
+}
+
+func (r *SQLiteProfileRepository) saveProfileLinks(ctx context.Context, tx *sql.Tx, profileID string, links []domain.ProfileLink) error {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM profile_links WHERE profile_id = ?", profileID); err != nil {
+		return fmt.Errorf("delete profile links: %w", err)
+	}
+
+	for index, link := range links {
+		if strings.TrimSpace(link.LinkMasterID) == "" {
+			continue
+		}
+		if _, err := tx.ExecContext(
+			ctx,
+			`INSERT INTO profile_links (profile_id, link_master_id, url, sort_order)
+			VALUES (?, ?, ?, ?)`,
+			profileID,
+			link.LinkMasterID,
+			link.URL,
+			int64(index+1),
+		); err != nil {
+			return fmt.Errorf("insert profile link: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (r *SQLiteProfileRepository) seedSkills(ctx context.Context) error {
 	skills := []struct {
 		id                 string
@@ -1656,7 +1875,7 @@ func (r *SQLiteProfileRepository) tableColumnType(ctx context.Context, tableName
 	return "", fmt.Errorf("%s.%s column not found", tableName, columnName)
 }
 
-func toDomainProfile(row dbgen.Profile, qualificationRows []dbgen.ProfileQualification) (*domain.Profile, error) {
+func toDomainProfile(row dbgen.Profile, qualificationRows []dbgen.ProfileQualification, links []domain.ProfileLink) (*domain.Profile, error) {
 	profile := &domain.Profile{
 		ID:                 row.ID,
 		UserID:             row.UserID,
@@ -1684,6 +1903,7 @@ func toDomainProfile(row dbgen.Profile, qualificationRows []dbgen.ProfileQualifi
 
 	profile.VisibilitySettings = sanitizeVisibilitySettings(profile.VisibilitySettings)
 	profile.Qualifications = toDomainQualifications(qualificationRows)
+	profile.Links = links
 
 	return profile, nil
 }
@@ -1725,14 +1945,18 @@ func toDomainSkillCategoryOption(row dbgen.SkillCategory) *domain.SkillOption {
 func toDomainSkillProficiencyLevelOptions(rows []dbgen.SkillProficiencyLevel) []domain.SkillOption {
 	options := make([]domain.SkillOption, 0, len(rows))
 	for _, row := range rows {
-		options = append(options, domain.SkillOption{
-			ID:        row.ID,
-			Name:      row.Name,
-			SortOrder: row.SortOrder,
-		})
+		options = append(options, *toDomainSkillProficiencyLevelOption(row))
 	}
 
 	return options
+}
+
+func toDomainSkillProficiencyLevelOption(row dbgen.SkillProficiencyLevel) *domain.SkillOption {
+	return &domain.SkillOption{
+		ID:        row.ID,
+		Name:      row.Name,
+		SortOrder: row.SortOrder,
+	}
 }
 
 func toDomainSkillMasters(rows []dbgen.ListSkillMastersRow) []domain.SkillMaster {
@@ -1886,6 +2110,21 @@ func toDomainJobEmploymentType(row dbgen.JobEmploymentType) *domain.JobEmploymen
 		ID:        row.ID,
 		Name:      row.Name,
 		SortOrder: row.SortOrder,
+	}
+}
+
+func syncLegacyProfileLinkColumns(profile *domain.Profile) {
+	for _, link := range profile.Links {
+		switch link.Key {
+		case "github":
+			profile.GitHubURL = link.URL
+		case "zenn":
+			profile.ZennURL = link.URL
+		case "qiita":
+			profile.QiitaURL = link.URL
+		case "website":
+			profile.WebsiteURL = link.URL
+		}
 	}
 }
 

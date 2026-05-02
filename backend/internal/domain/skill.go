@@ -14,9 +14,10 @@ type SkillOptions struct {
 }
 
 type SkillCategoryInput struct {
-	ID   string
-	Name string
-	Icon string
+	ID        string
+	Name      string
+	Icon      string
+	SortOrder int64
 }
 
 type SkillMaster struct {
@@ -31,6 +32,12 @@ type SkillMasterInput struct {
 	ID         string
 	Name       string
 	CategoryID string
+	SortOrder  int64
+}
+
+type SkillProficiencyLevelInput struct {
+	Name      string
+	SortOrder int64
 }
 
 type Skill struct {

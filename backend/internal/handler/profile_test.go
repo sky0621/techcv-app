@@ -238,6 +238,32 @@ func (r *profileRepositoryStub) Save(_ context.Context, profile *domain.Profile)
 	return &profileCopy, nil
 }
 
+func (r *profileRepositoryStub) ListProfileLinkMasters(context.Context) ([]domain.ProfileLinkMaster, error) {
+	return nil, nil
+}
+
+func (r *profileRepositoryStub) CreateProfileLinkMaster(_ context.Context, input domain.ProfileLinkMasterInput) (*domain.ProfileLinkMaster, error) {
+	return &domain.ProfileLinkMaster{
+		ID:          input.ID,
+		Key:         input.Key,
+		Name:        input.Name,
+		Icon:        input.Icon,
+		Placeholder: input.Placeholder,
+		SortOrder:   input.SortOrder,
+	}, nil
+}
+
+func (r *profileRepositoryStub) UpdateProfileLinkMaster(_ context.Context, id string, input domain.ProfileLinkMasterInput) (*domain.ProfileLinkMaster, error) {
+	return &domain.ProfileLinkMaster{
+		ID:          id,
+		Key:         input.Key,
+		Name:        input.Name,
+		Icon:        input.Icon,
+		Placeholder: input.Placeholder,
+		SortOrder:   input.SortOrder,
+	}, nil
+}
+
 func cloneVisibilitySettings(values map[string]any) map[string]any {
 	cloned := make(map[string]any, len(values))
 	for key, value := range values {

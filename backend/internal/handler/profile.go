@@ -3,7 +3,9 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/sky0621/techcv-app/backend/internal/domain"
 	"github.com/sky0621/techcv-app/backend/internal/usecase"
 )
@@ -49,6 +51,7 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		PreferredWorkStyle: stringValue(request.WorkStyle),
 		VisibilitySettings: toUseCaseVisibilitySettings(request.VisibilitySettings),
 		Qualifications:     toUseCaseQualifications(request.Qualifications),
+		Links:              toUseCaseProfileLinks(request.Links),
 	})
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "internal_server_error", err.Error())
@@ -60,8 +63,82 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *ProfileHandler) ListProfileLinkMasters(w http.ResponseWriter, r *http.Request) {
+	masters, err := h.usecase.ListLinkMasters(r.Context())
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal_server_error", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, profileLinkMastersResponse{
+		LinkMasters: toProfileLinkMasterPayloads(masters),
+	})
+}
+
+func (h *ProfileHandler) CreateProfileLinkMaster(w http.ResponseWriter, r *http.Request) {
+	var request profileLinkMasterRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+
+	input := toProfileLinkMasterInput(request, true)
+	if input.ID == "" || input.Key == "" || input.Name == "" || input.Icon == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "id, key, name and icon are required")
+		return
+	}
+
+	master, err := h.usecase.CreateLinkMaster(r.Context(), input)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal_server_error", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, profileLinkMasterResponse{
+		LinkMaster: toProfileLinkMasterPayload(*master),
+	})
+}
+
+func (h *ProfileHandler) UpdateProfileLinkMaster(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "id is required")
+		return
+	}
+
+	var request profileLinkMasterRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+
+	input := toProfileLinkMasterInput(request, false)
+	if input.Key == "" || input.Name == "" || input.Icon == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "key, name and icon are required")
+		return
+	}
+
+	master, err := h.usecase.UpdateLinkMaster(r.Context(), id, input)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal_server_error", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, profileLinkMasterResponse{
+		LinkMaster: toProfileLinkMasterPayload(*master),
+	})
+}
+
 type profileResponse struct {
 	Profile profilePayload `json:"profile"`
+}
+
+type profileLinkMastersResponse struct {
+	LinkMasters []profileLinkMasterPayload `json:"linkMasters"`
+}
+
+type profileLinkMasterResponse struct {
+	LinkMaster profileLinkMasterPayload `json:"linkMaster"`
 }
 
 type profilePayload struct {
@@ -78,6 +155,7 @@ type profilePayload struct {
 	WorkStyle          string                 `json:"workStyle"`
 	VisibilitySettings map[string]bool        `json:"visibilitySettings"`
 	Qualifications     []qualificationPayload `json:"qualifications"`
+	Links              []profileLinkPayload   `json:"links"`
 }
 
 type profileUpdateRequest struct {
@@ -94,6 +172,7 @@ type profileUpdateRequest struct {
 	WorkStyle          *string                `json:"workStyle,omitempty"`
 	VisibilitySettings *map[string]bool       `json:"visibilitySettings,omitempty"`
 	Qualifications     []qualificationPayload `json:"qualifications,omitempty"`
+	Links              []profileLinkPayload   `json:"links,omitempty"`
 }
 
 type qualificationPayload struct {
@@ -103,6 +182,35 @@ type qualificationPayload struct {
 	Organization string `json:"organization"`
 	URL          string `json:"url"`
 	Memo         string `json:"memo"`
+}
+
+type profileLinkPayload struct {
+	ID           string `json:"id"`
+	LinkMasterID string `json:"linkMasterId"`
+	Key          string `json:"key"`
+	Name         string `json:"name"`
+	Icon         string `json:"icon"`
+	Placeholder  string `json:"placeholder"`
+	URL          string `json:"url"`
+	SortOrder    int64  `json:"sortOrder"`
+}
+
+type profileLinkMasterPayload struct {
+	ID          string `json:"id"`
+	Key         string `json:"key"`
+	Name        string `json:"name"`
+	Icon        string `json:"icon"`
+	Placeholder string `json:"placeholder"`
+	SortOrder   int64  `json:"sortOrder"`
+}
+
+type profileLinkMasterRequest struct {
+	ID          string `json:"id,omitempty"`
+	Key         string `json:"key"`
+	Name        string `json:"name"`
+	Icon        string `json:"icon"`
+	Placeholder string `json:"placeholder"`
+	SortOrder   int64  `json:"sortOrder"`
 }
 
 type errorResponse struct {
@@ -125,7 +233,46 @@ func toProfileResponse(profile *domain.Profile) profilePayload {
 		WorkStyle:          profile.PreferredWorkStyle,
 		VisibilitySettings: toVisibilitySettingsResponse(profile.VisibilitySettings),
 		Qualifications:     toQualificationPayloads(profile.Qualifications),
+		Links:              toProfileLinkPayloads(profile.Links),
 	}
+}
+
+func toProfileLinkMasterPayloads(values []domain.ProfileLinkMaster) []profileLinkMasterPayload {
+	result := make([]profileLinkMasterPayload, 0, len(values))
+	for _, value := range values {
+		result = append(result, toProfileLinkMasterPayload(value))
+	}
+
+	return result
+}
+
+func toProfileLinkMasterPayload(value domain.ProfileLinkMaster) profileLinkMasterPayload {
+	return profileLinkMasterPayload{
+		ID:          value.ID,
+		Key:         value.Key,
+		Name:        value.Name,
+		Icon:        value.Icon,
+		Placeholder: value.Placeholder,
+		SortOrder:   value.SortOrder,
+	}
+}
+
+func toProfileLinkPayloads(values []domain.ProfileLink) []profileLinkPayload {
+	result := make([]profileLinkPayload, 0, len(values))
+	for _, value := range values {
+		result = append(result, profileLinkPayload{
+			ID:           value.ID,
+			LinkMasterID: value.LinkMasterID,
+			Key:          value.Key,
+			Name:         value.Name,
+			Icon:         value.Icon,
+			Placeholder:  value.Placeholder,
+			URL:          value.URL,
+			SortOrder:    value.SortOrder,
+		})
+	}
+
+	return result
 }
 
 func toQualificationPayloads(values []domain.Qualification) []qualificationPayload {
@@ -158,6 +305,36 @@ func toUseCaseQualifications(values []qualificationPayload) []domain.Qualificati
 	}
 
 	return result
+}
+
+func toUseCaseProfileLinks(values []profileLinkPayload) []domain.ProfileLink {
+	result := make([]domain.ProfileLink, 0, len(values))
+	for _, value := range values {
+		result = append(result, domain.ProfileLink{
+			ID:           value.ID,
+			LinkMasterID: value.LinkMasterID,
+			Key:          value.Key,
+			URL:          value.URL,
+			SortOrder:    value.SortOrder,
+		})
+	}
+
+	return result
+}
+
+func toProfileLinkMasterInput(request profileLinkMasterRequest, includeID bool) domain.ProfileLinkMasterInput {
+	input := domain.ProfileLinkMasterInput{
+		Key:         strings.TrimSpace(request.Key),
+		Name:        strings.TrimSpace(request.Name),
+		Icon:        strings.TrimSpace(request.Icon),
+		Placeholder: strings.TrimSpace(request.Placeholder),
+		SortOrder:   request.SortOrder,
+	}
+	if includeID {
+		input.ID = strings.TrimSpace(request.ID)
+	}
+
+	return input
 }
 
 func toVisibilitySettingsResponse(values map[string]any) map[string]bool {

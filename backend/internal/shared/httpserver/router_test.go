@@ -896,18 +896,19 @@ func TestProjectRoutes(t *testing.T) {
 }
 
 type testProfileRepository struct {
-	mu                sync.RWMutex
-	profile           *domain.Profile
-	categories        []domain.SkillOption
-	proficiencyLevels []domain.SkillOption
-	skillMasters      []domain.SkillMaster
-	skills            []domain.Skill
-	jobHistories      []domain.JobHistory
-	employmentTypes   []domain.JobEmploymentType
-	projects          []domain.Project
-	nextSkillID       int
-	nextJobHistoryID  int
-	nextProjectID     int
+	mu                 sync.RWMutex
+	profile            *domain.Profile
+	categories         []domain.SkillOption
+	proficiencyLevels  []domain.SkillOption
+	skillMasters       []domain.SkillMaster
+	profileLinkMasters []domain.ProfileLinkMaster
+	skills             []domain.Skill
+	jobHistories       []domain.JobHistory
+	employmentTypes    []domain.JobEmploymentType
+	projects           []domain.Project
+	nextSkillID        int
+	nextJobHistoryID   int
+	nextProjectID      int
 }
 
 func newTestProfileRepository() *testProfileRepository {
@@ -951,6 +952,12 @@ func newTestProfileRepository() *testProfileRepository {
 				CategoryName: "フレームワーク",
 				SortOrder:    2,
 			},
+		},
+		profileLinkMasters: []domain.ProfileLinkMaster{
+			{ID: "1", Key: "github", Name: "GitHub", Icon: "github", Placeholder: "https://github.com/username", SortOrder: 1},
+			{ID: "2", Key: "zenn", Name: "Zenn", Icon: "book-open", Placeholder: "https://zenn.dev/username", SortOrder: 2},
+			{ID: "3", Key: "qiita", Name: "Qiita", Icon: "book-open", Placeholder: "https://qiita.com/username", SortOrder: 3},
+			{ID: "4", Key: "website", Name: "個人サイト", Icon: "globe", Placeholder: "https://example.com", SortOrder: 4},
 		},
 		skills: []domain.Skill{
 			{
@@ -1034,6 +1041,57 @@ func (r *testProfileRepository) Save(_ context.Context, profile *domain.Profile)
 	return &savedCopy, nil
 }
 
+func (r *testProfileRepository) ListProfileLinkMasters(context.Context) ([]domain.ProfileLinkMaster, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	masters := make([]domain.ProfileLinkMaster, len(r.profileLinkMasters))
+	copy(masters, r.profileLinkMasters)
+
+	return masters, nil
+}
+
+func (r *testProfileRepository) CreateProfileLinkMaster(_ context.Context, input domain.ProfileLinkMasterInput) (*domain.ProfileLinkMaster, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	master := domain.ProfileLinkMaster{
+		ID:          input.ID,
+		Key:         input.Key,
+		Name:        input.Name,
+		Icon:        input.Icon,
+		Placeholder: input.Placeholder,
+		SortOrder:   input.SortOrder,
+	}
+	if master.SortOrder == 0 {
+		master.SortOrder = int64(len(r.profileLinkMasters) + 1)
+	}
+	r.profileLinkMasters = append(r.profileLinkMasters, master)
+
+	return &master, nil
+}
+
+func (r *testProfileRepository) UpdateProfileLinkMaster(_ context.Context, id string, input domain.ProfileLinkMasterInput) (*domain.ProfileLinkMaster, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for index, master := range r.profileLinkMasters {
+		if master.ID == id {
+			r.profileLinkMasters[index].Key = input.Key
+			r.profileLinkMasters[index].Name = input.Name
+			r.profileLinkMasters[index].Icon = input.Icon
+			r.profileLinkMasters[index].Placeholder = input.Placeholder
+			if input.SortOrder != 0 {
+				r.profileLinkMasters[index].SortOrder = input.SortOrder
+			}
+			result := r.profileLinkMasters[index]
+			return &result, nil
+		}
+	}
+
+	return nil, sql.ErrNoRows
+}
+
 func (r *testProfileRepository) ListSkillOptions(context.Context) (*domain.SkillOptions, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -1075,7 +1133,28 @@ func (r *testProfileRepository) UpdateSkillCategory(_ context.Context, id string
 		if category.ID == id {
 			r.categories[index].Name = input.Name
 			r.categories[index].Icon = input.Icon
+			if input.SortOrder != 0 {
+				r.categories[index].SortOrder = input.SortOrder
+			}
 			result := r.categories[index]
+			return &result, nil
+		}
+	}
+
+	return nil, sql.ErrNoRows
+}
+
+func (r *testProfileRepository) UpdateSkillProficiencyLevel(_ context.Context, id string, input domain.SkillProficiencyLevelInput) (*domain.SkillOption, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for index, level := range r.proficiencyLevels {
+		if level.ID == id {
+			r.proficiencyLevels[index].Name = input.Name
+			if input.SortOrder != 0 {
+				r.proficiencyLevels[index].SortOrder = input.SortOrder
+			}
+			result := r.proficiencyLevels[index]
 			return &result, nil
 		}
 	}
@@ -1097,7 +1176,10 @@ func (r *testProfileRepository) CreateSkillMaster(_ context.Context, input domai
 		Name:         input.Name,
 		CategoryID:   input.CategoryID,
 		CategoryName: category.Name,
-		SortOrder:    int64(len(r.skillMasters) + 1),
+		SortOrder:    input.SortOrder,
+	}
+	if skillMaster.SortOrder == 0 {
+		skillMaster.SortOrder = int64(len(r.skillMasters) + 1)
 	}
 	r.skillMasters = append(r.skillMasters, skillMaster)
 
@@ -1118,6 +1200,9 @@ func (r *testProfileRepository) UpdateSkillMaster(_ context.Context, id string, 
 			r.skillMasters[index].Name = input.Name
 			r.skillMasters[index].CategoryID = input.CategoryID
 			r.skillMasters[index].CategoryName = category.Name
+			if input.SortOrder != 0 {
+				r.skillMasters[index].SortOrder = input.SortOrder
+			}
 			result := r.skillMasters[index]
 			return &result, nil
 		}
@@ -1316,7 +1401,10 @@ func (r *testProfileRepository) CreateJobEmploymentType(_ context.Context, input
 	employmentType := domain.JobEmploymentType{
 		ID:        input.ID,
 		Name:      input.Name,
-		SortOrder: int64(len(r.employmentTypes) + 1),
+		SortOrder: input.SortOrder,
+	}
+	if employmentType.SortOrder == 0 {
+		employmentType.SortOrder = int64(len(r.employmentTypes) + 1)
 	}
 	r.employmentTypes = append(r.employmentTypes, employmentType)
 
@@ -1330,6 +1418,9 @@ func (r *testProfileRepository) UpdateJobEmploymentType(_ context.Context, id st
 	for index, employmentType := range r.employmentTypes {
 		if employmentType.ID == id {
 			r.employmentTypes[index].Name = input.Name
+			if input.SortOrder != 0 {
+				r.employmentTypes[index].SortOrder = input.SortOrder
+			}
 			result := r.employmentTypes[index]
 			return &result, nil
 		}

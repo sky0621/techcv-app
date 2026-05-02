@@ -35,6 +35,7 @@ type JobHistoryOptions struct {
 }
 
 type JobEmploymentTypeInput struct {
-	ID   string
-	Name string
+	ID        string
+	Name      string
+	SortOrder int64
 }
