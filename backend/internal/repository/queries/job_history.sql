@@ -1,8 +1,8 @@
 -- name: ListJobHistories :many
 SELECT
   job_histories.id,
-  job_histories.company,
-  job_histories.display_name,
+  COALESCE(job_histories.company, '') AS company,
+  COALESCE(job_histories.display_name, '') AS display_name,
   job_histories.start_year,
   job_histories.start_month,
   job_histories.end_year,
@@ -15,13 +15,13 @@ SELECT
   job_histories.updated_at
 FROM job_histories
 JOIN job_employment_types ON job_employment_types.id = job_histories.employment_type_id
-ORDER BY job_histories.sort_order ASC, job_histories.start_year DESC, job_histories.start_month DESC, job_histories.company ASC;
+ORDER BY job_histories.sort_order ASC, job_histories.start_year DESC, job_histories.start_month DESC, COALESCE(job_histories.company, '') ASC;
 
 -- name: GetJobHistory :one
 SELECT
   job_histories.id,
-  job_histories.company,
-  job_histories.display_name,
+  COALESCE(job_histories.company, '') AS company,
+  COALESCE(job_histories.display_name, '') AS display_name,
   job_histories.start_year,
   job_histories.start_month,
   job_histories.end_year,
@@ -38,7 +38,6 @@ WHERE job_histories.id = ?;
 
 -- name: InsertJobHistory :one
 INSERT INTO job_histories (
-  id,
   company,
   display_name,
   start_year,
@@ -50,9 +49,8 @@ INSERT INTO job_histories (
   sort_order
 )
 SELECT
-  ?,
-  ?,
-  ?,
+  NULLIF(?, ''),
+  NULLIF(?, ''),
   ?,
   ?,
   ?,
@@ -63,8 +61,8 @@ SELECT
 FROM job_histories
 RETURNING
   id,
-  company,
-  display_name,
+  COALESCE(company, '') AS company,
+  COALESCE(display_name, '') AS display_name,
   start_year,
   start_month,
   end_year,
@@ -78,8 +76,8 @@ RETURNING
 -- name: UpdateJobHistory :one
 UPDATE job_histories
 SET
-  company = ?,
-  display_name = ?,
+  company = NULLIF(?, ''),
+  display_name = NULLIF(?, ''),
   start_year = ?,
   start_month = ?,
   end_year = ?,
@@ -89,8 +87,8 @@ SET
 WHERE id = ?
 RETURNING
   id,
-  company,
-  display_name,
+  COALESCE(company, '') AS company,
+  COALESCE(display_name, '') AS display_name,
   start_year,
   start_month,
   end_year,

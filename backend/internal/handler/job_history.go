@@ -52,7 +52,7 @@ func (h *JobHistoryHandler) CreateJobHistory(w http.ResponseWriter, r *http.Requ
 
 	input := toJobHistoryInput(request)
 	if !isValidJobHistoryInput(input) {
-		writeJSONError(w, http.StatusBadRequest, "bad_request", "company, displayName, startYear, startMonth and employmentTypeId are required")
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "company or displayName, startYear, startMonth and employmentTypeId are required")
 		return
 	}
 
@@ -82,7 +82,7 @@ func (h *JobHistoryHandler) UpdateJobHistory(w http.ResponseWriter, r *http.Requ
 
 	input := toJobHistoryInput(request)
 	if !isValidJobHistoryInput(input) {
-		writeJSONError(w, http.StatusBadRequest, "bad_request", "company, displayName, startYear, startMonth and employmentTypeId are required")
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "company or displayName, startYear, startMonth and employmentTypeId are required")
 		return
 	}
 
@@ -268,7 +268,7 @@ func toJobHistoryInput(request jobHistoryRequest) domain.JobHistoryInput {
 }
 
 func isValidJobHistoryInput(input domain.JobHistoryInput) bool {
-	if input.Company == "" || input.DisplayName == "" || input.StartYear == 0 || !isValidMonth(input.StartMonth) || input.EmploymentTypeID == "" {
+	if (input.Company == "" && input.DisplayName == "") || input.StartYear == 0 || !isValidMonth(input.StartMonth) || input.EmploymentTypeID == "" {
 		return false
 	}
 	if input.EndYear == nil || input.EndMonth == nil {

@@ -105,8 +105,8 @@ CREATE TABLE IF NOT EXISTS job_employment_types (
 
 CREATE TABLE IF NOT EXISTS job_histories (
     id INTEGER PRIMARY KEY,
-    company TEXT NOT NULL,
-    display_name TEXT NOT NULL,
+    company TEXT,
+    display_name TEXT,
     start_year INTEGER NOT NULL,
     start_month INTEGER NOT NULL,
     end_year INTEGER,

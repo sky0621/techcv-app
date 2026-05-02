@@ -210,8 +210,7 @@ export function JobHistoryPage() {
   };
 
   const canSave =
-    formData.company.trim() !== "" &&
-    formData.displayName.trim() !== "" &&
+    (formData.company.trim() !== "" || formData.displayName.trim() !== "") &&
     formData.startDate.trim() !== "" &&
     formData.employmentTypeId.trim() !== "";
 
@@ -250,8 +249,10 @@ export function JobHistoryPage() {
                       <Briefcase className="w-6 h-6 text-blue-600" />
                     </div>
                     <div>
-                      <CardTitle className="text-xl">{job.displayName}</CardTitle>
-                      <div className="mt-1 text-sm text-gray-500">{job.company}</div>
+                      <CardTitle className="text-xl">{job.displayName || job.company}</CardTitle>
+                      {job.company && job.displayName && (
+                        <div className="mt-1 text-sm text-gray-500">{job.company}</div>
+                      )}
                       <div className="flex items-center gap-3 mt-2 text-sm text-gray-600">
                         <span>
                           {formatYearMonth(job.startYear, job.startMonth)} 〜{" "}
@@ -304,7 +305,7 @@ export function JobHistoryPage() {
                 {editingJob ? "職歴を編集" : "職歴を追加"}
               </DialogTitle>
               <DialogDescription>
-                会社名、所属期間、雇用形態を入力してください
+                会社名または表示名、所属期間、雇用形態を入力してください
               </DialogDescription>
             </DialogHeader>
 

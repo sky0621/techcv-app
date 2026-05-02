@@ -275,6 +275,9 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.migrateJobHistoryDateColumns(ctx); err != nil {
 		return err
 	}
+	if err := r.migrateJobHistoryNullableNames(ctx); err != nil {
+		return err
+	}
 	if err := r.seedJobHistories(ctx); err != nil {
 		return err
 	}
@@ -520,9 +523,7 @@ func (r *SQLiteProfileRepository) ListJobHistories(ctx context.Context) ([]domai
 }
 
 func (r *SQLiteProfileRepository) CreateJobHistory(ctx context.Context, input domain.JobHistoryInput) (*domain.JobHistory, error) {
-	now := time.Now().UTC()
 	row, err := r.queries.InsertJobHistory(ctx, dbgen.InsertJobHistoryParams{
-		ID:               jobHistoryID(now),
 		Company:          input.Company,
 		DisplayName:      input.DisplayName,
 		StartYear:        input.StartYear,
@@ -859,8 +860,8 @@ func (r *SQLiteProfileRepository) migrateJobHistoryDateColumns(ctx context.Conte
 		`DROP TABLE IF EXISTS job_histories_new`,
 		`CREATE TABLE IF NOT EXISTS job_histories_new (
 			id TEXT NOT NULL PRIMARY KEY,
-			company TEXT NOT NULL,
-			display_name TEXT NOT NULL,
+			company TEXT,
+			display_name TEXT,
 			start_year INTEGER NOT NULL,
 			start_month INTEGER NOT NULL,
 			end_year INTEGER,
@@ -906,6 +907,66 @@ func (r *SQLiteProfileRepository) migrateJobHistoryDateColumns(ctx context.Conte
 	for _, statement := range statements {
 		if _, err := r.db.ExecContext(ctx, statement); err != nil {
 			return fmt.Errorf("migrate job_histories date columns: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) migrateJobHistoryNullableNames(ctx context.Context) error {
+	companyNotNull, err := r.tableColumnNotNull(ctx, "job_histories", "company")
+	if err != nil {
+		return err
+	}
+	displayNameNotNull, err := r.tableColumnNotNull(ctx, "job_histories", "display_name")
+	if err != nil {
+		return err
+	}
+	if !companyNotNull && !displayNameNotNull {
+		return nil
+	}
+
+	statements := []string{
+		`PRAGMA foreign_keys = OFF`,
+		`DROP TABLE IF EXISTS job_histories_new`,
+		`CREATE TABLE job_histories_new (
+			id INTEGER PRIMARY KEY,
+			company TEXT,
+			display_name TEXT,
+			start_year INTEGER NOT NULL,
+			start_month INTEGER NOT NULL,
+			end_year INTEGER,
+			end_month INTEGER,
+			employment_type_id INTEGER NOT NULL,
+			project_count INTEGER NOT NULL DEFAULT 0,
+			sort_order INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (employment_type_id) REFERENCES job_employment_types(id)
+		)`,
+		`INSERT INTO job_histories_new
+		SELECT
+			id,
+			NULLIF(company, ''),
+			NULLIF(display_name, ''),
+			start_year,
+			start_month,
+			end_year,
+			end_month,
+			employment_type_id,
+			project_count,
+			sort_order,
+			created_at,
+			updated_at
+		FROM job_histories`,
+		`DROP TABLE job_histories`,
+		`ALTER TABLE job_histories_new RENAME TO job_histories`,
+		`PRAGMA foreign_keys = ON`,
+	}
+	for _, statement := range statements {
+		if _, err := r.db.ExecContext(ctx, statement); err != nil {
+			_, _ = r.db.ExecContext(ctx, "PRAGMA foreign_keys = ON")
+			return fmt.Errorf("migrate job_histories nullable names: %w", err)
 		}
 	}
 
@@ -1328,8 +1389,8 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 		JOIN _job_employment_type_id_map ON _job_employment_type_id_map.old_id = job_employment_types.id`,
 		`CREATE TABLE job_histories_new (
 			id INTEGER PRIMARY KEY,
-			company TEXT NOT NULL,
-			display_name TEXT NOT NULL,
+			company TEXT,
+			display_name TEXT,
 			start_year INTEGER NOT NULL,
 			start_month INTEGER NOT NULL,
 			end_year INTEGER,
@@ -1839,6 +1900,36 @@ func (r *SQLiteProfileRepository) tableHasColumn(ctx context.Context, tableName 
 	return false, nil
 }
 
+func (r *SQLiteProfileRepository) tableColumnNotNull(ctx context.Context, tableName string, columnName string) (bool, error) {
+	rows, err := r.db.QueryContext(ctx, "PRAGMA table_info("+tableName+")")
+	if err != nil {
+		return false, fmt.Errorf("inspect %s columns: %w", tableName, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			cid          int
+			name         string
+			columnType   string
+			notNull      int
+			defaultValue sql.NullString
+			primaryKey   int
+		)
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+			return false, fmt.Errorf("scan %s column: %w", tableName, err)
+		}
+		if name == columnName {
+			return notNull != 0, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("iterate %s columns: %w", tableName, err)
+	}
+
+	return false, fmt.Errorf("%s.%s column not found", tableName, columnName)
+}
+
 func (r *SQLiteProfileRepository) tableColumnType(ctx context.Context, tableName string, columnName string) (string, error) {
 	rows, err := r.db.QueryContext(ctx, "PRAGMA table_info("+tableName+")")
 	if err != nil {
@@ -2138,10 +2229,6 @@ func qualificationID(qualification domain.Qualification, index int, now time.Tim
 }
 
 func skillID(now time.Time) string {
-	return fmt.Sprintf("%d", now.UnixNano())
-}
-
-func jobHistoryID(now time.Time) string {
 	return fmt.Sprintf("%d", now.UnixNano())
 }
 
