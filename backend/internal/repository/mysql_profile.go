@@ -1529,19 +1529,18 @@ func (r *SQLiteProfileRepository) migrateProfileLinks(ctx context.Context) error
 func (r *SQLiteProfileRepository) listProfileLinks(ctx context.Context, profileID string) ([]domain.ProfileLink, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT
-			COALESCE(profile_links.id, 0),
+			profile_links.id,
 			profile_link_masters.id,
 			profile_link_masters.key,
 			profile_link_masters.name,
 			profile_link_masters.icon,
 			profile_link_masters.placeholder,
-			COALESCE(profile_links.url, ''),
-			profile_link_masters.sort_order
-		FROM profile_link_masters
-		LEFT JOIN profile_links
-			ON profile_links.link_master_id = profile_link_masters.id
-			AND profile_links.profile_id = ?
-		ORDER BY profile_link_masters.sort_order ASC, profile_link_masters.name ASC
+			profile_links.url,
+			profile_links.sort_order
+		FROM profile_links
+		JOIN profile_link_masters ON profile_link_masters.id = profile_links.link_master_id
+		WHERE profile_links.profile_id = ?
+		ORDER BY profile_links.sort_order ASC, profile_link_masters.sort_order ASC, profile_link_masters.name ASC
 	`, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("query profile links: %w", err)
@@ -1553,9 +1552,6 @@ func (r *SQLiteProfileRepository) listProfileLinks(ctx context.Context, profileI
 		var link domain.ProfileLink
 		if err := rows.Scan(&link.ID, &link.LinkMasterID, &link.Key, &link.Name, &link.Icon, &link.Placeholder, &link.URL, &link.SortOrder); err != nil {
 			return nil, fmt.Errorf("scan profile link: %w", err)
-		}
-		if link.ID == "0" {
-			link.ID = ""
 		}
 		links = append(links, link)
 	}
@@ -2114,6 +2110,11 @@ func toDomainJobEmploymentType(row dbgen.JobEmploymentType) *domain.JobEmploymen
 }
 
 func syncLegacyProfileLinkColumns(profile *domain.Profile) {
+	profile.GitHubURL = ""
+	profile.ZennURL = ""
+	profile.QiitaURL = ""
+	profile.WebsiteURL = ""
+
 	for _, link := range profile.Links {
 		switch link.Key {
 		case "github":

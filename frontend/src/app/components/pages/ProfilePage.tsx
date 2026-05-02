@@ -6,6 +6,7 @@ import { Textarea } from "../ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Switch } from "../ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import * as LucideIcons from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Award, Plus, Trash2 } from "lucide-react";
@@ -210,6 +211,8 @@ function emptyQualification(): QualificationForm {
 
 export function ProfilePage() {
   const [profile, setProfile] = useState<ProfileForm>(initialProfile);
+  const [linkMasters, setLinkMasters] = useState<ProfileLinkMaster[]>([]);
+  const [newLinkMasterId, setNewLinkMasterId] = useState("");
   const [visibility, setVisibility] = useState<VisibilityForm>(initialVisibility);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -234,19 +237,11 @@ export function ProfilePage() {
 
         const data = (await profileResponse.json()) as ProfileResponse;
         const linkMasterData = (await linkMastersResponse.json()) as ProfileLinkMastersResponse;
-        const form = toProfileForm(data.profile);
-        const linkByMasterId = new Map(form.links.map((link) => [link.linkMasterId, link]));
-        form.links = (linkMasterData.linkMasters ?? []).map((master) => ({
-          id: linkByMasterId.get(master.id)?.id ?? "",
-          linkMasterId: master.id,
-          key: master.key,
-          name: master.name,
-          icon: master.icon,
-          placeholder: master.placeholder,
-          url: linkByMasterId.get(master.id)?.url ?? "",
-          sortOrder: master.sortOrder,
-        }));
-        setProfile(form);
+        const masters = linkMasterData.linkMasters ?? [];
+        setLinkMasters(masters);
+        setProfile(toProfileForm(data.profile));
+        const registeredMasterIds = new Set((data.profile.links ?? []).map((link) => link.linkMasterId));
+        setNewLinkMasterId(masters.find((master) => !registeredMasterIds.has(master.id))?.id ?? "");
         setVisibility({
           ...initialVisibility,
           ...data.profile.visibilitySettings,
@@ -289,6 +284,8 @@ export function ProfilePage() {
 
       const data = (await response.json()) as ProfileResponse;
       setProfile(toProfileForm(data.profile));
+      const registeredMasterIds = new Set((data.profile.links ?? []).map((link) => link.linkMasterId));
+      setNewLinkMasterId(linkMasters.find((master) => !registeredMasterIds.has(master.id))?.id ?? "");
       setVisibility({
         ...initialVisibility,
         ...data.profile.visibilitySettings,
@@ -338,6 +335,44 @@ export function ProfilePage() {
       links: current.links.map((link, linkIndex) =>
         linkIndex === index ? { ...link, url } : link
       ),
+    }));
+  };
+
+  const registeredLinkMasterIds = new Set(profile.links.map((link) => link.linkMasterId));
+  const availableLinkMasters = linkMasters.filter((master) => !registeredLinkMasterIds.has(master.id));
+  const selectedLinkMasterId = availableLinkMasters.some((master) => master.id === newLinkMasterId)
+    ? newLinkMasterId
+    : availableLinkMasters[0]?.id ?? "";
+
+  const addLink = () => {
+    const master = linkMasters.find((candidate) => candidate.id === selectedLinkMasterId);
+    if (!master) return;
+
+    setProfile((current) => ({
+      ...current,
+      links: [
+        ...current.links,
+        {
+          id: "",
+          linkMasterId: master.id,
+          key: master.key,
+          name: master.name,
+          icon: master.icon,
+          placeholder: master.placeholder,
+          url: "",
+          sortOrder: master.sortOrder,
+        },
+      ].sort((left, right) => left.sortOrder - right.sortOrder),
+    }));
+    setNewLinkMasterId(
+      availableLinkMasters.find((candidate) => candidate.id !== master.id)?.id ?? "",
+    );
+  };
+
+  const removeLink = (index: number) => {
+    setProfile((current) => ({
+      ...current,
+      links: current.links.filter((_, linkIndex) => linkIndex !== index),
     }));
   };
 
@@ -456,30 +491,76 @@ export function ProfilePage() {
 
           <TabsContent value="links" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle>SNS・外部リンク</CardTitle>
-                <CardDescription>GitHub、Zenn、Qiitaなどのリンク</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between gap-4">
+                <div>
+                  <CardTitle>SNS・外部リンク</CardTitle>
+                  <CardDescription>登録済みの外部リンクを管理</CardDescription>
+                </div>
+                <div className="flex min-w-80 items-center gap-2">
+                  <Select
+                    value={selectedLinkMasterId}
+                    onValueChange={setNewLinkMasterId}
+                    disabled={availableLinkMasters.length === 0}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="追加するリンク種別" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableLinkMasters.map((master) => (
+                        <SelectItem key={master.id} value={master.id}>
+                          {master.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={addLink}
+                    disabled={availableLinkMasters.length === 0}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    追加
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {profile.links.map((link, index) => {
-                  const Icon = getIcon(link.icon);
-                  const inputID = `profile-link-${link.linkMasterId}`;
+                {profile.links.length === 0 ? (
+                  <div className="rounded-md border border-dashed p-6 text-center text-sm text-gray-500">
+                    SNS・外部リンクはまだ登録されていません。
+                  </div>
+                ) : (
+                  profile.links.map((link, index) => {
+                    const Icon = getIcon(link.icon);
+                    const inputID = `profile-link-${link.linkMasterId}`;
 
-                  return (
-                    <div key={link.linkMasterId} className="space-y-2">
-                      <Label htmlFor={inputID} className="flex items-center gap-2">
-                        <Icon className="w-4 h-4" />
-                        {link.name}
-                      </Label>
-                      <Input
-                        id={inputID}
-                        placeholder={link.placeholder}
-                        value={link.url}
-                        onChange={(e) => updateLink(index, e.target.value)}
-                      />
-                    </div>
-                  );
-                })}
+                    return (
+                      <div key={link.linkMasterId} className="space-y-3 rounded-md border p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <Label htmlFor={inputID} className="flex items-center gap-2 text-base font-medium">
+                            <Icon className="w-4 h-4" />
+                            {link.name}
+                          </Label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeLink(index)}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            削除
+                          </Button>
+                        </div>
+                        <Input
+                          id={inputID}
+                          placeholder={link.placeholder}
+                          value={link.url}
+                          onChange={(e) => updateLink(index, e.target.value)}
+                        />
+                      </div>
+                    );
+                  })
+                )}
               </CardContent>
             </Card>
           </TabsContent>
