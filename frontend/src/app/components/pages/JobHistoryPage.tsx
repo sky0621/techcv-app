@@ -52,6 +52,32 @@ function formatEndYearMonth(year: number | null, month: number | null) {
   return formatYearMonth(year, month);
 }
 
+function formatDurationMonths(totalMonths: number) {
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
+
+  if (years === 0) {
+    return `${months}ヶ月`;
+  }
+  if (months === 0) {
+    return `${years}年`;
+  }
+
+  return `${years}年${months}ヶ月`;
+}
+
+function formatJobDuration(job: JobHistory) {
+  const now = new Date();
+  const endYear = job.endYear ?? now.getFullYear();
+  const endMonth = job.endMonth ?? now.getMonth() + 1;
+  const totalMonths = Math.max(
+    1,
+    (endYear - job.startYear) * 12 + endMonth - job.startMonth + 1,
+  );
+
+  return formatDurationMonths(totalMonths);
+}
+
 function parseYearMonth(value: string) {
   const [year, month] = value.split("-").map(Number);
 
@@ -258,6 +284,7 @@ export function JobHistoryPage() {
                           {formatYearMonth(job.startYear, job.startMonth)} 〜{" "}
                           {formatEndYearMonth(job.endYear, job.endMonth)}
                         </span>
+                        <span>期間: {formatJobDuration(job)}</span>
                         <Badge variant="outline">{job.employmentType}</Badge>
                         <span>{job.projectCount}件の案件</span>
                       </div>
