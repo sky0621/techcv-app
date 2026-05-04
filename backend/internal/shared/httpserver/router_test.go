@@ -628,6 +628,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 	var listResp struct {
 		JobHistories []struct {
 			ID               string `json:"id"`
+			CompanyID        string `json:"companyId"`
 			Company          string `json:"company"`
 			DisplayName      string `json:"displayName"`
 			StartYear        int64  `json:"startYear"`
@@ -645,7 +646,8 @@ func TestJobHistoryRoutes(t *testing.T) {
 	if len(listResp.JobHistories) != 1 {
 		t.Fatalf("expected one seeded job history, got %#v", listResp.JobHistories)
 	}
-	if listResp.JobHistories[0].Company != "株式会社A" ||
+	if listResp.JobHistories[0].CompanyID != "1" ||
+		listResp.JobHistories[0].Company != "株式会社A" ||
 		listResp.JobHistories[0].DisplayName != "株式会社A" ||
 		listResp.JobHistories[0].StartYear != 2023 ||
 		listResp.JobHistories[0].StartMonth != 1 ||
@@ -682,7 +684,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 	}
 
 	createBody := []byte(`{
-		"company":"株式会社C",
+		"companyId":"1",
 		"displayName":"表示用C",
 		"startYear":2024,
 		"startMonth":1,
@@ -701,6 +703,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 	var createResp struct {
 		JobHistory struct {
 			ID               string `json:"id"`
+			CompanyID        string `json:"companyId"`
 			Company          string `json:"company"`
 			DisplayName      string `json:"displayName"`
 			StartYear        int64  `json:"startYear"`
@@ -716,6 +719,8 @@ func TestJobHistoryRoutes(t *testing.T) {
 		t.Fatalf("failed to decode create response: %v", err)
 	}
 	if createResp.JobHistory.ID == "" ||
+		createResp.JobHistory.CompanyID != "1" ||
+		createResp.JobHistory.Company != "株式会社A" ||
 		createResp.JobHistory.DisplayName != "表示用C" ||
 		createResp.JobHistory.EndYear != nil ||
 		createResp.JobHistory.EndMonth != nil ||
@@ -726,7 +731,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 	}
 
 	updateBody := []byte(`{
-		"company":"株式会社C Updated",
+		"companyId":"1",
 		"displayName":"表示用C Updated",
 		"startYear":2024,
 		"startMonth":2,
@@ -744,6 +749,7 @@ func TestJobHistoryRoutes(t *testing.T) {
 
 	var updateResp struct {
 		JobHistory struct {
+			CompanyID        string `json:"companyId"`
 			Company          string `json:"company"`
 			DisplayName      string `json:"displayName"`
 			StartYear        int64  `json:"startYear"`
@@ -757,7 +763,8 @@ func TestJobHistoryRoutes(t *testing.T) {
 	if err := json.Unmarshal(updateRec.Body.Bytes(), &updateResp); err != nil {
 		t.Fatalf("failed to decode update response: %v", err)
 	}
-	if updateResp.JobHistory.Company != "株式会社C Updated" ||
+	if updateResp.JobHistory.CompanyID != "1" ||
+		updateResp.JobHistory.Company != "株式会社A" ||
 		updateResp.JobHistory.DisplayName != "表示用C Updated" ||
 		updateResp.JobHistory.StartYear != 2024 ||
 		updateResp.JobHistory.StartMonth != 2 ||
@@ -1035,6 +1042,7 @@ func newTestProfileRepository() *testProfileRepository {
 		jobHistories: []domain.JobHistory{
 			{
 				ID:               "1",
+				CompanyID:        "1",
 				Company:          "株式会社A",
 				DisplayName:      "株式会社A",
 				StartYear:        2023,
@@ -1385,11 +1393,16 @@ func (r *testProfileRepository) CreateJobHistory(_ context.Context, input domain
 	if !ok {
 		return nil, sql.ErrNoRows
 	}
+	company, ok := r.findJobCompany(input.CompanyID)
+	if input.CompanyID != "" && !ok {
+		return nil, sql.ErrNoRows
+	}
 
 	r.nextJobHistoryID++
 	jobHistory := domain.JobHistory{
 		ID:               "job_history_test_new",
-		Company:          input.Company,
+		CompanyID:        input.CompanyID,
+		Company:          company.Name,
 		DisplayName:      input.DisplayName,
 		StartYear:        input.StartYear,
 		StartMonth:       input.StartMonth,
@@ -1412,10 +1425,15 @@ func (r *testProfileRepository) UpdateJobHistory(_ context.Context, id string, i
 	if !ok {
 		return nil, sql.ErrNoRows
 	}
+	company, ok := r.findJobCompany(input.CompanyID)
+	if input.CompanyID != "" && !ok {
+		return nil, sql.ErrNoRows
+	}
 
 	for index, jobHistory := range r.jobHistories {
 		if jobHistory.ID == id {
-			r.jobHistories[index].Company = input.Company
+			r.jobHistories[index].CompanyID = input.CompanyID
+			r.jobHistories[index].Company = company.Name
 			r.jobHistories[index].DisplayName = input.DisplayName
 			r.jobHistories[index].StartYear = input.StartYear
 			r.jobHistories[index].StartMonth = input.StartMonth
@@ -1645,4 +1663,14 @@ func (r *testProfileRepository) findEmploymentType(id string) (domain.JobEmploym
 	}
 
 	return domain.JobEmploymentType{}, false
+}
+
+func (r *testProfileRepository) findJobCompany(id string) (domain.JobCompany, bool) {
+	for _, company := range r.jobCompanies {
+		if company.ID == id {
+			return company, true
+		}
+	}
+
+	return domain.JobCompany{}, false
 }

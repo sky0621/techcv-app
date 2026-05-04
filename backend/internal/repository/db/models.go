@@ -19,6 +19,7 @@ type JobEmploymentType struct {
 
 type JobHistory struct {
 	ID               string
+	CompanyID        string
 	Company          string
 	DisplayName      string
 	StartYear        int64

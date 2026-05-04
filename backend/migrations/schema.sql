@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS job_companies (
 
 CREATE TABLE IF NOT EXISTS job_histories (
     id INTEGER PRIMARY KEY,
-    company TEXT,
+    company_id INTEGER,
     display_name TEXT,
     start_year INTEGER NOT NULL,
     start_month INTEGER NOT NULL,
@@ -123,6 +123,7 @@ CREATE TABLE IF NOT EXISTS job_histories (
     project_count INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (company_id) REFERENCES job_companies(id),
     FOREIGN KEY (employment_type_id) REFERENCES job_employment_types(id)
 );
 

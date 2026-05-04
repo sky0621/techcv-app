@@ -1,7 +1,8 @@
 -- name: ListJobHistories :many
 SELECT
   job_histories.id,
-  COALESCE(job_histories.company, '') AS company,
+  COALESCE(CAST(job_histories.company_id AS TEXT), '') AS company_id,
+  COALESCE(job_companies.name, '') AS company,
   COALESCE(job_histories.display_name, '') AS display_name,
   job_histories.start_year,
   job_histories.start_month,
@@ -13,13 +14,15 @@ SELECT
   job_histories.created_at,
   job_histories.updated_at
 FROM job_histories
+LEFT JOIN job_companies ON job_companies.id = job_histories.company_id
 JOIN job_employment_types ON job_employment_types.id = job_histories.employment_type_id
-ORDER BY job_histories.start_year DESC, job_histories.start_month DESC, COALESCE(job_histories.company, '') ASC;
+ORDER BY job_histories.start_year DESC, job_histories.start_month DESC, COALESCE(job_companies.name, '') ASC;
 
 -- name: GetJobHistory :one
 SELECT
   job_histories.id,
-  COALESCE(job_histories.company, '') AS company,
+  COALESCE(CAST(job_histories.company_id AS TEXT), '') AS company_id,
+  COALESCE(job_companies.name, '') AS company,
   COALESCE(job_histories.display_name, '') AS display_name,
   job_histories.start_year,
   job_histories.start_month,
@@ -31,12 +34,13 @@ SELECT
   job_histories.created_at,
   job_histories.updated_at
 FROM job_histories
+LEFT JOIN job_companies ON job_companies.id = job_histories.company_id
 JOIN job_employment_types ON job_employment_types.id = job_histories.employment_type_id
 WHERE job_histories.id = ?;
 
 -- name: InsertJobHistory :one
 INSERT INTO job_histories (
-  company,
+  company_id,
   display_name,
   start_year,
   start_month,
@@ -57,7 +61,8 @@ VALUES (
 )
 RETURNING
   id,
-  COALESCE(company, '') AS company,
+  COALESCE(CAST(company_id AS TEXT), '') AS company_id,
+  '' AS company,
   COALESCE(display_name, '') AS display_name,
   start_year,
   start_month,
@@ -71,7 +76,7 @@ RETURNING
 -- name: UpdateJobHistory :one
 UPDATE job_histories
 SET
-  company = NULLIF(?, ''),
+  company_id = NULLIF(?, ''),
   display_name = NULLIF(?, ''),
   start_year = ?,
   start_month = ?,
@@ -82,7 +87,8 @@ SET
 WHERE id = ?
 RETURNING
   id,
-  COALESCE(company, '') AS company,
+  COALESCE(CAST(company_id AS TEXT), '') AS company_id,
+  '' AS company,
   COALESCE(display_name, '') AS display_name,
   start_year,
   start_month,

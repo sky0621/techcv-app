@@ -272,6 +272,9 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.seedJobEmploymentTypes(ctx); err != nil {
 		return err
 	}
+	if err := r.seedJobCompanies(ctx); err != nil {
+		return err
+	}
 	if err := r.migrateJobHistoryDateColumns(ctx); err != nil {
 		return err
 	}
@@ -281,10 +284,13 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.migrateJobHistorySortOrderColumn(ctx); err != nil {
 		return err
 	}
-	if err := r.seedJobHistories(ctx); err != nil {
+	if err := r.backfillJobCompanies(ctx); err != nil {
 		return err
 	}
-	if err := r.backfillJobCompanies(ctx); err != nil {
+	if err := r.migrateJobHistoryCompanyID(ctx); err != nil {
+		return err
+	}
+	if err := r.seedJobHistories(ctx); err != nil {
 		return err
 	}
 	if err := r.migrateProjectDateColumns(ctx); err != nil {
@@ -530,7 +536,7 @@ func (r *SQLiteProfileRepository) ListJobHistories(ctx context.Context) ([]domai
 
 func (r *SQLiteProfileRepository) CreateJobHistory(ctx context.Context, input domain.JobHistoryInput) (*domain.JobHistory, error) {
 	row, err := r.queries.InsertJobHistory(ctx, dbgen.InsertJobHistoryParams{
-		Company:          input.Company,
+		CompanyID:        input.CompanyID,
 		DisplayName:      input.DisplayName,
 		StartYear:        input.StartYear,
 		StartMonth:       input.StartMonth,
@@ -553,7 +559,7 @@ func (r *SQLiteProfileRepository) CreateJobHistory(ctx context.Context, input do
 func (r *SQLiteProfileRepository) UpdateJobHistory(ctx context.Context, id string, input domain.JobHistoryInput) (*domain.JobHistory, error) {
 	row, err := r.queries.UpdateJobHistory(ctx, dbgen.UpdateJobHistoryParams{
 		ID:               id,
-		Company:          input.Company,
+		CompanyID:        input.CompanyID,
 		DisplayName:      input.DisplayName,
 		StartYear:        input.StartYear,
 		StartMonth:       input.StartMonth,
@@ -977,6 +983,14 @@ func (r *SQLiteProfileRepository) migrateJobHistoryDateColumns(ctx context.Conte
 }
 
 func (r *SQLiteProfileRepository) migrateJobHistoryNullableNames(ctx context.Context) error {
+	hasCompanyColumn, err := r.tableHasColumn(ctx, "job_histories", "company")
+	if err != nil {
+		return err
+	}
+	if !hasCompanyColumn {
+		return nil
+	}
+
 	companyNotNull, err := r.tableColumnNotNull(ctx, "job_histories", "company")
 	if err != nil {
 		return err
@@ -1083,6 +1097,74 @@ func (r *SQLiteProfileRepository) migrateJobHistorySortOrderColumn(ctx context.C
 		if _, err := r.db.ExecContext(ctx, statement); err != nil {
 			_, _ = r.db.ExecContext(ctx, "PRAGMA foreign_keys = ON")
 			return fmt.Errorf("migrate job_histories sort_order column: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) migrateJobHistoryCompanyID(ctx context.Context) error {
+	hasCompanyColumn, err := r.tableHasColumn(ctx, "job_histories", "company")
+	if err != nil {
+		return err
+	}
+	if !hasCompanyColumn {
+		return nil
+	}
+
+	statements := []string{
+		`PRAGMA foreign_keys = OFF`,
+		`DROP TABLE IF EXISTS job_histories_new`,
+		`CREATE TABLE job_histories_new (
+			id INTEGER PRIMARY KEY,
+			company_id INTEGER,
+			display_name TEXT,
+			start_year INTEGER NOT NULL,
+			start_month INTEGER NOT NULL,
+			end_year INTEGER,
+			end_month INTEGER,
+			employment_type_id INTEGER NOT NULL,
+			project_count INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (company_id) REFERENCES job_companies(id),
+			FOREIGN KEY (employment_type_id) REFERENCES job_employment_types(id)
+		)`,
+		`INSERT INTO job_histories_new (
+			id,
+			company_id,
+			display_name,
+			start_year,
+			start_month,
+			end_year,
+			end_month,
+			employment_type_id,
+			project_count,
+			created_at,
+			updated_at
+		)
+		SELECT
+			job_histories.id,
+			job_companies.id,
+			job_histories.display_name,
+			job_histories.start_year,
+			job_histories.start_month,
+			job_histories.end_year,
+			job_histories.end_month,
+			job_histories.employment_type_id,
+			job_histories.project_count,
+			job_histories.created_at,
+			job_histories.updated_at
+		FROM job_histories
+		LEFT JOIN job_companies ON job_companies.name = job_histories.company`,
+		`DROP TABLE job_histories`,
+		`ALTER TABLE job_histories_new RENAME TO job_histories`,
+		`PRAGMA foreign_keys = ON`,
+	}
+	for _, statement := range statements {
+		if _, err := r.db.ExecContext(ctx, statement); err != nil {
+			_, _ = r.db.ExecContext(ctx, "PRAGMA foreign_keys = ON")
+			return fmt.Errorf("migrate job_histories company_id: %w", err)
 		}
 	}
 
@@ -1319,8 +1401,16 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 	}
 	if hasJobHistorySortOrderColumn {
 		jobHistoryIDMapStatement = `CREATE TEMP TABLE _job_history_id_map AS
-		SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, id ASC) AS new_id
-		FROM job_histories`
+			SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, id ASC) AS new_id
+			FROM job_histories`
+	}
+	jobHistoryCompanyIDExpression := "NULL"
+	hasJobHistoryCompanyIDColumn, err := r.tableHasColumn(ctx, "job_histories", "company_id")
+	if err != nil {
+		return err
+	}
+	if hasJobHistoryCompanyIDColumn {
+		jobHistoryCompanyIDExpression = "job_histories.company_id"
 	}
 
 	statements := []string{
@@ -1516,7 +1606,7 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 		JOIN _job_employment_type_id_map ON _job_employment_type_id_map.old_id = job_employment_types.id`,
 		`CREATE TABLE job_histories_new (
 			id INTEGER PRIMARY KEY,
-			company TEXT,
+			company_id INTEGER,
 			display_name TEXT,
 			start_year INTEGER NOT NULL,
 			start_month INTEGER NOT NULL,
@@ -1526,12 +1616,13 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 			project_count INTEGER NOT NULL DEFAULT 0,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (company_id) REFERENCES job_companies(id),
 			FOREIGN KEY (employment_type_id) REFERENCES job_employment_types(id)
 		)`,
-		`INSERT INTO job_histories_new
+		fmt.Sprintf(`INSERT INTO job_histories_new
 		SELECT
 			_job_history_id_map.new_id,
-			job_histories.company,
+			%s,
 			job_histories.display_name,
 			job_histories.start_year,
 			job_histories.start_month,
@@ -1543,7 +1634,7 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 			job_histories.updated_at
 		FROM job_histories
 		JOIN _job_history_id_map ON _job_history_id_map.old_id = job_histories.id
-		JOIN _job_employment_type_id_map ON _job_employment_type_id_map.old_id = job_histories.employment_type_id`,
+		JOIN _job_employment_type_id_map ON _job_employment_type_id_map.old_id = job_histories.employment_type_id`, jobHistoryCompanyIDExpression),
 		`CREATE TABLE projects_new (
 			id INTEGER PRIMARY KEY,
 			name TEXT NOT NULL,
@@ -1859,6 +1950,21 @@ func (r *SQLiteProfileRepository) seedJobEmploymentTypes(ctx context.Context) er
 	return nil
 }
 
+func (r *SQLiteProfileRepository) seedJobCompanies(ctx context.Context) error {
+	companyNames := []string{"株式会社A", "株式会社B", "フリーランス"}
+	for _, companyName := range companyNames {
+		if _, err := r.db.ExecContext(
+			ctx,
+			"INSERT OR IGNORE INTO job_companies (name, url) VALUES (?, '')",
+			companyName,
+		); err != nil {
+			return fmt.Errorf("seed job company %s: %w", companyName, err)
+		}
+	}
+
+	return nil
+}
+
 func (r *SQLiteProfileRepository) seedJobHistories(ctx context.Context) error {
 	jobHistories := []struct {
 		id               string
@@ -1878,7 +1984,28 @@ func (r *SQLiteProfileRepository) seedJobHistories(ctx context.Context) error {
 	for _, jobHistory := range jobHistories {
 		if _, err := r.db.ExecContext(
 			ctx,
-			"INSERT OR IGNORE INTO job_histories (id, company, display_name, start_year, start_month, end_year, end_month, employment_type_id, project_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			`INSERT OR IGNORE INTO job_histories (
+				id,
+				company_id,
+				display_name,
+				start_year,
+				start_month,
+				end_year,
+				end_month,
+				employment_type_id,
+				project_count
+			)
+			VALUES (
+				?,
+				(SELECT id FROM job_companies WHERE name = ? LIMIT 1),
+				?,
+				?,
+				?,
+				?,
+				?,
+				?,
+				?
+			)`,
 			jobHistory.id,
 			jobHistory.company,
 			jobHistory.displayName,
@@ -1897,6 +2024,14 @@ func (r *SQLiteProfileRepository) seedJobHistories(ctx context.Context) error {
 }
 
 func (r *SQLiteProfileRepository) backfillJobCompanies(ctx context.Context) error {
+	hasCompanyColumn, err := r.tableHasColumn(ctx, "job_histories", "company")
+	if err != nil {
+		return err
+	}
+	if !hasCompanyColumn {
+		return nil
+	}
+
 	if _, err := r.db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO job_companies (name, url)
 		SELECT DISTINCT company, ''
@@ -2246,6 +2381,7 @@ func toDomainJobHistories(rows []dbgen.ListJobHistoriesRow) []domain.JobHistory 
 	for _, row := range rows {
 		jobHistories = append(jobHistories, domain.JobHistory{
 			ID:               row.ID,
+			CompanyID:        row.CompanyID,
 			Company:          row.Company,
 			DisplayName:      row.DisplayName,
 			StartYear:        row.StartYear,
@@ -2264,6 +2400,7 @@ func toDomainJobHistories(rows []dbgen.ListJobHistoriesRow) []domain.JobHistory 
 func toDomainJobHistory(row dbgen.GetJobHistoryRow) *domain.JobHistory {
 	return &domain.JobHistory{
 		ID:               row.ID,
+		CompanyID:        row.CompanyID,
 		Company:          row.Company,
 		DisplayName:      row.DisplayName,
 		StartYear:        row.StartYear,

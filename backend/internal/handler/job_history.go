@@ -53,7 +53,7 @@ func (h *JobHistoryHandler) CreateJobHistory(w http.ResponseWriter, r *http.Requ
 
 	input := toJobHistoryInput(request)
 	if !isValidJobHistoryInput(input) {
-		writeJSONError(w, http.StatusBadRequest, "bad_request", "company or displayName, startYear, startMonth and employmentTypeId are required")
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "companyId or displayName, startYear, startMonth and employmentTypeId are required")
 		return
 	}
 
@@ -83,7 +83,7 @@ func (h *JobHistoryHandler) UpdateJobHistory(w http.ResponseWriter, r *http.Requ
 
 	input := toJobHistoryInput(request)
 	if !isValidJobHistoryInput(input) {
-		writeJSONError(w, http.StatusBadRequest, "bad_request", "company or displayName, startYear, startMonth and employmentTypeId are required")
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "companyId or displayName, startYear, startMonth and employmentTypeId are required")
 		return
 	}
 
@@ -259,7 +259,7 @@ type jobCompanyResponse struct {
 }
 
 type jobHistoryRequest struct {
-	Company          string `json:"company"`
+	CompanyID        string `json:"companyId"`
 	DisplayName      string `json:"displayName"`
 	StartYear        int64  `json:"startYear"`
 	StartMonth       int64  `json:"startMonth"`
@@ -270,6 +270,7 @@ type jobHistoryRequest struct {
 
 type jobHistoryPayload struct {
 	ID               string `json:"id"`
+	CompanyID        string `json:"companyId"`
 	Company          string `json:"company"`
 	DisplayName      string `json:"displayName"`
 	StartYear        int64  `json:"startYear"`
@@ -317,6 +318,7 @@ func toJobHistoryPayloads(values []domain.JobHistory) []jobHistoryPayload {
 func toJobHistoryPayload(value domain.JobHistory) jobHistoryPayload {
 	return jobHistoryPayload{
 		ID:               value.ID,
+		CompanyID:        value.CompanyID,
 		Company:          value.Company,
 		DisplayName:      value.DisplayName,
 		StartYear:        value.StartYear,
@@ -331,7 +333,7 @@ func toJobHistoryPayload(value domain.JobHistory) jobHistoryPayload {
 
 func toJobHistoryInput(request jobHistoryRequest) domain.JobHistoryInput {
 	return domain.JobHistoryInput{
-		Company:          strings.TrimSpace(request.Company),
+		CompanyID:        strings.TrimSpace(request.CompanyID),
 		DisplayName:      strings.TrimSpace(request.DisplayName),
 		StartYear:        request.StartYear,
 		StartMonth:       request.StartMonth,
@@ -342,7 +344,7 @@ func toJobHistoryInput(request jobHistoryRequest) domain.JobHistoryInput {
 }
 
 func isValidJobHistoryInput(input domain.JobHistoryInput) bool {
-	if (input.Company == "" && input.DisplayName == "") || input.StartYear == 0 || !isValidMonth(input.StartMonth) || input.EmploymentTypeID == "" {
+	if (input.CompanyID == "" && input.DisplayName == "") || input.StartYear == 0 || !isValidMonth(input.StartMonth) || input.EmploymentTypeID == "" {
 		return false
 	}
 	if input.EndYear == nil || input.EndMonth == nil {

@@ -27,7 +27,8 @@ func (q *Queries) DeleteJobHistory(ctx context.Context, id string) (int64, error
 const getJobHistory = `-- name: GetJobHistory :one
 SELECT
   job_histories.id,
-  COALESCE(job_histories.company, '') AS company,
+  COALESCE(CAST(job_histories.company_id AS TEXT), '') AS company_id,
+  COALESCE(job_companies.name, '') AS company,
   COALESCE(job_histories.display_name, '') AS display_name,
   job_histories.start_year,
   job_histories.start_month,
@@ -39,12 +40,14 @@ SELECT
   job_histories.created_at,
   job_histories.updated_at
 FROM job_histories
+LEFT JOIN job_companies ON job_companies.id = job_histories.company_id
 JOIN job_employment_types ON job_employment_types.id = job_histories.employment_type_id
 WHERE job_histories.id = ?
 `
 
 type GetJobHistoryRow struct {
 	ID               string
+	CompanyID        string
 	Company          string
 	DisplayName      string
 	StartYear        int64
@@ -63,6 +66,7 @@ func (q *Queries) GetJobHistory(ctx context.Context, id string) (GetJobHistoryRo
 	var i GetJobHistoryRow
 	err := row.Scan(
 		&i.ID,
+		&i.CompanyID,
 		&i.Company,
 		&i.DisplayName,
 		&i.StartYear,
@@ -118,7 +122,7 @@ func (q *Queries) InsertJobEmploymentType(ctx context.Context, arg InsertJobEmpl
 
 const insertJobHistory = `-- name: InsertJobHistory :one
 INSERT INTO job_histories (
-  company,
+  company_id,
   display_name,
   start_year,
   start_month,
@@ -139,7 +143,8 @@ VALUES (
 )
 RETURNING
   id,
-  COALESCE(company, '') AS company,
+  COALESCE(CAST(company_id AS TEXT), '') AS company_id,
+  '' AS company,
   COALESCE(display_name, '') AS display_name,
   start_year,
   start_month,
@@ -152,7 +157,7 @@ RETURNING
 `
 
 type InsertJobHistoryParams struct {
-	Company          string
+	CompanyID        string
 	DisplayName      string
 	StartYear        int64
 	StartMonth       int64
@@ -163,7 +168,7 @@ type InsertJobHistoryParams struct {
 
 func (q *Queries) InsertJobHistory(ctx context.Context, arg InsertJobHistoryParams) (JobHistory, error) {
 	row := q.db.QueryRowContext(ctx, insertJobHistory,
-		arg.Company,
+		arg.CompanyID,
 		arg.DisplayName,
 		arg.StartYear,
 		arg.StartMonth,
@@ -174,6 +179,7 @@ func (q *Queries) InsertJobHistory(ctx context.Context, arg InsertJobHistoryPara
 	var i JobHistory
 	err := row.Scan(
 		&i.ID,
+		&i.CompanyID,
 		&i.Company,
 		&i.DisplayName,
 		&i.StartYear,
@@ -231,7 +237,8 @@ func (q *Queries) ListJobEmploymentTypes(ctx context.Context) ([]JobEmploymentTy
 const listJobHistories = `-- name: ListJobHistories :many
 SELECT
   job_histories.id,
-  COALESCE(job_histories.company, '') AS company,
+  COALESCE(CAST(job_histories.company_id AS TEXT), '') AS company_id,
+  COALESCE(job_companies.name, '') AS company,
   COALESCE(job_histories.display_name, '') AS display_name,
   job_histories.start_year,
   job_histories.start_month,
@@ -243,12 +250,14 @@ SELECT
   job_histories.created_at,
   job_histories.updated_at
 FROM job_histories
+LEFT JOIN job_companies ON job_companies.id = job_histories.company_id
 JOIN job_employment_types ON job_employment_types.id = job_histories.employment_type_id
-ORDER BY job_histories.start_year DESC, job_histories.start_month DESC, COALESCE(job_histories.company, '') ASC
+ORDER BY job_histories.start_year DESC, job_histories.start_month DESC, COALESCE(job_companies.name, '') ASC
 `
 
 type ListJobHistoriesRow struct {
 	ID               string
+	CompanyID        string
 	Company          string
 	DisplayName      string
 	StartYear        int64
@@ -273,6 +282,7 @@ func (q *Queries) ListJobHistories(ctx context.Context) ([]ListJobHistoriesRow, 
 		var i ListJobHistoriesRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.CompanyID,
 			&i.Company,
 			&i.DisplayName,
 			&i.StartYear,
@@ -335,7 +345,7 @@ func (q *Queries) UpdateJobEmploymentType(ctx context.Context, arg UpdateJobEmpl
 const updateJobHistory = `-- name: UpdateJobHistory :one
 UPDATE job_histories
 SET
-  company = NULLIF(?, ''),
+  company_id = NULLIF(?, ''),
   display_name = NULLIF(?, ''),
   start_year = ?,
   start_month = ?,
@@ -346,7 +356,8 @@ SET
 WHERE id = ?
 RETURNING
   id,
-  COALESCE(company, '') AS company,
+  COALESCE(CAST(company_id AS TEXT), '') AS company_id,
+  '' AS company,
   COALESCE(display_name, '') AS display_name,
   start_year,
   start_month,
@@ -359,7 +370,7 @@ RETURNING
 `
 
 type UpdateJobHistoryParams struct {
-	Company          string
+	CompanyID        string
 	DisplayName      string
 	StartYear        int64
 	StartMonth       int64
@@ -371,7 +382,7 @@ type UpdateJobHistoryParams struct {
 
 func (q *Queries) UpdateJobHistory(ctx context.Context, arg UpdateJobHistoryParams) (JobHistory, error) {
 	row := q.db.QueryRowContext(ctx, updateJobHistory,
-		arg.Company,
+		arg.CompanyID,
 		arg.DisplayName,
 		arg.StartYear,
 		arg.StartMonth,
@@ -383,6 +394,7 @@ func (q *Queries) UpdateJobHistory(ctx context.Context, arg UpdateJobHistoryPara
 	var i JobHistory
 	err := row.Scan(
 		&i.ID,
+		&i.CompanyID,
 		&i.Company,
 		&i.DisplayName,
 		&i.StartYear,

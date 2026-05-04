@@ -10,6 +10,7 @@ import { Badge } from "../ui/badge";
 
 type JobHistory = {
   id: string;
+  companyId: string;
   company: string;
   displayName: string;
   startYear: number;
@@ -118,7 +119,7 @@ export function JobHistoryPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<JobHistory | null>(null);
   const [formData, setFormData] = useState({
-    company: "",
+    companyId: "",
     displayName: "",
     startDate: "",
     endDate: "",
@@ -171,7 +172,7 @@ export function JobHistoryPage() {
   const handleAdd = () => {
     setEditingJob(null);
     setFormData({
-      company: "",
+      companyId: "",
       displayName: "",
       startDate: "",
       endDate: "",
@@ -183,7 +184,7 @@ export function JobHistoryPage() {
   const handleEdit = (job: JobHistory) => {
     setEditingJob(job);
     setFormData({
-      company: job.company,
+      companyId: job.companyId,
       displayName: job.displayName,
       startDate: formatYearMonth(job.startYear, job.startMonth),
       endDate:
@@ -203,7 +204,7 @@ export function JobHistoryPage() {
       const start = parseYearMonth(formData.startDate);
       const end = parseYearMonth(formData.endDate);
       const requestBody = {
-        company: formData.company,
+        companyId: formData.companyId,
         displayName: formData.displayName,
         startYear: start.year,
         startMonth: start.month,
@@ -261,16 +262,10 @@ export function JobHistoryPage() {
   };
 
   const canSave =
-    (formData.company.trim() !== "" || formData.displayName.trim() !== "") &&
+    (formData.companyId.trim() !== "" || formData.displayName.trim() !== "") &&
     formData.startDate.trim() !== "" &&
     formData.employmentTypeId.trim() !== "";
-  const companyOptions = jobs.reduce<JobCompany[]>((options, job) => {
-    if (job.company && !options.some((company) => company.name === job.company)) {
-      return [...options, { id: `job_company_${job.id}`, name: job.company, url: "" }];
-    }
-
-    return options;
-  }, companies);
+  const companyOptions = companies;
   const companyURLByName = new Map(companyOptions.map((company) => [company.name, company.url]));
 
   return (
@@ -386,9 +381,9 @@ export function JobHistoryPage() {
               <div className="space-y-2">
                 <Label htmlFor="company">会社名</Label>
                 <Select
-                  value={formData.company || noCompanyValue}
+                  value={formData.companyId || noCompanyValue}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, company: value === noCompanyValue ? "" : value })
+                    setFormData({ ...formData, companyId: value === noCompanyValue ? "" : value })
                   }
                 >
                   <SelectTrigger id="company">
@@ -397,7 +392,7 @@ export function JobHistoryPage() {
                   <SelectContent>
                     <SelectItem value={noCompanyValue}>未設定</SelectItem>
                     {companyOptions.map((company) => (
-                      <SelectItem key={company.id} value={company.name}>
+                      <SelectItem key={company.id} value={company.id}>
                         {company.name}
                       </SelectItem>
                     ))}

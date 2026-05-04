@@ -2,6 +2,7 @@ package domain
 
 type JobHistory struct {
 	ID               string
+	CompanyID        string
 	Company          string
 	DisplayName      string
 	StartYear        int64
@@ -14,7 +15,7 @@ type JobHistory struct {
 }
 
 type JobHistoryInput struct {
-	Company          string
+	CompanyID        string
 	DisplayName      string
 	StartYear        int64
 	StartMonth       int64
