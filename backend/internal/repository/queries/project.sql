@@ -136,3 +136,45 @@ RETURNING
 -- name: DeleteProject :execrows
 DELETE FROM projects
 WHERE id = ?;
+
+-- name: ListProjectPhases :many
+SELECT
+  id,
+  name,
+  sort_order,
+  created_at,
+  updated_at
+FROM project_phases
+ORDER BY sort_order ASC, name ASC;
+
+-- name: InsertProjectPhase :one
+INSERT INTO project_phases (
+  id,
+  name,
+  sort_order
+)
+SELECT
+  ?,
+  ?,
+  COALESCE(NULLIF(?, 0), COALESCE(MAX(sort_order), 0) + 1)
+FROM project_phases
+RETURNING
+  id,
+  name,
+  sort_order,
+  created_at,
+  updated_at;
+
+-- name: UpdateProjectPhase :one
+UPDATE project_phases
+SET
+  name = ?,
+  sort_order = COALESCE(NULLIF(?, 0), sort_order),
+  updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING
+  id,
+  name,
+  sort_order,
+  created_at,
+  updated_at;

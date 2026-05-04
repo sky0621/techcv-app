@@ -33,3 +33,19 @@ type ProjectInput struct {
 	Achievements string
 	IsDraft      bool
 }
+
+type ProjectPhase struct {
+	ID        string
+	Name      string
+	SortOrder int64
+}
+
+type ProjectOptions struct {
+	Phases []ProjectPhase
+}
+
+type ProjectPhaseInput struct {
+	ID        string
+	Name      string
+	SortOrder int64
+}

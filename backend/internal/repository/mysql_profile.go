@@ -676,6 +676,43 @@ func (r *SQLiteProfileRepository) DeleteProject(ctx context.Context, id string) 
 	return nil
 }
 
+func (r *SQLiteProfileRepository) ListProjectOptions(ctx context.Context) (*domain.ProjectOptions, error) {
+	rows, err := r.queries.ListProjectPhases(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("query project phases: %w", err)
+	}
+
+	return &domain.ProjectOptions{
+		Phases: toDomainProjectPhases(rows),
+	}, nil
+}
+
+func (r *SQLiteProfileRepository) CreateProjectPhase(ctx context.Context, input domain.ProjectPhaseInput) (*domain.ProjectPhase, error) {
+	row, err := r.queries.InsertProjectPhase(ctx, dbgen.InsertProjectPhaseParams{
+		ID:        input.ID,
+		Name:      input.Name,
+		SortOrder: input.SortOrder,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("insert project phase: %w", err)
+	}
+
+	return toDomainProjectPhase(row), nil
+}
+
+func (r *SQLiteProfileRepository) UpdateProjectPhase(ctx context.Context, id string, input domain.ProjectPhaseInput) (*domain.ProjectPhase, error) {
+	row, err := r.queries.UpdateProjectPhase(ctx, dbgen.UpdateProjectPhaseParams{
+		ID:        id,
+		Name:      input.Name,
+		SortOrder: input.SortOrder,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update project phase: %w", err)
+	}
+
+	return toDomainProjectPhase(row), nil
+}
+
 func (r *SQLiteProfileRepository) ListJobHistoryOptions(ctx context.Context) (*domain.JobHistoryOptions, error) {
 	rows, err := r.queries.ListJobEmploymentTypes(ctx)
 	if err != nil {
@@ -2178,6 +2215,23 @@ func toDomainProject(row dbgen.Project) (*domain.Project, error) {
 		IsDraft:      row.IsDraft != 0,
 		SortOrder:    row.SortOrder,
 	}, nil
+}
+
+func toDomainProjectPhases(rows []dbgen.ProjectPhase) []domain.ProjectPhase {
+	phases := make([]domain.ProjectPhase, 0, len(rows))
+	for _, row := range rows {
+		phases = append(phases, *toDomainProjectPhase(row))
+	}
+
+	return phases
+}
+
+func toDomainProjectPhase(row dbgen.ProjectPhase) *domain.ProjectPhase {
+	return &domain.ProjectPhase{
+		ID:        row.ID,
+		Name:      row.Name,
+		SortOrder: row.SortOrder,
+	}
 }
 
 func toDomainJobEmploymentTypes(rows []dbgen.JobEmploymentType) []domain.JobEmploymentType {

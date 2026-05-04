@@ -30,3 +30,15 @@ func (u *ProjectUseCase) Update(ctx context.Context, id string, input domain.Pro
 func (u *ProjectUseCase) Delete(ctx context.Context, id string) error {
 	return u.repository.DeleteProject(ctx, id)
 }
+
+func (u *ProjectUseCase) ListOptions(ctx context.Context) (*domain.ProjectOptions, error) {
+	return u.repository.ListProjectOptions(ctx)
+}
+
+func (u *ProjectUseCase) CreatePhase(ctx context.Context, input domain.ProjectPhaseInput) (*domain.ProjectPhase, error) {
+	return u.repository.CreateProjectPhase(ctx, input)
+}
+
+func (u *ProjectUseCase) UpdatePhase(ctx context.Context, id string, input domain.ProjectPhaseInput) (*domain.ProjectPhase, error) {
+	return u.repository.UpdateProjectPhase(ctx, id, input)
+}

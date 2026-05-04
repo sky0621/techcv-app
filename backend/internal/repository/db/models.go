@@ -85,6 +85,14 @@ type Project struct {
 	UpdatedAt    time.Time
 }
 
+type ProjectPhase struct {
+	ID        string
+	Name      string
+	SortOrder int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type Skill struct {
 	ID                 string
 	SkillMasterID      string

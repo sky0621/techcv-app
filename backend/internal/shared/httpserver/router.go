@@ -57,10 +57,13 @@ func NewRouter(
 	api.Put("/job-employment-types/{id}", jobHistoryServer.UpdateJobEmploymentType)
 	api.Post("/job-companies", jobHistoryServer.CreateJobCompany)
 	api.Put("/job-companies/{id}", jobHistoryServer.UpdateJobCompany)
+	api.Get("/projects/options", projectServer.ListProjectOptions)
 	api.Get("/projects", projectServer.ListProjects)
 	api.Post("/projects", projectServer.CreateProject)
 	api.Put("/projects/{id}", projectServer.UpdateProject)
 	api.Delete("/projects/{id}", projectServer.DeleteProject)
+	api.Post("/project-phases", projectServer.CreateProjectPhase)
+	api.Put("/project-phases/{id}", projectServer.UpdateProjectPhase)
 	r.Mount("/api", api)
 
 	return r

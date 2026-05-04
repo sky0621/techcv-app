@@ -247,6 +247,84 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 	return items, nil
 }
 
+const listProjectPhases = `-- name: ListProjectPhases :many
+SELECT
+  id,
+  name,
+  sort_order,
+  created_at,
+  updated_at
+FROM project_phases
+ORDER BY sort_order ASC, name ASC
+`
+
+func (q *Queries) ListProjectPhases(ctx context.Context) ([]ProjectPhase, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectPhases)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProjectPhase
+	for rows.Next() {
+		var i ProjectPhase
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.SortOrder,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertProjectPhase = `-- name: InsertProjectPhase :one
+INSERT INTO project_phases (
+  id,
+  name,
+  sort_order
+)
+SELECT
+  ?,
+  ?,
+  COALESCE(NULLIF(?, 0), COALESCE(MAX(sort_order), 0) + 1)
+FROM project_phases
+RETURNING
+  id,
+  name,
+  sort_order,
+  created_at,
+  updated_at
+`
+
+type InsertProjectPhaseParams struct {
+	ID        string
+	Name      string
+	SortOrder int64
+}
+
+func (q *Queries) InsertProjectPhase(ctx context.Context, arg InsertProjectPhaseParams) (ProjectPhase, error) {
+	row := q.db.QueryRowContext(ctx, insertProjectPhase, arg.ID, arg.Name, arg.SortOrder)
+	var i ProjectPhase
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateProject = `-- name: UpdateProject :one
 UPDATE projects
 SET
@@ -335,6 +413,40 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.Phases,
 		&i.Achievements,
 		&i.IsDraft,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateProjectPhase = `-- name: UpdateProjectPhase :one
+UPDATE project_phases
+SET
+  name = ?,
+  sort_order = COALESCE(NULLIF(?, 0), sort_order),
+  updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING
+  id,
+  name,
+  sort_order,
+  created_at,
+  updated_at
+`
+
+type UpdateProjectPhaseParams struct {
+	Name      string
+	SortOrder int64
+	ID        string
+}
+
+func (q *Queries) UpdateProjectPhase(ctx context.Context, arg UpdateProjectPhaseParams) (ProjectPhase, error) {
+	row := q.db.QueryRowContext(ctx, updateProjectPhase, arg.Name, arg.SortOrder, arg.ID)
+	var i ProjectPhase
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,

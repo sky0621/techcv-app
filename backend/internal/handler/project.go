@@ -31,6 +31,18 @@ func (h *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *ProjectHandler) ListProjectOptions(w http.ResponseWriter, r *http.Request) {
+	options, err := h.usecase.ListOptions(r.Context())
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal_server_error", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, projectOptionsResponse{
+		Phases: toProjectPhasePayloads(options.Phases),
+	})
+}
+
 func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	var request projectRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -108,12 +120,78 @@ func (h *ProjectHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *ProjectHandler) CreateProjectPhase(w http.ResponseWriter, r *http.Request) {
+	var request projectPhaseRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+
+	input := toProjectPhaseInput(request, true)
+	if input.ID == "" || input.Name == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "id and name are required")
+		return
+	}
+
+	phase, err := h.usecase.CreatePhase(r.Context(), input)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal_server_error", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, projectPhaseResponse{
+		Phase: toProjectPhasePayload(*phase),
+	})
+}
+
+func (h *ProjectHandler) UpdateProjectPhase(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "id is required")
+		return
+	}
+
+	var request projectPhaseRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+
+	input := toProjectPhaseInput(request, false)
+	if input.Name == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "name is required")
+		return
+	}
+
+	phase, err := h.usecase.UpdatePhase(r.Context(), id, input)
+	if err != nil {
+		if strings.Contains(err.Error(), sql.ErrNoRows.Error()) {
+			writeJSONError(w, http.StatusNotFound, "not_found", "project phase not found")
+			return
+		}
+		writeJSONError(w, http.StatusInternalServerError, "internal_server_error", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, projectPhaseResponse{
+		Phase: toProjectPhasePayload(*phase),
+	})
+}
+
 type projectsResponse struct {
 	Projects []projectPayload `json:"projects"`
 }
 
+type projectOptionsResponse struct {
+	Phases []projectPhasePayload `json:"phases"`
+}
+
 type projectResponse struct {
 	Project projectPayload `json:"project"`
+}
+
+type projectPhaseResponse struct {
+	Phase projectPhasePayload `json:"phase"`
 }
 
 type projectRequest struct {
@@ -148,6 +226,18 @@ type projectPayload struct {
 	Achievements string   `json:"achievements"`
 	IsDraft      bool     `json:"isDraft"`
 	SortOrder    int64    `json:"sortOrder"`
+}
+
+type projectPhaseRequest struct {
+	ID        string `json:"id,omitempty"`
+	Name      string `json:"name"`
+	SortOrder int64  `json:"sortOrder"`
+}
+
+type projectPhasePayload struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	SortOrder int64  `json:"sortOrder"`
 }
 
 func toProjectPayloads(values []domain.Project) []projectPayload {
@@ -195,6 +285,35 @@ func toProjectInput(request projectRequest) domain.ProjectInput {
 		Achievements: strings.TrimSpace(request.Achievements),
 		IsDraft:      request.IsDraft,
 	}
+}
+
+func toProjectPhasePayloads(values []domain.ProjectPhase) []projectPhasePayload {
+	result := make([]projectPhasePayload, 0, len(values))
+	for _, value := range values {
+		result = append(result, toProjectPhasePayload(value))
+	}
+
+	return result
+}
+
+func toProjectPhasePayload(value domain.ProjectPhase) projectPhasePayload {
+	return projectPhasePayload{
+		ID:        value.ID,
+		Name:      value.Name,
+		SortOrder: value.SortOrder,
+	}
+}
+
+func toProjectPhaseInput(request projectPhaseRequest, includeID bool) domain.ProjectPhaseInput {
+	input := domain.ProjectPhaseInput{
+		Name:      strings.TrimSpace(request.Name),
+		SortOrder: request.SortOrder,
+	}
+	if includeID {
+		input.ID = strings.TrimSpace(request.ID)
+	}
+
+	return input
 }
 
 func isValidProjectInput(input domain.ProjectInput) bool {

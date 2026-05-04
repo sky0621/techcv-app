@@ -824,6 +824,28 @@ func TestProjectRoutes(t *testing.T) {
 	repository := newTestProfileRepository()
 	router := NewRouter(repository, repository, repository, repository)
 
+	optionsReq := httptest.NewRequest(http.MethodGet, "/api/projects/options", nil)
+	optionsRec := httptest.NewRecorder()
+	router.ServeHTTP(optionsRec, optionsReq)
+
+	if optionsRec.Code != http.StatusOK {
+		t.Fatalf("expected options status 200, got %d", optionsRec.Code)
+	}
+
+	var optionsResp struct {
+		Phases []struct {
+			ID        string `json:"id"`
+			Name      string `json:"name"`
+			SortOrder int64  `json:"sortOrder"`
+		} `json:"phases"`
+	}
+	if err := json.Unmarshal(optionsRec.Body.Bytes(), &optionsResp); err != nil {
+		t.Fatalf("failed to decode project options response: %v", err)
+	}
+	if len(optionsResp.Phases) != 2 || optionsResp.Phases[0].Name != "設計" {
+		t.Fatalf("unexpected project phases: %#v", optionsResp.Phases)
+	}
+
 	listReq := httptest.NewRequest(http.MethodGet, "/api/projects", nil)
 	listRec := httptest.NewRecorder()
 	router.ServeHTTP(listRec, listReq)
@@ -952,6 +974,38 @@ func TestProjectRoutes(t *testing.T) {
 		t.Fatalf("unexpected updated project: %#v", updateResp.Project)
 	}
 
+	phaseCreateBody := []byte(`{"id":"3","name":"テスト","sortOrder":3}`)
+	phaseCreateReq := httptest.NewRequest(http.MethodPost, "/api/project-phases", bytes.NewReader(phaseCreateBody))
+	phaseCreateRec := httptest.NewRecorder()
+	router.ServeHTTP(phaseCreateRec, phaseCreateReq)
+
+	if phaseCreateRec.Code != http.StatusCreated {
+		t.Fatalf("expected phase create status 201, got %d", phaseCreateRec.Code)
+	}
+
+	var phaseCreateResp struct {
+		Phase struct {
+			ID        string `json:"id"`
+			Name      string `json:"name"`
+			SortOrder int64  `json:"sortOrder"`
+		} `json:"phase"`
+	}
+	if err := json.Unmarshal(phaseCreateRec.Body.Bytes(), &phaseCreateResp); err != nil {
+		t.Fatalf("failed to decode phase create response: %v", err)
+	}
+	if phaseCreateResp.Phase.ID != "3" || phaseCreateResp.Phase.Name != "テスト" {
+		t.Fatalf("unexpected created phase: %#v", phaseCreateResp.Phase)
+	}
+
+	phaseUpdateBody := []byte(`{"name":"テスト・検証","sortOrder":4}`)
+	phaseUpdateReq := httptest.NewRequest(http.MethodPut, "/api/project-phases/3", bytes.NewReader(phaseUpdateBody))
+	phaseUpdateRec := httptest.NewRecorder()
+	router.ServeHTTP(phaseUpdateRec, phaseUpdateReq)
+
+	if phaseUpdateRec.Code != http.StatusOK {
+		t.Fatalf("expected phase update status 200, got %d", phaseUpdateRec.Code)
+	}
+
 	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/projects/"+createResp.Project.ID, nil)
 	deleteRec := httptest.NewRecorder()
 	router.ServeHTTP(deleteRec, deleteReq)
@@ -973,6 +1027,7 @@ type testProfileRepository struct {
 	employmentTypes    []domain.JobEmploymentType
 	jobCompanies       []domain.JobCompany
 	projects           []domain.Project
+	projectPhases      []domain.ProjectPhase
 	nextSkillID        int
 	nextJobHistoryID   int
 	nextProjectID      int
@@ -1080,6 +1135,10 @@ func newTestProfileRepository() *testProfileRepository {
 				IsDraft:      false,
 				SortOrder:    1,
 			},
+		},
+		projectPhases: []domain.ProjectPhase{
+			{ID: "1", Name: "設計", SortOrder: 1},
+			{ID: "2", Name: "実装", SortOrder: 2},
 		},
 		nextSkillID:      1,
 		nextJobHistoryID: 1,
@@ -1623,6 +1682,51 @@ func (r *testProfileRepository) DeleteProject(_ context.Context, id string) erro
 	}
 
 	return sql.ErrNoRows
+}
+
+func (r *testProfileRepository) ListProjectOptions(context.Context) (*domain.ProjectOptions, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	phases := make([]domain.ProjectPhase, len(r.projectPhases))
+	copy(phases, r.projectPhases)
+
+	return &domain.ProjectOptions{Phases: phases}, nil
+}
+
+func (r *testProfileRepository) CreateProjectPhase(_ context.Context, input domain.ProjectPhaseInput) (*domain.ProjectPhase, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	phase := domain.ProjectPhase{
+		ID:        input.ID,
+		Name:      input.Name,
+		SortOrder: input.SortOrder,
+	}
+	if phase.SortOrder == 0 {
+		phase.SortOrder = int64(len(r.projectPhases) + 1)
+	}
+	r.projectPhases = append(r.projectPhases, phase)
+
+	return &phase, nil
+}
+
+func (r *testProfileRepository) UpdateProjectPhase(_ context.Context, id string, input domain.ProjectPhaseInput) (*domain.ProjectPhase, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for index, phase := range r.projectPhases {
+		if phase.ID == id {
+			r.projectPhases[index].Name = input.Name
+			if input.SortOrder != 0 {
+				r.projectPhases[index].SortOrder = input.SortOrder
+			}
+			result := r.projectPhases[index]
+			return &result, nil
+		}
+	}
+
+	return nil, sql.ErrNoRows
 }
 
 func (r *testProfileRepository) findCategory(id string) (domain.SkillOption, bool) {

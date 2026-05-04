@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "../ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
 type SkillOption = {
@@ -57,9 +58,19 @@ type JobCompany = {
   url: string;
 };
 
+type ProjectPhase = {
+  id: string;
+  name: string;
+  sortOrder: number;
+};
+
 type JobHistoryOptionsResponse = {
   employmentTypes: JobEmploymentType[];
   companies: JobCompany[];
+};
+
+type ProjectOptionsResponse = {
+  phases: ProjectPhase[];
 };
 
 type ProfileLinkMaster = {
@@ -106,6 +117,12 @@ type CompanyForm = {
   url: string;
 };
 
+type ProjectPhaseForm = {
+  id: string;
+  name: string;
+  sortOrder: number;
+};
+
 type ProfileLinkMasterForm = {
   id: string;
   key: string;
@@ -141,6 +158,11 @@ const emptyEmploymentTypeForm: EmploymentTypeForm = {
 const emptyCompanyForm: CompanyForm = {
   name: "",
   url: "",
+};
+const emptyProjectPhaseForm: ProjectPhaseForm = {
+  id: "",
+  name: "",
+  sortOrder: 0,
 };
 const emptyProfileLinkMasterForm: ProfileLinkMasterForm = {
   id: "",
@@ -193,6 +215,7 @@ export function SettingsPage() {
   const [skillMasters, setSkillMasters] = useState<SkillMaster[]>([]);
   const [employmentTypes, setEmploymentTypes] = useState<JobEmploymentType[]>([]);
   const [companies, setCompanies] = useState<JobCompany[]>([]);
+  const [projectPhases, setProjectPhases] = useState<ProjectPhase[]>([]);
   const [profileLinkMasters, setProfileLinkMasters] = useState<ProfileLinkMaster[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingCategory, setIsSavingCategory] = useState(false);
@@ -200,24 +223,28 @@ export function SettingsPage() {
   const [isSavingProficiencyLevel, setIsSavingProficiencyLevel] = useState(false);
   const [isSavingEmploymentType, setIsSavingEmploymentType] = useState(false);
   const [isSavingCompany, setIsSavingCompany] = useState(false);
+  const [isSavingProjectPhase, setIsSavingProjectPhase] = useState(false);
   const [isSavingProfileLinkMaster, setIsSavingProfileLinkMaster] = useState(false);
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [skillMasterDialogOpen, setSkillMasterDialogOpen] = useState(false);
   const [proficiencyLevelDialogOpen, setProficiencyLevelDialogOpen] = useState(false);
   const [employmentTypeDialogOpen, setEmploymentTypeDialogOpen] = useState(false);
   const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
+  const [projectPhaseDialogOpen, setProjectPhaseDialogOpen] = useState(false);
   const [profileLinkMasterDialogOpen, setProfileLinkMasterDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<SkillOption | null>(null);
   const [editingSkillMaster, setEditingSkillMaster] = useState<SkillMaster | null>(null);
   const [editingProficiencyLevel, setEditingProficiencyLevel] = useState<SkillOption | null>(null);
   const [editingEmploymentType, setEditingEmploymentType] = useState<JobEmploymentType | null>(null);
   const [editingCompany, setEditingCompany] = useState<JobCompany | null>(null);
+  const [editingProjectPhase, setEditingProjectPhase] = useState<ProjectPhase | null>(null);
   const [editingProfileLinkMaster, setEditingProfileLinkMaster] = useState<ProfileLinkMaster | null>(null);
   const [categoryForm, setCategoryForm] = useState<CategoryForm>(emptyCategoryForm);
   const [skillMasterForm, setSkillMasterForm] = useState<SkillMasterForm>(emptySkillMasterForm);
   const [proficiencyLevelForm, setProficiencyLevelForm] = useState<ProficiencyLevelForm>(emptyProficiencyLevelForm);
   const [employmentTypeForm, setEmploymentTypeForm] = useState<EmploymentTypeForm>(emptyEmploymentTypeForm);
   const [companyForm, setCompanyForm] = useState<CompanyForm>(emptyCompanyForm);
+  const [projectPhaseForm, setProjectPhaseForm] = useState<ProjectPhaseForm>(emptyProjectPhaseForm);
   const [profileLinkMasterForm, setProfileLinkMasterForm] = useState<ProfileLinkMasterForm>(emptyProfileLinkMasterForm);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -227,23 +254,36 @@ export function SettingsPage() {
     setError("");
 
     try {
-      const [skillOptionsResponse, jobHistoryOptionsResponse, profileLinkMastersResponse] = await Promise.all([
+      const [
+        skillOptionsResponse,
+        jobHistoryOptionsResponse,
+        profileLinkMastersResponse,
+        projectOptionsResponse,
+      ] = await Promise.all([
         fetch("/api/skills/options", { signal }),
         fetch("/api/job-histories/options", { signal }),
         fetch("/api/profile/link-masters", { signal }),
+        fetch("/api/projects/options", { signal }),
       ]);
-      if (!skillOptionsResponse.ok || !jobHistoryOptionsResponse.ok || !profileLinkMastersResponse.ok) {
+      if (
+        !skillOptionsResponse.ok ||
+        !jobHistoryOptionsResponse.ok ||
+        !profileLinkMastersResponse.ok ||
+        !projectOptionsResponse.ok
+      ) {
         throw new Error("設定情報の取得に失敗しました");
       }
 
       const skillOptions = (await skillOptionsResponse.json()) as SkillOptionsResponse;
       const jobHistoryOptions = (await jobHistoryOptionsResponse.json()) as JobHistoryOptionsResponse;
       const profileLinkMastersData = (await profileLinkMastersResponse.json()) as ProfileLinkMastersResponse;
+      const projectOptions = (await projectOptionsResponse.json()) as ProjectOptionsResponse;
       setCategories(skillOptions.categories ?? []);
       setProficiencyLevels(skillOptions.proficiencyLevels ?? []);
       setSkillMasters(skillOptions.skillMasters ?? []);
       setEmploymentTypes(jobHistoryOptions.employmentTypes ?? []);
       setCompanies(jobHistoryOptions.companies ?? []);
+      setProjectPhases(projectOptions.phases ?? []);
       setProfileLinkMasters(profileLinkMastersData.linkMasters ?? []);
     } catch (caught) {
       if (caught instanceof DOMException && caught.name === "AbortError") {
@@ -327,6 +367,14 @@ export function SettingsPage() {
     setError("");
   };
 
+  const openAddProjectPhaseDialog = () => {
+    setEditingProjectPhase(null);
+    setProjectPhaseForm(emptyProjectPhaseForm);
+    setProjectPhaseDialogOpen(true);
+    setMessage("");
+    setError("");
+  };
+
   const openAddSkillMasterDialog = () => {
     setEditingSkillMaster(null);
     setSkillMasterForm({
@@ -382,6 +430,18 @@ export function SettingsPage() {
       url: company.url,
     });
     setCompanyDialogOpen(true);
+    setMessage("");
+    setError("");
+  };
+
+  const openEditProjectPhaseDialog = (phase: ProjectPhase) => {
+    setEditingProjectPhase(phase);
+    setProjectPhaseForm({
+      id: phase.id,
+      name: phase.name,
+      sortOrder: phase.sortOrder,
+    });
+    setProjectPhaseDialogOpen(true);
     setMessage("");
     setError("");
   };
@@ -567,6 +627,42 @@ export function SettingsPage() {
 
   const canSaveCompany = companyForm.name.trim() !== "";
 
+  const handleSaveProjectPhase = async () => {
+    setIsSavingProjectPhase(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await fetch(
+        editingProjectPhase
+          ? `/api/project-phases/${encodeURIComponent(editingProjectPhase.id)}`
+          : "/api/project-phases",
+        {
+          method: editingProjectPhase ? "PUT" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(projectPhaseForm),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(editingProjectPhase ? "担当工程の更新に失敗しました" : "担当工程の追加に失敗しました");
+      }
+
+      setProjectPhaseDialogOpen(false);
+      await loadOptions();
+      setMessage(editingProjectPhase ? "担当工程を更新しました" : "担当工程を追加しました");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "担当工程の保存に失敗しました");
+    } finally {
+      setIsSavingProjectPhase(false);
+    }
+  };
+
+  const canSaveProjectPhase =
+    projectPhaseForm.name.trim() !== "" &&
+    (editingProjectPhase !== null || projectPhaseForm.id.trim() !== "");
+
   const handleSaveProfileLinkMaster = async () => {
     setIsSavingProfileLinkMaster(true);
     setMessage("");
@@ -605,12 +701,22 @@ export function SettingsPage() {
     profileLinkMasterForm.icon.trim() !== "" &&
     (editingProfileLinkMaster !== null || profileLinkMasterForm.id.trim() !== "");
 
+  const scrollToTop = () => {
+    const scrollContainer = document.querySelector("main");
+    if (scrollContainer) {
+      scrollContainer.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   return (
     <div className="p-8">
       <div className="max-w-6xl mx-auto space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">設定</h1>
-          <p className="text-gray-600 mt-1">スキル管理で利用するマスタ情報</p>
+          <p className="text-gray-600 mt-1">各画面で利用するマスタ情報</p>
         </div>
 
         {isLoading && (
@@ -629,8 +735,16 @@ export function SettingsPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <Card>
+        <Tabs defaultValue="profile" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="profile">プロフィール</TabsTrigger>
+            <TabsTrigger value="skills">スキル</TabsTrigger>
+            <TabsTrigger value="job-history">職歴</TabsTrigger>
+            <TabsTrigger value="projects">案件</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="profile" className="mt-6">
+            <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4">
               <div>
                 <CardTitle>SNS・外部リンク</CardTitle>
@@ -694,8 +808,10 @@ export function SettingsPage() {
               </Table>
             </CardContent>
           </Card>
+          </TabsContent>
 
-          <Card>
+          <TabsContent value="skills" className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4">
               <div>
                 <CardTitle>スキルカテゴリ</CardTitle>
@@ -881,8 +997,10 @@ export function SettingsPage() {
               </Table>
             </CardContent>
           </Card>
+          </TabsContent>
 
-          <Card>
+          <TabsContent value="job-history" className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4">
               <div>
                 <CardTitle>雇用形態</CardTitle>
@@ -1000,7 +1118,62 @@ export function SettingsPage() {
               </Table>
             </CardContent>
           </Card>
-        </div>
+          </TabsContent>
+
+          <TabsContent value="projects" className="mt-6">
+            <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4">
+              <div>
+                <CardTitle>案件の担当工程</CardTitle>
+                <CardDescription>project_phases テーブルの内容</CardDescription>
+              </div>
+              <Button type="button" variant="outline" onClick={openAddProjectPhaseDialog}>
+                <LucideIcons.Plus className="w-4 h-4 mr-2" />
+                追加
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>表示順</TableHead>
+                    <TableHead>名称</TableHead>
+                    <TableHead>ID</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {projectPhases.map((phase) => (
+                    <TableRow key={phase.id}>
+                      <TableCell>{phase.sortOrder}</TableCell>
+                      <TableCell className="font-medium">{phase.name}</TableCell>
+                      <TableCell className="font-mono text-xs text-gray-600">{phase.id}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditProjectPhaseDialog(phase)}
+                        >
+                          <LucideIcons.Pencil className="w-4 h-4 mr-2" />
+                          編集
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {!isLoading && projectPhases.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-gray-500">
+                        案件の担当工程は登録されていません。
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+          </TabsContent>
+        </Tabs>
 
         <Dialog open={profileLinkMasterDialogOpen} onOpenChange={setProfileLinkMasterDialogOpen}>
           <DialogContent>
@@ -1508,7 +1681,90 @@ export function SettingsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={projectPhaseDialogOpen} onOpenChange={setProjectPhaseDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingProjectPhase ? "担当工程を編集" : "担当工程を追加"}</DialogTitle>
+              <DialogDescription>
+                {editingProjectPhase
+                  ? "案件登録・編集フォームで選択する担当工程の名称と表示順を変更します。"
+                  : "案件登録・編集フォームで選択する担当工程のID、名称、表示順を登録します。"}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              {!editingProjectPhase && (
+                <div className="space-y-2">
+                  <Label htmlFor="project-phase-id">ID</Label>
+                  <Input
+                    id="project-phase-id"
+                    type="number"
+                    min={1}
+                    value={projectPhaseForm.id}
+                    onChange={(e) =>
+                      setProjectPhaseForm({ ...projectPhaseForm, id: e.target.value })
+                    }
+                    placeholder="1"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="project-phase-name">名称</Label>
+                <Input
+                  id="project-phase-name"
+                  value={projectPhaseForm.name}
+                  onChange={(e) =>
+                    setProjectPhaseForm({ ...projectPhaseForm, name: e.target.value })
+                  }
+                  placeholder="要件定義"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="project-phase-sort-order">表示順</Label>
+                <Input
+                  id="project-phase-sort-order"
+                  type="number"
+                  value={projectPhaseForm.sortOrder}
+                  onChange={(e) =>
+                    setProjectPhaseForm({ ...projectPhaseForm, sortOrder: Number(e.target.value) })
+                  }
+                  placeholder="1"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setProjectPhaseDialogOpen(false)}
+              >
+                キャンセル
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSaveProjectPhase}
+                disabled={!canSaveProjectPhase || isSavingProjectPhase}
+              >
+                {isSavingProjectPhase ? "保存中" : "保存"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="fixed bottom-6 right-6 h-11 w-11 rounded-full bg-white shadow-md"
+        onClick={scrollToTop}
+        aria-label="画面上部へ移動"
+      >
+        <LucideIcons.ArrowUp className="h-5 w-5" />
+      </Button>
     </div>
   );
 }

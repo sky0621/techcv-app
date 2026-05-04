@@ -59,6 +59,16 @@ type ProjectResponse = {
   project: Project;
 };
 
+type ProjectPhase = {
+  id: string;
+  name: string;
+  sortOrder: number;
+};
+
+type ProjectOptionsResponse = {
+  phases: ProjectPhase[];
+};
+
 const emptyForm: ProjectForm = {
   name: "",
   company: "",
@@ -79,8 +89,6 @@ const allTechnologies = [
   "Docker", "Kubernetes", "AWS", "GCP", "Azure",
   "Next.js", "Nuxt.js", "Tailwind CSS", "GraphQL", "REST API"
 ];
-
-const phases = ["要件定義", "設計", "実装", "テスト", "運用保守", "リリース"];
 
 function formatYearMonth(year: number, month: number) {
   return `${year}-${String(month).padStart(2, "0")}`;
@@ -106,6 +114,7 @@ function parseYearMonth(value: string) {
 export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [jobHistories, setJobHistories] = useState<JobHistory[]>([]);
+  const [projectPhases, setProjectPhases] = useState<ProjectPhase[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -122,9 +131,10 @@ export function ProjectsPage() {
       setError("");
 
       try {
-        const [projectsResponse, jobHistoriesResponse] = await Promise.all([
+        const [projectsResponse, jobHistoriesResponse, projectOptionsResponse] = await Promise.all([
           fetch("/api/projects", { signal: controller.signal }),
           fetch("/api/job-histories", { signal: controller.signal }),
+          fetch("/api/projects/options", { signal: controller.signal }),
         ]);
         if (!projectsResponse.ok) {
           throw new Error("案件の取得に失敗しました");
@@ -132,11 +142,16 @@ export function ProjectsPage() {
         if (!jobHistoriesResponse.ok) {
           throw new Error("職歴の取得に失敗しました");
         }
+        if (!projectOptionsResponse.ok) {
+          throw new Error("案件設定の取得に失敗しました");
+        }
 
         const projectsData = (await projectsResponse.json()) as ProjectsResponse;
         const jobHistoriesData = (await jobHistoriesResponse.json()) as JobHistoriesResponse;
+        const projectOptionsData = (await projectOptionsResponse.json()) as ProjectOptionsResponse;
         setProjects(projectsData.projects ?? []);
         setJobHistories(jobHistoriesData.jobHistories ?? []);
+        setProjectPhases(projectOptionsData.phases ?? []);
       } catch (caught) {
         if (caught instanceof DOMException && caught.name === "AbortError") {
           return;
@@ -513,17 +528,24 @@ export function ProjectsPage() {
               <div className="space-y-2">
                 <Label>担当工程</Label>
                 <div className="grid grid-cols-3 gap-3">
-                  {phases.map(phase => (
-                    <div key={phase} className="flex items-center space-x-2">
+                  {projectPhases.map((phase) => (
+                    <div key={phase.id} className="flex items-center space-x-2">
                       <Checkbox
-                        id={phase}
-                        checked={formData.phases.includes(phase)}
-                        onCheckedChange={() => togglePhase(phase)}
+                        id={`project-phase-${phase.id}`}
+                        checked={formData.phases.includes(phase.name)}
+                        onCheckedChange={() => togglePhase(phase.name)}
                       />
-                      <Label htmlFor={phase} className="cursor-pointer">{phase}</Label>
+                      <Label htmlFor={`project-phase-${phase.id}`} className="cursor-pointer">
+                        {phase.name}
+                      </Label>
                     </div>
                   ))}
                 </div>
+                {!isLoading && projectPhases.length === 0 && (
+                  <p className="text-sm text-amber-700">
+                    設定画面で担当工程を登録すると、ここで選択できます。
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
