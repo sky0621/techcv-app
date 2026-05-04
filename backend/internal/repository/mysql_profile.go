@@ -272,9 +272,6 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.seedJobEmploymentTypes(ctx); err != nil {
 		return err
 	}
-	if err := r.seedJobCompanies(ctx); err != nil {
-		return err
-	}
 	if err := r.migrateJobHistoryDateColumns(ctx); err != nil {
 		return err
 	}
@@ -290,7 +287,7 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.migrateJobHistoryCompanyID(ctx); err != nil {
 		return err
 	}
-	if err := r.seedJobHistories(ctx); err != nil {
+	if err := r.cleanupDefaultJobCompanies(ctx); err != nil {
 		return err
 	}
 	if err := r.migrateProjectDateColumns(ctx); err != nil {
@@ -1950,79 +1947,6 @@ func (r *SQLiteProfileRepository) seedJobEmploymentTypes(ctx context.Context) er
 	return nil
 }
 
-func (r *SQLiteProfileRepository) seedJobCompanies(ctx context.Context) error {
-	companyNames := []string{"株式会社A", "株式会社B", "フリーランス"}
-	for _, companyName := range companyNames {
-		if _, err := r.db.ExecContext(
-			ctx,
-			"INSERT OR IGNORE INTO job_companies (name, url) VALUES (?, '')",
-			companyName,
-		); err != nil {
-			return fmt.Errorf("seed job company %s: %w", companyName, err)
-		}
-	}
-
-	return nil
-}
-
-func (r *SQLiteProfileRepository) seedJobHistories(ctx context.Context) error {
-	jobHistories := []struct {
-		id               string
-		company          string
-		displayName      string
-		startYear        int64
-		startMonth       int64
-		endYear          *int64
-		endMonth         *int64
-		employmentTypeID string
-		projectCount     int64
-	}{
-		{id: "1", company: "株式会社A", displayName: "株式会社A", startYear: 2023, startMonth: 1, endYear: nil, endMonth: nil, employmentTypeID: "1", projectCount: 5},
-		{id: "2", company: "株式会社B", displayName: "株式会社B", startYear: 2021, startMonth: 4, endYear: int64Ptr(2022), endMonth: int64Ptr(12), employmentTypeID: "1", projectCount: 4},
-		{id: "3", company: "フリーランス", displayName: "フリーランス", startYear: 2020, startMonth: 1, endYear: int64Ptr(2021), endMonth: int64Ptr(3), employmentTypeID: "3", projectCount: 3},
-	}
-	for _, jobHistory := range jobHistories {
-		if _, err := r.db.ExecContext(
-			ctx,
-			`INSERT OR IGNORE INTO job_histories (
-				id,
-				company_id,
-				display_name,
-				start_year,
-				start_month,
-				end_year,
-				end_month,
-				employment_type_id,
-				project_count
-			)
-			VALUES (
-				?,
-				(SELECT id FROM job_companies WHERE name = ? LIMIT 1),
-				?,
-				?,
-				?,
-				?,
-				?,
-				?,
-				?
-			)`,
-			jobHistory.id,
-			jobHistory.company,
-			jobHistory.displayName,
-			jobHistory.startYear,
-			jobHistory.startMonth,
-			toNullInt64(jobHistory.endYear),
-			toNullInt64(jobHistory.endMonth),
-			jobHistory.employmentTypeID,
-			jobHistory.projectCount,
-		); err != nil {
-			return fmt.Errorf("seed job history %s: %w", jobHistory.id, err)
-		}
-	}
-
-	return nil
-}
-
 func (r *SQLiteProfileRepository) backfillJobCompanies(ctx context.Context) error {
 	hasCompanyColumn, err := r.tableHasColumn(ctx, "job_histories", "company")
 	if err != nil {
@@ -2040,6 +1964,23 @@ func (r *SQLiteProfileRepository) backfillJobCompanies(ctx context.Context) erro
 		ORDER BY company
 	`); err != nil {
 		return fmt.Errorf("backfill job companies: %w", err)
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) cleanupDefaultJobCompanies(ctx context.Context) error {
+	if _, err := r.db.ExecContext(ctx, `
+		DELETE FROM job_companies
+		WHERE name IN ('株式会社A', '株式会社B', 'フリーランス')
+			AND url = ''
+			AND NOT EXISTS (
+				SELECT 1
+				FROM job_histories
+				WHERE job_histories.company_id = job_companies.id
+			)
+	`); err != nil {
+		return fmt.Errorf("cleanup default job companies: %w", err)
 	}
 
 	return nil
