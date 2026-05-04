@@ -163,6 +163,9 @@ export function ProjectsPage() {
   );
 
   const companyOptions = jobHistories.reduce<JobHistory[]>((options, jobHistory) => {
+    if (jobHistory.company.trim() === "") {
+      return options;
+    }
     if (options.some(option => option.company === jobHistory.company)) {
       return options;
     }
