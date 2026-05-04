@@ -10,3 +10,5 @@ bin
 frontend/node_modules
 frontend/.next
 backend/.cache
+backend/data/
+
