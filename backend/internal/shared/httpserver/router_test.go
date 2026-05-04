@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -656,6 +657,30 @@ func TestJobHistoryRoutes(t *testing.T) {
 		t.Fatalf("unexpected seeded job history: %#v", listResp.JobHistories[0])
 	}
 
+	optionsReq := httptest.NewRequest(http.MethodGet, "/api/job-histories/options", nil)
+	optionsRec := httptest.NewRecorder()
+	router.ServeHTTP(optionsRec, optionsReq)
+
+	if optionsRec.Code != http.StatusOK {
+		t.Fatalf("expected options status 200, got %d", optionsRec.Code)
+	}
+
+	var optionsResp struct {
+		Companies []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+			URL  string `json:"url"`
+		} `json:"companies"`
+	}
+	if err := json.Unmarshal(optionsRec.Body.Bytes(), &optionsResp); err != nil {
+		t.Fatalf("failed to decode options response: %v", err)
+	}
+	if len(optionsResp.Companies) != 1 ||
+		optionsResp.Companies[0].Name != "株式会社A" ||
+		optionsResp.Companies[0].URL != "https://example.com/a" {
+		t.Fatalf("unexpected company options: %#v", optionsResp.Companies)
+	}
+
 	createBody := []byte(`{
 		"company":"株式会社C",
 		"displayName":"表示用C",
@@ -751,6 +776,40 @@ func TestJobHistoryRoutes(t *testing.T) {
 
 	if deleteRec.Code != http.StatusNoContent {
 		t.Fatalf("expected delete status 204, got %d", deleteRec.Code)
+	}
+
+	companyCreateBody := []byte(`{"name":"株式会社D","url":"https://example.com/d"}`)
+	companyCreateReq := httptest.NewRequest(http.MethodPost, "/api/job-companies", bytes.NewReader(companyCreateBody))
+	companyCreateRec := httptest.NewRecorder()
+	router.ServeHTTP(companyCreateRec, companyCreateReq)
+
+	if companyCreateRec.Code != http.StatusCreated {
+		t.Fatalf("expected company create status 201, got %d", companyCreateRec.Code)
+	}
+
+	var companyCreateResp struct {
+		Company struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+			URL  string `json:"url"`
+		} `json:"company"`
+	}
+	if err := json.Unmarshal(companyCreateRec.Body.Bytes(), &companyCreateResp); err != nil {
+		t.Fatalf("failed to decode company create response: %v", err)
+	}
+	if companyCreateResp.Company.ID == "" ||
+		companyCreateResp.Company.Name != "株式会社D" ||
+		companyCreateResp.Company.URL != "https://example.com/d" {
+		t.Fatalf("unexpected created company: %#v", companyCreateResp.Company)
+	}
+
+	companyUpdateBody := []byte(`{"name":"株式会社D Updated","url":"https://example.com/d-updated"}`)
+	companyUpdateReq := httptest.NewRequest(http.MethodPut, "/api/job-companies/"+companyCreateResp.Company.ID, bytes.NewReader(companyUpdateBody))
+	companyUpdateRec := httptest.NewRecorder()
+	router.ServeHTTP(companyUpdateRec, companyUpdateReq)
+
+	if companyUpdateRec.Code != http.StatusOK {
+		t.Fatalf("expected company update status 200, got %d", companyUpdateRec.Code)
 	}
 }
 
@@ -905,6 +964,7 @@ type testProfileRepository struct {
 	skills             []domain.Skill
 	jobHistories       []domain.JobHistory
 	employmentTypes    []domain.JobEmploymentType
+	jobCompanies       []domain.JobCompany
 	projects           []domain.Project
 	nextSkillID        int
 	nextJobHistoryID   int
@@ -990,6 +1050,9 @@ func newTestProfileRepository() *testProfileRepository {
 			{ID: "1", Name: "正社員", SortOrder: 1},
 			{ID: "2", Name: "契約社員", SortOrder: 2},
 			{ID: "3", Name: "業務委託", SortOrder: 3},
+		},
+		jobCompanies: []domain.JobCompany{
+			{ID: "1", Name: "株式会社A", URL: "https://example.com/a"},
 		},
 		projects: []domain.Project{
 			{
@@ -1388,8 +1451,13 @@ func (r *testProfileRepository) ListJobHistoryOptions(context.Context) (*domain.
 
 	employmentTypes := make([]domain.JobEmploymentType, len(r.employmentTypes))
 	copy(employmentTypes, r.employmentTypes)
+	jobCompanies := make([]domain.JobCompany, len(r.jobCompanies))
+	copy(jobCompanies, r.jobCompanies)
 
-	return &domain.JobHistoryOptions{EmploymentTypes: employmentTypes}, nil
+	return &domain.JobHistoryOptions{
+		EmploymentTypes: employmentTypes,
+		Companies:       jobCompanies,
+	}, nil
 }
 
 func (r *testProfileRepository) CreateJobEmploymentType(_ context.Context, input domain.JobEmploymentTypeInput) (*domain.JobEmploymentType, error) {
@@ -1420,6 +1488,40 @@ func (r *testProfileRepository) UpdateJobEmploymentType(_ context.Context, id st
 				r.employmentTypes[index].SortOrder = input.SortOrder
 			}
 			result := r.employmentTypes[index]
+			return &result, nil
+		}
+	}
+
+	return nil, sql.ErrNoRows
+}
+
+func (r *testProfileRepository) CreateJobCompany(_ context.Context, input domain.JobCompanyInput) (*domain.JobCompany, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	id := input.ID
+	if id == "" {
+		id = strconv.Itoa(len(r.jobCompanies) + 1)
+	}
+	company := domain.JobCompany{
+		ID:   id,
+		Name: input.Name,
+		URL:  input.URL,
+	}
+	r.jobCompanies = append(r.jobCompanies, company)
+
+	return &company, nil
+}
+
+func (r *testProfileRepository) UpdateJobCompany(_ context.Context, id string, input domain.JobCompanyInput) (*domain.JobCompany, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for index, company := range r.jobCompanies {
+		if company.ID == id {
+			r.jobCompanies[index].Name = input.Name
+			r.jobCompanies[index].URL = input.URL
+			result := r.jobCompanies[index]
 			return &result, nil
 		}
 	}

@@ -284,6 +284,9 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.seedJobHistories(ctx); err != nil {
 		return err
 	}
+	if err := r.backfillJobCompanies(ctx); err != nil {
+		return err
+	}
 	if err := r.migrateProjectDateColumns(ctx); err != nil {
 		return err
 	}
@@ -685,9 +688,14 @@ func (r *SQLiteProfileRepository) ListJobHistoryOptions(ctx context.Context) (*d
 	if err != nil {
 		return nil, fmt.Errorf("query job employment types: %w", err)
 	}
+	companies, err := r.listJobCompanies(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	return &domain.JobHistoryOptions{
 		EmploymentTypes: toDomainJobEmploymentTypes(rows),
+		Companies:       companies,
 	}, nil
 }
 
@@ -715,6 +723,58 @@ func (r *SQLiteProfileRepository) UpdateJobEmploymentType(ctx context.Context, i
 	}
 
 	return toDomainJobEmploymentType(row), nil
+}
+
+func (r *SQLiteProfileRepository) CreateJobCompany(ctx context.Context, input domain.JobCompanyInput) (*domain.JobCompany, error) {
+	if input.ID == "" {
+		return r.insertJobCompany(ctx, "INSERT INTO job_companies (name, url) VALUES (?, ?) RETURNING id, name, url", input.Name, input.URL)
+	}
+
+	return r.insertJobCompany(ctx, "INSERT INTO job_companies (id, name, url) VALUES (?, ?, ?) RETURNING id, name, url", input.ID, input.Name, input.URL)
+}
+
+func (r *SQLiteProfileRepository) UpdateJobCompany(ctx context.Context, id string, input domain.JobCompanyInput) (*domain.JobCompany, error) {
+	return r.insertJobCompany(ctx, `
+		UPDATE job_companies
+		SET name = ?, url = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE id = ?
+		RETURNING id, name, url
+	`, input.Name, input.URL, id)
+}
+
+func (r *SQLiteProfileRepository) insertJobCompany(ctx context.Context, query string, args ...any) (*domain.JobCompany, error) {
+	var company domain.JobCompany
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&company.ID, &company.Name, &company.URL); err != nil {
+		return nil, fmt.Errorf("save job company: %w", err)
+	}
+
+	return &company, nil
+}
+
+func (r *SQLiteProfileRepository) listJobCompanies(ctx context.Context) ([]domain.JobCompany, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, name, url
+		FROM job_companies
+		ORDER BY name ASC, id ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query job companies: %w", err)
+	}
+	defer rows.Close()
+
+	companies := make([]domain.JobCompany, 0)
+	for rows.Next() {
+		var company domain.JobCompany
+		if err := rows.Scan(&company.ID, &company.Name, &company.URL); err != nil {
+			return nil, fmt.Errorf("scan job company: %w", err)
+		}
+		companies = append(companies, company)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate job companies: %w", err)
+	}
+
+	return companies, nil
 }
 
 func ensureSQLiteDirectory(dsn string) error {
@@ -1831,6 +1891,20 @@ func (r *SQLiteProfileRepository) seedJobHistories(ctx context.Context) error {
 		); err != nil {
 			return fmt.Errorf("seed job history %s: %w", jobHistory.id, err)
 		}
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) backfillJobCompanies(ctx context.Context) error {
+	if _, err := r.db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO job_companies (name, url)
+		SELECT DISTINCT company, ''
+		FROM job_histories
+		WHERE company IS NOT NULL AND company <> ''
+		ORDER BY company
+	`); err != nil {
+		return fmt.Errorf("backfill job companies: %w", err)
 	}
 
 	return nil

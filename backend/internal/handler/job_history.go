@@ -40,6 +40,7 @@ func (h *JobHistoryHandler) ListJobHistoryOptions(w http.ResponseWriter, r *http
 
 	writeJSON(w, http.StatusOK, jobHistoryOptionsResponse{
 		EmploymentTypes: toJobEmploymentTypePayloads(options.EmploymentTypes),
+		Companies:       toJobCompanyPayloads(options.Companies),
 	})
 }
 
@@ -178,12 +179,71 @@ func (h *JobHistoryHandler) UpdateJobEmploymentType(w http.ResponseWriter, r *ht
 	})
 }
 
+func (h *JobHistoryHandler) CreateJobCompany(w http.ResponseWriter, r *http.Request) {
+	var request jobCompanyRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+
+	input := toJobCompanyInput(request, true)
+	if input.Name == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "name is required")
+		return
+	}
+
+	company, err := h.usecase.CreateCompany(r.Context(), input)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal_server_error", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, jobCompanyResponse{
+		Company: toJobCompanyPayload(*company),
+	})
+}
+
+func (h *JobHistoryHandler) UpdateJobCompany(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "id is required")
+		return
+	}
+
+	var request jobCompanyRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+
+	input := toJobCompanyInput(request, false)
+	if input.Name == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "name is required")
+		return
+	}
+
+	company, err := h.usecase.UpdateCompany(r.Context(), id, input)
+	if err != nil {
+		if strings.Contains(err.Error(), sql.ErrNoRows.Error()) {
+			writeJSONError(w, http.StatusNotFound, "not_found", "job company not found")
+			return
+		}
+		writeJSONError(w, http.StatusInternalServerError, "internal_server_error", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, jobCompanyResponse{
+		Company: toJobCompanyPayload(*company),
+	})
+}
+
 type jobHistoriesResponse struct {
 	JobHistories []jobHistoryPayload `json:"jobHistories"`
 }
 
 type jobHistoryOptionsResponse struct {
 	EmploymentTypes []jobEmploymentTypePayload `json:"employmentTypes"`
+	Companies       []jobCompanyPayload        `json:"companies"`
 }
 
 type jobHistoryResponse struct {
@@ -192,6 +252,10 @@ type jobHistoryResponse struct {
 
 type jobEmploymentTypeResponse struct {
 	EmploymentType jobEmploymentTypePayload `json:"employmentType"`
+}
+
+type jobCompanyResponse struct {
+	Company jobCompanyPayload `json:"company"`
 }
 
 type jobHistoryRequest struct {
@@ -227,6 +291,18 @@ type jobEmploymentTypePayload struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	SortOrder int64  `json:"sortOrder"`
+}
+
+type jobCompanyRequest struct {
+	ID   string `json:"id,omitempty"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+type jobCompanyPayload struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
 }
 
 func toJobHistoryPayloads(values []domain.JobHistory) []jobHistoryPayload {
@@ -301,6 +377,35 @@ func toJobEmploymentTypeInput(request jobEmploymentTypeRequest, includeID bool) 
 	input := domain.JobEmploymentTypeInput{
 		Name:      strings.TrimSpace(request.Name),
 		SortOrder: request.SortOrder,
+	}
+	if includeID {
+		input.ID = strings.TrimSpace(request.ID)
+	}
+
+	return input
+}
+
+func toJobCompanyPayloads(values []domain.JobCompany) []jobCompanyPayload {
+	result := make([]jobCompanyPayload, 0, len(values))
+	for _, value := range values {
+		result = append(result, toJobCompanyPayload(value))
+	}
+
+	return result
+}
+
+func toJobCompanyPayload(value domain.JobCompany) jobCompanyPayload {
+	return jobCompanyPayload{
+		ID:   value.ID,
+		Name: value.Name,
+		URL:  value.URL,
+	}
+}
+
+func toJobCompanyInput(request jobCompanyRequest, includeID bool) domain.JobCompanyInput {
+	input := domain.JobCompanyInput{
+		Name: strings.TrimSpace(request.Name),
+		URL:  strings.TrimSpace(request.URL),
 	}
 	if includeID {
 		input.ID = strings.TrimSpace(request.ID)

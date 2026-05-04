@@ -27,17 +27,26 @@ type JobEmploymentType = {
   sortOrder: number;
 };
 
+type JobCompany = {
+  id: string;
+  name: string;
+  url: string;
+};
+
 type JobHistoriesResponse = {
   jobHistories: JobHistory[];
 };
 
 type JobHistoryOptionsResponse = {
   employmentTypes: JobEmploymentType[];
+  companies: JobCompany[];
 };
 
 type JobHistoryResponse = {
   jobHistory: JobHistory;
 };
+
+const noCompanyValue = "__no_company__";
 
 function sortJobHistoriesByStartDateDesc(values: JobHistory[]) {
   return [...values].sort((left, right) => {
@@ -102,6 +111,7 @@ function parseYearMonth(value: string) {
 export function JobHistoryPage() {
   const [jobs, setJobs] = useState<JobHistory[]>([]);
   const [employmentTypes, setEmploymentTypes] = useState<JobEmploymentType[]>([]);
+  const [companies, setCompanies] = useState<JobCompany[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
@@ -138,6 +148,7 @@ export function JobHistoryPage() {
         const optionsData = (await optionsResponse.json()) as JobHistoryOptionsResponse;
         setJobs(sortJobHistoriesByStartDateDesc(jobHistoriesData.jobHistories ?? []));
         setEmploymentTypes(optionsData.employmentTypes ?? []);
+        setCompanies(optionsData.companies ?? []);
       } catch (caught) {
         if (caught instanceof DOMException && caught.name === "AbortError") {
           return;
@@ -253,6 +264,14 @@ export function JobHistoryPage() {
     (formData.company.trim() !== "" || formData.displayName.trim() !== "") &&
     formData.startDate.trim() !== "" &&
     formData.employmentTypeId.trim() !== "";
+  const companyOptions = jobs.reduce<JobCompany[]>((options, job) => {
+    if (job.company && !options.some((company) => company.name === job.company)) {
+      return [...options, { id: `job_company_${job.id}`, name: job.company, url: "" }];
+    }
+
+    return options;
+  }, companies);
+  const companyURLByName = new Map(companyOptions.map((company) => [company.name, company.url]));
 
   return (
     <div className="p-8">
@@ -291,7 +310,20 @@ export function JobHistoryPage() {
                     <div>
                       <CardTitle className="text-xl">{job.displayName || job.company}</CardTitle>
                       {job.company && job.displayName && (
-                        <div className="mt-1 text-sm text-gray-500">{job.company}</div>
+                        <div className="mt-1 text-sm text-gray-500">
+                          {companyURLByName.get(job.company) ? (
+                            <a
+                              href={companyURLByName.get(job.company)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="hover:underline"
+                            >
+                              {job.company}
+                            </a>
+                          ) : (
+                            job.company
+                          )}
+                        </div>
                       )}
                       <div className="flex items-center gap-3 mt-2 text-sm text-gray-600">
                         <span>
@@ -346,19 +378,31 @@ export function JobHistoryPage() {
                 {editingJob ? "職歴を編集" : "職歴を追加"}
               </DialogTitle>
               <DialogDescription>
-                会社名または表示名、所属期間、雇用形態を入力してください
+                会社名は設定画面の会社マスタから選択します。会社名または表示名、所属期間、雇用形態を入力してください
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="company">会社名</Label>
-                <Input
-                  id="company"
-                  value={formData.company}
-                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                  placeholder="株式会社〇〇"
-                />
+                <Select
+                  value={formData.company || noCompanyValue}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, company: value === noCompanyValue ? "" : value })
+                  }
+                >
+                  <SelectTrigger id="company">
+                    <SelectValue placeholder="会社を選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={noCompanyValue}>未設定</SelectItem>
+                    {companyOptions.map((company) => (
+                      <SelectItem key={company.id} value={company.name}>
+                        {company.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">

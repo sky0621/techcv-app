@@ -50,8 +50,15 @@ type JobEmploymentType = {
   sortOrder: number;
 };
 
+type JobCompany = {
+  id: string;
+  name: string;
+  url: string;
+};
+
 type JobHistoryOptionsResponse = {
   employmentTypes: JobEmploymentType[];
+  companies: JobCompany[];
 };
 
 type ProfileLinkMaster = {
@@ -92,6 +99,11 @@ type EmploymentTypeForm = {
   sortOrder: number;
 };
 
+type CompanyForm = {
+  name: string;
+  url: string;
+};
+
 type ProfileLinkMasterForm = {
   id: string;
   key: string;
@@ -122,6 +134,10 @@ const emptyEmploymentTypeForm: EmploymentTypeForm = {
   id: "",
   name: "",
   sortOrder: 0,
+};
+const emptyCompanyForm: CompanyForm = {
+  name: "",
+  url: "",
 };
 const emptyProfileLinkMasterForm: ProfileLinkMasterForm = {
   id: "",
@@ -173,27 +189,32 @@ export function SettingsPage() {
   const [proficiencyLevels, setProficiencyLevels] = useState<SkillOption[]>([]);
   const [skillMasters, setSkillMasters] = useState<SkillMaster[]>([]);
   const [employmentTypes, setEmploymentTypes] = useState<JobEmploymentType[]>([]);
+  const [companies, setCompanies] = useState<JobCompany[]>([]);
   const [profileLinkMasters, setProfileLinkMasters] = useState<ProfileLinkMaster[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingCategory, setIsSavingCategory] = useState(false);
   const [isSavingSkillMaster, setIsSavingSkillMaster] = useState(false);
   const [isSavingProficiencyLevel, setIsSavingProficiencyLevel] = useState(false);
   const [isSavingEmploymentType, setIsSavingEmploymentType] = useState(false);
+  const [isSavingCompany, setIsSavingCompany] = useState(false);
   const [isSavingProfileLinkMaster, setIsSavingProfileLinkMaster] = useState(false);
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [skillMasterDialogOpen, setSkillMasterDialogOpen] = useState(false);
   const [proficiencyLevelDialogOpen, setProficiencyLevelDialogOpen] = useState(false);
   const [employmentTypeDialogOpen, setEmploymentTypeDialogOpen] = useState(false);
+  const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
   const [profileLinkMasterDialogOpen, setProfileLinkMasterDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<SkillOption | null>(null);
   const [editingSkillMaster, setEditingSkillMaster] = useState<SkillMaster | null>(null);
   const [editingProficiencyLevel, setEditingProficiencyLevel] = useState<SkillOption | null>(null);
   const [editingEmploymentType, setEditingEmploymentType] = useState<JobEmploymentType | null>(null);
+  const [editingCompany, setEditingCompany] = useState<JobCompany | null>(null);
   const [editingProfileLinkMaster, setEditingProfileLinkMaster] = useState<ProfileLinkMaster | null>(null);
   const [categoryForm, setCategoryForm] = useState<CategoryForm>(emptyCategoryForm);
   const [skillMasterForm, setSkillMasterForm] = useState<SkillMasterForm>(emptySkillMasterForm);
   const [proficiencyLevelForm, setProficiencyLevelForm] = useState<ProficiencyLevelForm>(emptyProficiencyLevelForm);
   const [employmentTypeForm, setEmploymentTypeForm] = useState<EmploymentTypeForm>(emptyEmploymentTypeForm);
+  const [companyForm, setCompanyForm] = useState<CompanyForm>(emptyCompanyForm);
   const [profileLinkMasterForm, setProfileLinkMasterForm] = useState<ProfileLinkMasterForm>(emptyProfileLinkMasterForm);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -219,6 +240,7 @@ export function SettingsPage() {
       setProficiencyLevels(skillOptions.proficiencyLevels ?? []);
       setSkillMasters(skillOptions.skillMasters ?? []);
       setEmploymentTypes(jobHistoryOptions.employmentTypes ?? []);
+      setCompanies(jobHistoryOptions.companies ?? []);
       setProfileLinkMasters(profileLinkMastersData.linkMasters ?? []);
     } catch (caught) {
       if (caught instanceof DOMException && caught.name === "AbortError") {
@@ -294,6 +316,14 @@ export function SettingsPage() {
     setError("");
   };
 
+  const openAddCompanyDialog = () => {
+    setEditingCompany(null);
+    setCompanyForm(emptyCompanyForm);
+    setCompanyDialogOpen(true);
+    setMessage("");
+    setError("");
+  };
+
   const openAddSkillMasterDialog = () => {
     setEditingSkillMaster(null);
     setSkillMasterForm({
@@ -337,6 +367,17 @@ export function SettingsPage() {
       sortOrder: employmentType.sortOrder,
     });
     setEmploymentTypeDialogOpen(true);
+    setMessage("");
+    setError("");
+  };
+
+  const openEditCompanyDialog = (company: JobCompany) => {
+    setEditingCompany(company);
+    setCompanyForm({
+      name: company.name,
+      url: company.url,
+    });
+    setCompanyDialogOpen(true);
     setMessage("");
     setError("");
   };
@@ -487,6 +528,40 @@ export function SettingsPage() {
   const canSaveEmploymentType =
     employmentTypeForm.name.trim() !== "" &&
     (editingEmploymentType !== null || employmentTypeForm.id.trim() !== "");
+
+  const handleSaveCompany = async () => {
+    setIsSavingCompany(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await fetch(
+        editingCompany
+          ? `/api/job-companies/${encodeURIComponent(editingCompany.id)}`
+          : "/api/job-companies",
+        {
+          method: editingCompany ? "PUT" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(companyForm),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(editingCompany ? "会社の更新に失敗しました" : "会社の追加に失敗しました");
+      }
+
+      setCompanyDialogOpen(false);
+      await loadOptions();
+      setMessage(editingCompany ? "会社を更新しました" : "会社を追加しました");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "会社の保存に失敗しました");
+    } finally {
+      setIsSavingCompany(false);
+    }
+  };
+
+  const canSaveCompany = companyForm.name.trim() !== "";
 
   const handleSaveProfileLinkMaster = async () => {
     setIsSavingProfileLinkMaster(true);
@@ -836,6 +911,71 @@ export function SettingsPage() {
                     <TableRow>
                       <TableCell colSpan={4} className="text-center text-gray-500">
                         雇用形態は登録されていません。
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4">
+              <div>
+                <CardTitle>会社</CardTitle>
+                <CardDescription>job_companies テーブルの内容</CardDescription>
+              </div>
+              <Button type="button" variant="outline" onClick={openAddCompanyDialog}>
+                <LucideIcons.Plus className="w-4 h-4 mr-2" />
+                追加
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>会社名</TableHead>
+                    <TableHead>URL</TableHead>
+                    <TableHead>ID</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {companies.map((company) => (
+                    <TableRow key={company.id}>
+                      <TableCell className="font-medium">{company.name}</TableCell>
+                      <TableCell>
+                        {company.url ? (
+                          <a
+                            href={company.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-sm text-blue-600 hover:underline"
+                          >
+                            {company.url}
+                          </a>
+                        ) : (
+                          <span className="text-sm text-gray-400">未設定</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-gray-600">{company.id}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditCompanyDialog(company)}
+                        >
+                          <LucideIcons.Pencil className="w-4 h-4 mr-2" />
+                          編集
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {!isLoading && companies.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-gray-500">
+                        会社は登録されていません。
                       </TableCell>
                     </TableRow>
                   )}
@@ -1281,6 +1421,60 @@ export function SettingsPage() {
                 disabled={!canSaveEmploymentType || isSavingEmploymentType}
               >
                 {isSavingEmploymentType ? "保存中" : "保存"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={companyDialogOpen} onOpenChange={setCompanyDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingCompany ? "会社を編集" : "会社を追加"}</DialogTitle>
+              <DialogDescription>
+                職歴管理で選択する会社名と会社URLを登録します。
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="company-name">会社名</Label>
+                <Input
+                  id="company-name"
+                  value={companyForm.name}
+                  onChange={(e) =>
+                    setCompanyForm({ ...companyForm, name: e.target.value })
+                  }
+                  placeholder="株式会社〇〇"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="company-url">会社URL</Label>
+                <Input
+                  id="company-url"
+                  value={companyForm.url}
+                  onChange={(e) =>
+                    setCompanyForm({ ...companyForm, url: e.target.value })
+                  }
+                  placeholder="https://example.com"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCompanyDialogOpen(false)}
+              >
+                キャンセル
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSaveCompany}
+                disabled={!canSaveCompany || isSavingCompany}
+              >
+                {isSavingCompany ? "保存中" : "保存"}
               </Button>
             </DialogFooter>
           </DialogContent>

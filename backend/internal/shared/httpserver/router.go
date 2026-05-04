@@ -55,6 +55,8 @@ func NewRouter(
 	api.Delete("/job-histories/{id}", jobHistoryServer.DeleteJobHistory)
 	api.Post("/job-employment-types", jobHistoryServer.CreateJobEmploymentType)
 	api.Put("/job-employment-types/{id}", jobHistoryServer.UpdateJobEmploymentType)
+	api.Post("/job-companies", jobHistoryServer.CreateJobCompany)
+	api.Put("/job-companies/{id}", jobHistoryServer.UpdateJobCompany)
 	api.Get("/projects", projectServer.ListProjects)
 	api.Post("/projects", projectServer.CreateProject)
 	api.Put("/projects/{id}", projectServer.UpdateProject)

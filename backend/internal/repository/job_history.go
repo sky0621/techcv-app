@@ -14,4 +14,6 @@ type JobHistoryRepository interface {
 	ListJobHistoryOptions(ctx context.Context) (*domain.JobHistoryOptions, error)
 	CreateJobEmploymentType(ctx context.Context, input domain.JobEmploymentTypeInput) (*domain.JobEmploymentType, error)
 	UpdateJobEmploymentType(ctx context.Context, id string, input domain.JobEmploymentTypeInput) (*domain.JobEmploymentType, error)
+	CreateJobCompany(ctx context.Context, input domain.JobCompanyInput) (*domain.JobCompany, error)
+	UpdateJobCompany(ctx context.Context, id string, input domain.JobCompanyInput) (*domain.JobCompany, error)
 }

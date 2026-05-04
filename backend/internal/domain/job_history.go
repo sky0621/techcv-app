@@ -29,12 +29,25 @@ type JobEmploymentType struct {
 	SortOrder int64
 }
 
+type JobCompany struct {
+	ID   string
+	Name string
+	URL  string
+}
+
 type JobHistoryOptions struct {
 	EmploymentTypes []JobEmploymentType
+	Companies       []JobCompany
 }
 
 type JobEmploymentTypeInput struct {
 	ID        string
 	Name      string
 	SortOrder int64
+}
+
+type JobCompanyInput struct {
+	ID   string
+	Name string
+	URL  string
 }

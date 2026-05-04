@@ -42,3 +42,11 @@ func (u *JobHistoryUseCase) CreateEmploymentType(ctx context.Context, input doma
 func (u *JobHistoryUseCase) UpdateEmploymentType(ctx context.Context, id string, input domain.JobEmploymentTypeInput) (*domain.JobEmploymentType, error) {
 	return u.repository.UpdateJobEmploymentType(ctx, id, input)
 }
+
+func (u *JobHistoryUseCase) CreateCompany(ctx context.Context, input domain.JobCompanyInput) (*domain.JobCompany, error) {
+	return u.repository.CreateJobCompany(ctx, input)
+}
+
+func (u *JobHistoryUseCase) UpdateCompany(ctx context.Context, id string, input domain.JobCompanyInput) (*domain.JobCompany, error) {
+	return u.repository.UpdateJobCompany(ctx, id, input)
+}
