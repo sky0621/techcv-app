@@ -242,16 +242,7 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.addSkillCategoryIconColumn(ctx); err != nil {
 		return err
 	}
-	if err := r.seedProfileLinkMasters(ctx); err != nil {
-		return err
-	}
 	if err := r.migrateProfileLinks(ctx); err != nil {
-		return err
-	}
-	if err := r.seedSkillOptions(ctx); err != nil {
-		return err
-	}
-	if err := r.seedSkillMasters(ctx); err != nil {
 		return err
 	}
 	if err := r.addSkillMasterURLColumn(ctx); err != nil {
@@ -269,10 +260,7 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.migrateIntegerPrimaryKeys(ctx); err != nil {
 		return err
 	}
-	if err := r.seedSkills(ctx); err != nil {
-		return err
-	}
-	if err := r.seedJobEmploymentTypes(ctx); err != nil {
+	if err := r.cleanupSeededSkills(ctx); err != nil {
 		return err
 	}
 	if err := r.migrateJobHistoryDateColumns(ctx); err != nil {
@@ -294,9 +282,6 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 		return err
 	}
 	if err := r.migrateProjectDateColumns(ctx); err != nil {
-		return err
-	}
-	if err := r.seedProjects(ctx); err != nil {
 		return err
 	}
 	if err := r.backfillEmptySkillCategoryIcons(ctx); err != nil {
@@ -1726,74 +1711,6 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 	return nil
 }
 
-func (r *SQLiteProfileRepository) seedSkillOptions(ctx context.Context) error {
-	categories := []domain.SkillOption{
-		{ID: "1", Name: "言語", Icon: "code", SortOrder: 1},
-		{ID: "2", Name: "フレームワーク", Icon: "code", SortOrder: 2},
-		{ID: "3", Name: "データベース", Icon: "database", SortOrder: 3},
-		{ID: "4", Name: "インフラ", Icon: "cloud", SortOrder: 4},
-		{ID: "5", Name: "ツール", Icon: "wrench", SortOrder: 5},
-		{ID: "6", Name: "その他", Icon: "wrench", SortOrder: 6},
-	}
-	for _, category := range categories {
-		if _, err := r.db.ExecContext(
-			ctx,
-			"INSERT OR IGNORE INTO skill_categories (id, name, icon, sort_order) VALUES (?, ?, ?, ?)",
-			category.ID,
-			category.Name,
-			category.Icon,
-			category.SortOrder,
-		); err != nil {
-			return fmt.Errorf("seed skill category %s: %w", category.ID, err)
-		}
-	}
-
-	proficiencyLevels := []domain.SkillOption{
-		{ID: "1", Name: "初級", SortOrder: 1},
-		{ID: "2", Name: "中級", SortOrder: 2},
-		{ID: "3", Name: "上級", SortOrder: 3},
-		{ID: "4", Name: "エキスパート", SortOrder: 4},
-	}
-	for _, level := range proficiencyLevels {
-		if _, err := r.db.ExecContext(
-			ctx,
-			"INSERT OR IGNORE INTO skill_proficiency_levels (id, name, sort_order) VALUES (?, ?, ?)",
-			level.ID,
-			level.Name,
-			level.SortOrder,
-		); err != nil {
-			return fmt.Errorf("seed skill proficiency level %s: %w", level.ID, err)
-		}
-	}
-
-	return nil
-}
-
-func (r *SQLiteProfileRepository) seedProfileLinkMasters(ctx context.Context) error {
-	masters := []domain.ProfileLinkMaster{
-		{ID: "1", Key: "github", Name: "GitHub", Icon: "github", Placeholder: "https://github.com/username", SortOrder: 1},
-		{ID: "2", Key: "zenn", Name: "Zenn", Icon: "book-open", Placeholder: "https://zenn.dev/username", SortOrder: 2},
-		{ID: "3", Key: "qiita", Name: "Qiita", Icon: "book-open", Placeholder: "https://qiita.com/username", SortOrder: 3},
-		{ID: "4", Key: "website", Name: "個人サイト", Icon: "globe", Placeholder: "https://example.com", SortOrder: 4},
-	}
-	for _, master := range masters {
-		if _, err := r.db.ExecContext(
-			ctx,
-			"INSERT OR IGNORE INTO profile_link_masters (id, key, name, icon, placeholder, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
-			master.ID,
-			master.Key,
-			master.Name,
-			master.Icon,
-			master.Placeholder,
-			master.SortOrder,
-		); err != nil {
-			return fmt.Errorf("seed profile link master %s: %w", master.Key, err)
-		}
-	}
-
-	return nil
-}
-
 func (r *SQLiteProfileRepository) migrateProfileLinks(ctx context.Context) error {
 	_, err := r.db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO profile_links (profile_id, link_master_id, url, sort_order)
@@ -1884,87 +1801,18 @@ func (r *SQLiteProfileRepository) saveProfileLinks(ctx context.Context, tx *sql.
 	return nil
 }
 
-func (r *SQLiteProfileRepository) seedSkills(ctx context.Context) error {
-	skills := []struct {
-		id                 string
-		skillMasterID      string
-		experience         int64
-		proficiencyLevelID string
-		sortOrder          int64
-	}{
-		{id: "1", skillMasterID: "1", experience: 3, proficiencyLevelID: "3", sortOrder: 1},
-		{id: "2", skillMasterID: "4", experience: 3, proficiencyLevelID: "3", sortOrder: 2},
-		{id: "3", skillMasterID: "6", experience: 2, proficiencyLevelID: "2", sortOrder: 3},
-		{id: "4", skillMasterID: "7", experience: 2, proficiencyLevelID: "2", sortOrder: 4},
-		{id: "5", skillMasterID: "9", experience: 2, proficiencyLevelID: "2", sortOrder: 5},
-		{id: "6", skillMasterID: "10", experience: 1, proficiencyLevelID: "1", sortOrder: 6},
-		{id: "7", skillMasterID: "11", experience: 4, proficiencyLevelID: "3", sortOrder: 7},
-	}
-	for _, skill := range skills {
-		if _, err := r.db.ExecContext(
-			ctx,
-			"INSERT OR IGNORE INTO skills (id, skill_master_id, experience, proficiency_level_id, sort_order) VALUES (?, ?, ?, ?, ?)",
-			skill.id,
-			skill.skillMasterID,
-			skill.experience,
-			skill.proficiencyLevelID,
-			skill.sortOrder,
-		); err != nil {
-			return fmt.Errorf("seed skill %s: %w", skill.id, err)
-		}
-	}
-
-	return nil
-}
-
-func (r *SQLiteProfileRepository) seedSkillMasters(ctx context.Context) error {
-	skillMasters := []domain.SkillMaster{
-		{ID: "1", Name: "TypeScript", CategoryID: "1", SortOrder: 1},
-		{ID: "2", Name: "JavaScript", CategoryID: "1", SortOrder: 2},
-		{ID: "3", Name: "Go", CategoryID: "1", SortOrder: 3},
-		{ID: "4", Name: "React", CategoryID: "2", SortOrder: 4},
-		{ID: "5", Name: "Next.js", CategoryID: "2", SortOrder: 5},
-		{ID: "6", Name: "Node.js", CategoryID: "2", SortOrder: 6},
-		{ID: "7", Name: "PostgreSQL", CategoryID: "3", SortOrder: 7},
-		{ID: "8", Name: "SQLite", CategoryID: "3", SortOrder: 8},
-		{ID: "9", Name: "Docker", CategoryID: "4", SortOrder: 9},
-		{ID: "10", Name: "AWS", CategoryID: "4", SortOrder: 10},
-		{ID: "11", Name: "Git", CategoryID: "5", SortOrder: 11},
-	}
-	for _, skillMaster := range skillMasters {
-		if _, err := r.db.ExecContext(
-			ctx,
-			"INSERT OR IGNORE INTO skill_masters (id, name, category_id, sort_order) VALUES (?, ?, ?, ?)",
-			skillMaster.ID,
-			skillMaster.Name,
-			skillMaster.CategoryID,
-			skillMaster.SortOrder,
-		); err != nil {
-			return fmt.Errorf("seed skill master %s: %w", skillMaster.ID, err)
-		}
-	}
-
-	return nil
-}
-
-func (r *SQLiteProfileRepository) seedJobEmploymentTypes(ctx context.Context) error {
-	employmentTypes := []domain.JobEmploymentType{
-		{ID: "1", Name: "正社員", SortOrder: 1},
-		{ID: "2", Name: "契約社員", SortOrder: 2},
-		{ID: "3", Name: "業務委託", SortOrder: 3},
-		{ID: "4", Name: "派遣", SortOrder: 4},
-		{ID: "5", Name: "アルバイト", SortOrder: 5},
-	}
-	for _, employmentType := range employmentTypes {
-		if _, err := r.db.ExecContext(
-			ctx,
-			"INSERT OR IGNORE INTO job_employment_types (id, name, sort_order) VALUES (?, ?, ?)",
-			employmentType.ID,
-			employmentType.Name,
-			employmentType.SortOrder,
-		); err != nil {
-			return fmt.Errorf("seed job employment type %s: %w", employmentType.ID, err)
-		}
+func (r *SQLiteProfileRepository) cleanupSeededSkills(ctx context.Context) error {
+	if _, err := r.db.ExecContext(ctx, `
+		DELETE FROM skills
+		WHERE (id = 1 AND skill_master_id = 1 AND experience = 3 AND proficiency_level_id = 3 AND sort_order = 1)
+			OR (id = 2 AND skill_master_id = 4 AND experience = 3 AND proficiency_level_id = 3 AND sort_order = 2)
+			OR (id = 3 AND skill_master_id = 6 AND experience = 2 AND proficiency_level_id = 2 AND sort_order = 3)
+			OR (id = 4 AND skill_master_id = 7 AND experience = 2 AND proficiency_level_id = 2 AND sort_order = 4)
+			OR (id = 5 AND skill_master_id = 9 AND experience = 2 AND proficiency_level_id = 2 AND sort_order = 5)
+			OR (id = 6 AND skill_master_id = 10 AND experience = 1 AND proficiency_level_id = 1 AND sort_order = 6)
+			OR (id = 7 AND skill_master_id = 11 AND experience = 4 AND proficiency_level_id = 3 AND sort_order = 7)
+	`); err != nil {
+		return fmt.Errorf("cleanup seeded skills: %w", err)
 	}
 
 	return nil
@@ -2004,95 +1852,6 @@ func (r *SQLiteProfileRepository) cleanupDefaultJobCompanies(ctx context.Context
 			)
 	`); err != nil {
 		return fmt.Errorf("cleanup default job companies: %w", err)
-	}
-
-	return nil
-}
-
-func (r *SQLiteProfileRepository) seedProjects(ctx context.Context) error {
-	projects := []domain.Project{
-		{
-			ID:           "1",
-			Name:         "ECサイトリニューアル",
-			Company:      "株式会社A",
-			StartYear:    2024,
-			StartMonth:   1,
-			EndYear:      nil,
-			EndMonth:     nil,
-			Description:  "大手ECサイトのフロントエンド刷新プロジェクト",
-			Role:         "フロントエンドエンジニア",
-			TeamSize:     "8名",
-			Technologies: []string{"React", "TypeScript", "Next.js", "Tailwind CSS"},
-			Phases:       []string{"要件定義", "設計", "実装", "テスト"},
-			Achievements: "ページ表示速度を50%改善、コンバージョン率15%向上",
-			IsDraft:      false,
-			SortOrder:    1,
-		},
-		{
-			ID:           "2",
-			Name:         "業務管理システム開発",
-			Company:      "株式会社B",
-			StartYear:    2023,
-			StartMonth:   6,
-			EndYear:      int64Ptr(2023),
-			EndMonth:     int64Ptr(12),
-			Description:  "社内業務効率化のためのWebアプリケーション開発",
-			Role:         "フルスタックエンジニア",
-			TeamSize:     "5名",
-			Technologies: []string{"Vue.js", "Node.js", "PostgreSQL", "Docker"},
-			Phases:       []string{"設計", "実装", "テスト", "運用保守"},
-			Achievements: "業務時間を30%削減、ユーザー満足度90%以上",
-			IsDraft:      false,
-			SortOrder:    2,
-		},
-	}
-
-	for _, project := range projects {
-		technologies, err := encodeStringSlice(project.Technologies)
-		if err != nil {
-			return err
-		}
-		phases, err := encodeStringSlice(project.Phases)
-		if err != nil {
-			return err
-		}
-		if _, err := r.db.ExecContext(
-			ctx,
-			`INSERT OR IGNORE INTO projects (
-				id,
-				name,
-				company,
-				start_year,
-				start_month,
-				end_year,
-				end_month,
-				description,
-				role,
-				team_size,
-				technologies,
-				phases,
-				achievements,
-				is_draft,
-				sort_order
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			project.ID,
-			project.Name,
-			project.Company,
-			project.StartYear,
-			project.StartMonth,
-			toNullInt64(project.EndYear),
-			toNullInt64(project.EndMonth),
-			project.Description,
-			project.Role,
-			project.TeamSize,
-			technologies,
-			phases,
-			project.Achievements,
-			boolToInt64(project.IsDraft),
-			project.SortOrder,
-		); err != nil {
-			return fmt.Errorf("seed project %s: %w", project.ID, err)
-		}
 	}
 
 	return nil
@@ -2472,10 +2231,6 @@ func skillID(now time.Time) string {
 
 func projectID(now time.Time) string {
 	return fmt.Sprintf("%d", now.UnixNano())
-}
-
-func int64Ptr(value int64) *int64 {
-	return &value
 }
 
 func encodeStringSlice(values []string) (string, error) {
