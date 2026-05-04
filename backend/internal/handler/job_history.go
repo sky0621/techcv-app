@@ -215,7 +215,6 @@ type jobHistoryPayload struct {
 	EmploymentTypeID string `json:"employmentTypeId"`
 	EmploymentType   string `json:"employmentType"`
 	ProjectCount     int64  `json:"projectCount"`
-	SortOrder        int64  `json:"sortOrder"`
 }
 
 type jobEmploymentTypeRequest struct {
@@ -251,7 +250,6 @@ func toJobHistoryPayload(value domain.JobHistory) jobHistoryPayload {
 		EmploymentTypeID: value.EmploymentTypeID,
 		EmploymentType:   value.EmploymentType,
 		ProjectCount:     value.ProjectCount,
-		SortOrder:        value.SortOrder,
 	}
 }
 

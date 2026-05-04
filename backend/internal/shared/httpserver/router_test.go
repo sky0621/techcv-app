@@ -984,7 +984,6 @@ func newTestProfileRepository() *testProfileRepository {
 				EmploymentTypeID: "1",
 				EmploymentType:   "正社員",
 				ProjectCount:     5,
-				SortOrder:        1,
 			},
 		},
 		employmentTypes: []domain.JobEmploymentType{
@@ -1336,7 +1335,6 @@ func (r *testProfileRepository) CreateJobHistory(_ context.Context, input domain
 		EmploymentTypeID: input.EmploymentTypeID,
 		EmploymentType:   employmentType.Name,
 		ProjectCount:     0,
-		SortOrder:        int64(len(r.jobHistories) + 1),
 	}
 	r.jobHistories = append(r.jobHistories, jobHistory)
 

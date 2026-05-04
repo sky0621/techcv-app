@@ -113,7 +113,6 @@ CREATE TABLE IF NOT EXISTS job_histories (
     end_month INTEGER,
     employment_type_id INTEGER NOT NULL,
     project_count INTEGER NOT NULL DEFAULT 0,
-    sort_order INTEGER NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (employment_type_id) REFERENCES job_employment_types(id)

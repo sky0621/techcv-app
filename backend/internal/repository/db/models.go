@@ -27,7 +27,6 @@ type JobHistory struct {
 	EndMonth         sql.NullInt64
 	EmploymentTypeID string
 	ProjectCount     int64
-	SortOrder        int64
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }

@@ -19,7 +19,6 @@ type JobHistory = {
   employmentTypeId: string;
   employmentType: string;
   projectCount: number;
-  sortOrder: number;
 };
 
 type JobEmploymentType = {
@@ -39,6 +38,19 @@ type JobHistoryOptionsResponse = {
 type JobHistoryResponse = {
   jobHistory: JobHistory;
 };
+
+function sortJobHistoriesByStartDateDesc(values: JobHistory[]) {
+  return [...values].sort((left, right) => {
+    if (right.startYear !== left.startYear) {
+      return right.startYear - left.startYear;
+    }
+    if (right.startMonth !== left.startMonth) {
+      return right.startMonth - left.startMonth;
+    }
+
+    return Number(right.id) - Number(left.id);
+  });
+}
 
 function formatYearMonth(year: number, month: number) {
   return `${year}-${String(month).padStart(2, "0")}`;
@@ -124,7 +136,7 @@ export function JobHistoryPage() {
 
         const jobHistoriesData = (await jobHistoriesResponse.json()) as JobHistoriesResponse;
         const optionsData = (await optionsResponse.json()) as JobHistoryOptionsResponse;
-        setJobs(jobHistoriesData.jobHistories ?? []);
+        setJobs(sortJobHistoriesByStartDateDesc(jobHistoriesData.jobHistories ?? []));
         setEmploymentTypes(optionsData.employmentTypes ?? []);
       } catch (caught) {
         if (caught instanceof DOMException && caught.name === "AbortError") {
@@ -204,9 +216,11 @@ export function JobHistoryPage() {
 
       const data = (await response.json()) as JobHistoryResponse;
       if (editingJob) {
-        setJobs(jobs.map(j => j.id === editingJob.id ? data.jobHistory : j));
+        setJobs(sortJobHistoriesByStartDateDesc(
+          jobs.map(j => j.id === editingJob.id ? data.jobHistory : j),
+        ));
       } else {
-        setJobs([data.jobHistory, ...jobs]);
+        setJobs(sortJobHistoriesByStartDateDesc([data.jobHistory, ...jobs]));
       }
       setIsDialogOpen(false);
     } catch (caught) {

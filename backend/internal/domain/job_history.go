@@ -11,7 +11,6 @@ type JobHistory struct {
 	EmploymentTypeID string
 	EmploymentType   string
 	ProjectCount     int64
-	SortOrder        int64
 }
 
 type JobHistoryInput struct {

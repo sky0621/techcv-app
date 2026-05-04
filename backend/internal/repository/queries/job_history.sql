@@ -10,12 +10,11 @@ SELECT
   job_histories.employment_type_id,
   job_employment_types.name AS employment_type,
   job_histories.project_count,
-  job_histories.sort_order,
   job_histories.created_at,
   job_histories.updated_at
 FROM job_histories
 JOIN job_employment_types ON job_employment_types.id = job_histories.employment_type_id
-ORDER BY job_histories.sort_order ASC, job_histories.start_year DESC, job_histories.start_month DESC, COALESCE(job_histories.company, '') ASC;
+ORDER BY job_histories.start_year DESC, job_histories.start_month DESC, COALESCE(job_histories.company, '') ASC;
 
 -- name: GetJobHistory :one
 SELECT
@@ -29,7 +28,6 @@ SELECT
   job_histories.employment_type_id,
   job_employment_types.name AS employment_type,
   job_histories.project_count,
-  job_histories.sort_order,
   job_histories.created_at,
   job_histories.updated_at
 FROM job_histories
@@ -45,10 +43,9 @@ INSERT INTO job_histories (
   end_year,
   end_month,
   employment_type_id,
-  project_count,
-  sort_order
+  project_count
 )
-SELECT
+VALUES (
   NULLIF(?, ''),
   NULLIF(?, ''),
   ?,
@@ -56,9 +53,8 @@ SELECT
   ?,
   ?,
   ?,
-  0,
-  COALESCE(MIN(sort_order), 0) - 1
-FROM job_histories
+  0
+)
 RETURNING
   id,
   COALESCE(company, '') AS company,
@@ -69,7 +65,6 @@ RETURNING
   end_month,
   employment_type_id,
   project_count,
-  sort_order,
   created_at,
   updated_at;
 
@@ -95,7 +90,6 @@ RETURNING
   end_month,
   employment_type_id,
   project_count,
-  sort_order,
   created_at,
   updated_at;
 
