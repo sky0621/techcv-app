@@ -254,6 +254,9 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.seedSkillMasters(ctx); err != nil {
 		return err
 	}
+	if err := r.addSkillMasterURLColumn(ctx); err != nil {
+		return err
+	}
 	if err := r.migrateSkillExperienceColumn(ctx); err != nil {
 		return err
 	}
@@ -864,6 +867,22 @@ func (r *SQLiteProfileRepository) addSkillCategoryIconColumn(ctx context.Context
 
 	if _, err := r.db.ExecContext(ctx, "ALTER TABLE skill_categories ADD COLUMN icon TEXT NOT NULL DEFAULT ''"); err != nil {
 		return fmt.Errorf("add skill_categories.icon column: %w", err)
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) addSkillMasterURLColumn(ctx context.Context) error {
+	hasURLColumn, err := r.tableHasColumn(ctx, "skill_masters", "url")
+	if err != nil {
+		return err
+	}
+	if hasURLColumn {
+		return nil
+	}
+
+	if _, err := r.db.ExecContext(ctx, "ALTER TABLE skill_masters ADD COLUMN url TEXT"); err != nil {
+		return fmt.Errorf("add skill_masters.url column: %w", err)
 	}
 
 	return nil
@@ -1547,21 +1566,23 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 		FROM skill_proficiency_levels
 		JOIN _skill_proficiency_id_map ON _skill_proficiency_id_map.old_id = skill_proficiency_levels.id`,
 		`CREATE TABLE skill_masters_new (
-			id INTEGER PRIMARY KEY,
-			name TEXT NOT NULL UNIQUE,
-			category_id INTEGER NOT NULL,
-			sort_order INTEGER NOT NULL,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (category_id) REFERENCES skill_categories(id)
-		)`,
+				id INTEGER PRIMARY KEY,
+				name TEXT NOT NULL UNIQUE,
+				category_id INTEGER NOT NULL,
+				url TEXT,
+				sort_order INTEGER NOT NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				FOREIGN KEY (category_id) REFERENCES skill_categories(id)
+			)`,
 		`INSERT INTO skill_masters_new
 		SELECT
-			_skill_master_id_map.new_id,
-			skill_masters.name,
-			_skill_category_id_map.new_id,
-			skill_masters.sort_order,
-			skill_masters.created_at,
+				_skill_master_id_map.new_id,
+				skill_masters.name,
+				_skill_category_id_map.new_id,
+				skill_masters.url,
+				skill_masters.sort_order,
+				skill_masters.created_at,
 			skill_masters.updated_at
 		FROM skill_masters
 		JOIN _skill_master_id_map ON _skill_master_id_map.old_id = skill_masters.id
