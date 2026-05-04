@@ -76,6 +76,7 @@ SELECT
   skill_masters.name,
   skill_masters.category_id,
   skill_categories.name AS category_name,
+  skill_masters.url,
   skill_masters.sort_order,
   skill_masters.created_at,
   skill_masters.updated_at
@@ -89,6 +90,7 @@ SELECT
   skill_masters.name,
   skill_masters.category_id,
   skill_categories.name AS category_name,
+  skill_masters.url,
   skill_masters.sort_order,
   skill_masters.created_at,
   skill_masters.updated_at
@@ -101,9 +103,11 @@ INSERT INTO skill_masters (
   id,
   name,
   category_id,
+  url,
   sort_order
 )
 SELECT
+  ?,
   ?,
   ?,
   ?,
@@ -113,6 +117,7 @@ RETURNING
   id,
   name,
   category_id,
+  url,
   sort_order,
   created_at,
   updated_at;
@@ -122,6 +127,7 @@ UPDATE skill_masters
 SET
   name = ?,
   category_id = ?,
+  url = ?,
   sort_order = COALESCE(NULLIF(?, 0), sort_order),
   updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
@@ -129,6 +135,7 @@ RETURNING
   id,
   name,
   category_id,
+  url,
   sort_order,
   created_at,
   updated_at;

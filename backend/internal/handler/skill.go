@@ -321,6 +321,7 @@ type skillMasterRequest struct {
 	ID         string `json:"id,omitempty"`
 	Name       string `json:"name"`
 	CategoryID string `json:"categoryId"`
+	URL        string `json:"url"`
 	SortOrder  int64  `json:"sortOrder"`
 }
 
@@ -359,6 +360,7 @@ type skillMasterPayload struct {
 	Name       string `json:"name"`
 	CategoryID string `json:"categoryId"`
 	Category   string `json:"category"`
+	URL        string `json:"url"`
 	SortOrder  int64  `json:"sortOrder"`
 }
 
@@ -395,6 +397,7 @@ func toSkillMasterPayload(value domain.SkillMaster) skillMasterPayload {
 		Name:       value.Name,
 		CategoryID: value.CategoryID,
 		Category:   value.CategoryName,
+		URL:        value.URL,
 		SortOrder:  value.SortOrder,
 	}
 }
@@ -446,6 +449,7 @@ func toSkillMasterInput(request skillMasterRequest, includeID bool) domain.Skill
 	input := domain.SkillMasterInput{
 		Name:       strings.TrimSpace(request.Name),
 		CategoryID: strings.TrimSpace(request.CategoryID),
+		URL:        strings.TrimSpace(request.URL),
 		SortOrder:  request.SortOrder,
 	}
 	if includeID {

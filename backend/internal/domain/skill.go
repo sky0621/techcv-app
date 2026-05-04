@@ -25,6 +25,7 @@ type SkillMaster struct {
 	Name         string
 	CategoryID   string
 	CategoryName string
+	URL          string
 	SortOrder    int64
 }
 
@@ -32,6 +33,7 @@ type SkillMasterInput struct {
 	ID         string
 	Name       string
 	CategoryID string
+	URL        string
 	SortOrder  int64
 }
 

@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"time"
 )
 
@@ -82,6 +83,7 @@ SELECT
   skill_masters.name,
   skill_masters.category_id,
   skill_categories.name AS category_name,
+  skill_masters.url,
   skill_masters.sort_order,
   skill_masters.created_at,
   skill_masters.updated_at
@@ -95,6 +97,7 @@ type GetSkillMasterRow struct {
 	Name         string
 	CategoryID   string
 	CategoryName string
+	Url          sql.NullString
 	SortOrder    int64
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -108,6 +111,7 @@ func (q *Queries) GetSkillMaster(ctx context.Context, id string) (GetSkillMaster
 		&i.Name,
 		&i.CategoryID,
 		&i.CategoryName,
+		&i.Url,
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -215,9 +219,11 @@ INSERT INTO skill_masters (
   id,
   name,
   category_id,
+  url,
   sort_order
 )
 SELECT
+  ?,
   ?,
   ?,
   ?,
@@ -227,6 +233,7 @@ RETURNING
   id,
   name,
   category_id,
+  url,
   sort_order,
   created_at,
   updated_at
@@ -236,16 +243,18 @@ type InsertSkillMasterParams struct {
 	ID         string
 	Name       string
 	CategoryID string
+	Url        sql.NullString
 	SortOrder  int64
 }
 
 func (q *Queries) InsertSkillMaster(ctx context.Context, arg InsertSkillMasterParams) (SkillMaster, error) {
-	row := q.db.QueryRowContext(ctx, insertSkillMaster, arg.ID, arg.Name, arg.CategoryID, arg.SortOrder)
+	row := q.db.QueryRowContext(ctx, insertSkillMaster, arg.ID, arg.Name, arg.CategoryID, arg.Url, arg.SortOrder)
 	var i SkillMaster
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.CategoryID,
+		&i.Url,
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -301,6 +310,7 @@ SELECT
   skill_masters.name,
   skill_masters.category_id,
   skill_categories.name AS category_name,
+  skill_masters.url,
   skill_masters.sort_order,
   skill_masters.created_at,
   skill_masters.updated_at
@@ -314,6 +324,7 @@ type ListSkillMastersRow struct {
 	Name         string
 	CategoryID   string
 	CategoryName string
+	Url          sql.NullString
 	SortOrder    int64
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -333,6 +344,7 @@ func (q *Queries) ListSkillMasters(ctx context.Context) ([]ListSkillMastersRow, 
 			&i.Name,
 			&i.CategoryID,
 			&i.CategoryName,
+			&i.Url,
 			&i.SortOrder,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -581,6 +593,7 @@ UPDATE skill_masters
 SET
   name = ?,
   category_id = ?,
+  url = ?,
   sort_order = COALESCE(NULLIF(?, 0), sort_order),
   updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
@@ -588,6 +601,7 @@ RETURNING
   id,
   name,
   category_id,
+  url,
   sort_order,
   created_at,
   updated_at
@@ -596,17 +610,19 @@ RETURNING
 type UpdateSkillMasterParams struct {
 	Name       string
 	CategoryID string
+	Url        sql.NullString
 	SortOrder  int64
 	ID         string
 }
 
 func (q *Queries) UpdateSkillMaster(ctx context.Context, arg UpdateSkillMasterParams) (SkillMaster, error) {
-	row := q.db.QueryRowContext(ctx, updateSkillMaster, arg.Name, arg.CategoryID, arg.SortOrder, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateSkillMaster, arg.Name, arg.CategoryID, arg.Url, arg.SortOrder, arg.ID)
 	var i SkillMaster
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.CategoryID,
+		&i.Url,
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,

@@ -432,6 +432,7 @@ func (r *SQLiteProfileRepository) CreateSkillMaster(ctx context.Context, input d
 		ID:         input.ID,
 		Name:       input.Name,
 		CategoryID: input.CategoryID,
+		Url:        toNullString(input.URL),
 		SortOrder:  input.SortOrder,
 	})
 	if err != nil {
@@ -451,6 +452,7 @@ func (r *SQLiteProfileRepository) UpdateSkillMaster(ctx context.Context, id stri
 		ID:         id,
 		Name:       input.Name,
 		CategoryID: input.CategoryID,
+		Url:        toNullString(input.URL),
 		SortOrder:  input.SortOrder,
 	})
 	if err != nil {
@@ -2288,6 +2290,7 @@ func toDomainSkillMasters(rows []dbgen.ListSkillMastersRow) []domain.SkillMaster
 			Name:         row.Name,
 			CategoryID:   row.CategoryID,
 			CategoryName: row.CategoryName,
+			URL:          fromNullString(row.Url),
 			SortOrder:    row.SortOrder,
 		})
 	}
@@ -2301,6 +2304,7 @@ func toDomainSkillMaster(row dbgen.GetSkillMasterRow) *domain.SkillMaster {
 		Name:         row.Name,
 		CategoryID:   row.CategoryID,
 		CategoryName: row.CategoryName,
+		URL:          fromNullString(row.Url),
 		SortOrder:    row.SortOrder,
 	}
 }
@@ -2514,6 +2518,22 @@ func toNullInt64(value *int64) sql.NullInt64 {
 	}
 
 	return sql.NullInt64{Int64: *value, Valid: true}
+}
+
+func toNullString(value string) sql.NullString {
+	if value == "" {
+		return sql.NullString{}
+	}
+
+	return sql.NullString{String: value, Valid: true}
+}
+
+func fromNullString(value sql.NullString) string {
+	if !value.Valid {
+		return ""
+	}
+
+	return value.String
 }
 
 func fromNullInt64(value sql.NullInt64) *int64 {

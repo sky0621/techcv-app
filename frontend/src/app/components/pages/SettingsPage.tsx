@@ -41,6 +41,7 @@ type SkillMaster = {
   name: string;
   categoryId: string;
   category: string;
+  url: string;
   sortOrder: number;
 };
 
@@ -85,6 +86,7 @@ type SkillMasterForm = {
   id: string;
   name: string;
   categoryId: string;
+  url: string;
   sortOrder: number;
 };
 
@@ -124,6 +126,7 @@ const emptySkillMasterForm: SkillMasterForm = {
   id: "",
   name: "",
   categoryId: "",
+  url: "",
   sortOrder: 0,
 };
 const emptyProficiencyLevelForm: ProficiencyLevelForm = {
@@ -341,6 +344,7 @@ export function SettingsPage() {
       id: skillMaster.id,
       name: skillMaster.name,
       categoryId: skillMaster.categoryId,
+      url: skillMaster.url,
       sortOrder: skillMaster.sortOrder,
     });
     setSkillMasterDialogOpen(true);
@@ -787,7 +791,20 @@ export function SettingsPage() {
                   {skillMasters.map((skillMaster) => (
                     <TableRow key={skillMaster.id}>
                       <TableCell>{skillMaster.sortOrder}</TableCell>
-                      <TableCell className="font-medium">{skillMaster.name}</TableCell>
+                      <TableCell className="font-medium">
+                        {skillMaster.url ? (
+                          <a
+                            href={skillMaster.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-600 hover:underline"
+                          >
+                            {skillMaster.name}
+                          </a>
+                        ) : (
+                          skillMaster.name
+                        )}
+                      </TableCell>
                       <TableCell>{skillMaster.category}</TableCell>
                       <TableCell className="font-mono text-xs text-gray-600">
                         {skillMaster.id}
@@ -1209,8 +1226,8 @@ export function SettingsPage() {
               <DialogTitle>{editingSkillMaster ? "スキルマスタを編集" : "スキルマスタを追加"}</DialogTitle>
               <DialogDescription>
                 {editingSkillMaster
-                  ? "スキル名、カテゴリ、表示順を変更します。"
-                  : "スキルマスタのID、名称、カテゴリ、表示順を登録します。"}
+                  ? "スキル名、URL、カテゴリ、表示順を変更します。"
+                  : "スキルマスタのID、名称、URL、カテゴリ、表示順を登録します。"}
               </DialogDescription>
             </DialogHeader>
 
@@ -1240,6 +1257,18 @@ export function SettingsPage() {
                     setSkillMasterForm({ ...skillMasterForm, name: e.target.value })
                   }
                   placeholder="Kotlin"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="skill-master-url">URL</Label>
+                <Input
+                  id="skill-master-url"
+                  value={skillMasterForm.url}
+                  onChange={(e) =>
+                    setSkillMasterForm({ ...skillMasterForm, url: e.target.value })
+                  }
+                  placeholder="https://example.com"
                 />
               </div>
 
