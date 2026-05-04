@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Search, Pencil, Trash2, FolderKanban, Save } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, FolderKanban, Save, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -69,6 +69,27 @@ type ProjectOptionsResponse = {
   phases: ProjectPhase[];
 };
 
+type SkillCategory = {
+  id: string;
+  name: string;
+  icon?: string;
+  sortOrder: number;
+};
+
+type SkillMaster = {
+  id: string;
+  name: string;
+  categoryId: string;
+  category: string;
+  url: string;
+  sortOrder: number;
+};
+
+type SkillOptionsResponse = {
+  categories: SkillCategory[];
+  skillMasters: SkillMaster[];
+};
+
 const emptyForm: ProjectForm = {
   name: "",
   company: "",
@@ -81,14 +102,6 @@ const emptyForm: ProjectForm = {
   phases: [],
   achievements: "",
 };
-
-const allTechnologies = [
-  "React", "Vue.js", "Angular", "TypeScript", "JavaScript",
-  "Node.js", "Python", "Go", "Ruby", "PHP",
-  "PostgreSQL", "MySQL", "MongoDB", "Redis",
-  "Docker", "Kubernetes", "AWS", "GCP", "Azure",
-  "Next.js", "Nuxt.js", "Tailwind CSS", "GraphQL", "REST API"
-];
 
 function formatYearMonth(year: number, month: number) {
   return `${year}-${String(month).padStart(2, "0")}`;
@@ -115,6 +128,8 @@ export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [jobHistories, setJobHistories] = useState<JobHistory[]>([]);
   const [projectPhases, setProjectPhases] = useState<ProjectPhase[]>([]);
+  const [skillCategories, setSkillCategories] = useState<SkillCategory[]>([]);
+  const [skillMasters, setSkillMasters] = useState<SkillMaster[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -131,10 +146,11 @@ export function ProjectsPage() {
       setError("");
 
       try {
-        const [projectsResponse, jobHistoriesResponse, projectOptionsResponse] = await Promise.all([
+        const [projectsResponse, jobHistoriesResponse, projectOptionsResponse, skillOptionsResponse] = await Promise.all([
           fetch("/api/projects", { signal: controller.signal }),
           fetch("/api/job-histories", { signal: controller.signal }),
           fetch("/api/projects/options", { signal: controller.signal }),
+          fetch("/api/skills/options", { signal: controller.signal }),
         ]);
         if (!projectsResponse.ok) {
           throw new Error("案件の取得に失敗しました");
@@ -145,13 +161,19 @@ export function ProjectsPage() {
         if (!projectOptionsResponse.ok) {
           throw new Error("案件設定の取得に失敗しました");
         }
+        if (!skillOptionsResponse.ok) {
+          throw new Error("スキル設定の取得に失敗しました");
+        }
 
         const projectsData = (await projectsResponse.json()) as ProjectsResponse;
         const jobHistoriesData = (await jobHistoriesResponse.json()) as JobHistoriesResponse;
         const projectOptionsData = (await projectOptionsResponse.json()) as ProjectOptionsResponse;
+        const skillOptionsData = (await skillOptionsResponse.json()) as SkillOptionsResponse;
         setProjects(projectsData.projects ?? []);
         setJobHistories(jobHistoriesData.jobHistories ?? []);
         setProjectPhases(projectOptionsData.phases ?? []);
+        setSkillCategories(skillOptionsData.categories ?? []);
+        setSkillMasters(skillOptionsData.skillMasters ?? []);
       } catch (caught) {
         if (caught instanceof DOMException && caught.name === "AbortError") {
           return;
@@ -275,13 +297,21 @@ export function ProjectsPage() {
     }
   };
 
-  const toggleTechnology = (tech: string) => {
-    const current = formData.technologies;
+  const addTechnology = (skillName: string) => {
+    if (formData.technologies.includes(skillName)) {
+      return;
+    }
+
     setFormData({
       ...formData,
-      technologies: current.includes(tech)
-        ? current.filter(t => t !== tech)
-        : [...current, tech]
+      technologies: [...formData.technologies, skillName],
+    });
+  };
+
+  const removeTechnology = (skillName: string) => {
+    setFormData({
+      ...formData,
+      technologies: formData.technologies.filter((technology) => technology !== skillName),
     });
   };
 
@@ -509,19 +539,64 @@ export function ProjectsPage() {
 
               <div className="space-y-2">
                 <Label>使用技術</Label>
-                <div className="border rounded-lg p-4 max-h-48 overflow-y-auto">
-                  <div className="flex flex-wrap gap-2">
-                    {allTechnologies.map(tech => (
-                      <Badge
-                        key={tech}
-                        variant={formData.technologies.includes(tech) ? "default" : "outline"}
-                        className="cursor-pointer"
-                        onClick={() => toggleTechnology(tech)}
-                      >
-                        {tech}
-                      </Badge>
-                    ))}
+                <div className="rounded-lg border p-4 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {skillCategories.map((category) => {
+                      const categorySkillMasters = skillMasters.filter(
+                        (skillMaster) => skillMaster.categoryId === category.id,
+                      );
+
+                      return (
+                        <div key={category.id} className="space-y-1.5">
+                          <Label className="text-sm text-gray-700">{category.name}</Label>
+                          <Select
+                            value=""
+                            onValueChange={(value) => addTechnology(value)}
+                            disabled={categorySkillMasters.length === 0}
+                          >
+                            <SelectTrigger>
+                              <SelectValue
+                                placeholder={
+                                  categorySkillMasters.length === 0
+                                    ? "登録スキルなし"
+                                    : "スキルを選択"
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categorySkillMasters.map((skillMaster) => (
+                                <SelectItem key={skillMaster.id} value={skillMaster.name}>
+                                  {skillMaster.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      );
+                    })}
                   </div>
+                  {!isLoading && skillCategories.length === 0 && (
+                    <p className="text-sm text-amber-700">
+                      設定画面でスキルカテゴリとスキルマスタを登録すると、ここで選択できます。
+                    </p>
+                  )}
+                  {formData.technologies.length > 0 && (
+                    <div className="flex flex-wrap gap-2 border-t pt-3">
+                      {formData.technologies.map((technology) => (
+                        <Badge key={technology} variant="secondary" className="gap-1 pr-1">
+                          {technology}
+                          <button
+                            type="button"
+                            className="rounded-sm p-0.5 hover:bg-gray-200"
+                            onClick={() => removeTechnology(technology)}
+                            aria-label={`${technology}を削除`}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
