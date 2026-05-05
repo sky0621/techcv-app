@@ -974,7 +974,7 @@ func TestProjectRoutes(t *testing.T) {
 		t.Fatalf("unexpected updated project: %#v", updateResp.Project)
 	}
 
-	phaseCreateBody := []byte(`{"id":"3","name":"テスト","sortOrder":3}`)
+	phaseCreateBody := []byte(`{"name":"テスト","sortOrder":3}`)
 	phaseCreateReq := httptest.NewRequest(http.MethodPost, "/api/project-phases", bytes.NewReader(phaseCreateBody))
 	phaseCreateRec := httptest.NewRecorder()
 	router.ServeHTTP(phaseCreateRec, phaseCreateReq)
@@ -993,12 +993,12 @@ func TestProjectRoutes(t *testing.T) {
 	if err := json.Unmarshal(phaseCreateRec.Body.Bytes(), &phaseCreateResp); err != nil {
 		t.Fatalf("failed to decode phase create response: %v", err)
 	}
-	if phaseCreateResp.Phase.ID != "3" || phaseCreateResp.Phase.Name != "テスト" {
+	if phaseCreateResp.Phase.ID == "" || phaseCreateResp.Phase.Name != "テスト" {
 		t.Fatalf("unexpected created phase: %#v", phaseCreateResp.Phase)
 	}
 
 	phaseUpdateBody := []byte(`{"name":"テスト・検証","sortOrder":4}`)
-	phaseUpdateReq := httptest.NewRequest(http.MethodPut, "/api/project-phases/3", bytes.NewReader(phaseUpdateBody))
+	phaseUpdateReq := httptest.NewRequest(http.MethodPut, "/api/project-phases/"+phaseCreateResp.Phase.ID, bytes.NewReader(phaseUpdateBody))
 	phaseUpdateRec := httptest.NewRecorder()
 	router.ServeHTTP(phaseUpdateRec, phaseUpdateReq)
 
@@ -1698,8 +1698,12 @@ func (r *testProfileRepository) CreateProjectPhase(_ context.Context, input doma
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	id := input.ID
+	if id == "" {
+		id = strconv.Itoa(len(r.projectPhases) + 1)
+	}
 	phase := domain.ProjectPhase{
-		ID:        input.ID,
+		ID:        id,
 		Name:      input.Name,
 		SortOrder: input.SortOrder,
 	}

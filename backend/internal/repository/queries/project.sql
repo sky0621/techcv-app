@@ -165,6 +165,22 @@ RETURNING
   created_at,
   updated_at;
 
+-- name: InsertProjectPhaseAuto :one
+INSERT INTO project_phases (
+  name,
+  sort_order
+)
+SELECT
+  ?,
+  COALESCE(NULLIF(?, 0), COALESCE(MAX(sort_order), 0) + 1)
+FROM project_phases
+RETURNING
+  id,
+  name,
+  sort_order,
+  created_at,
+  updated_at;
+
 -- name: UpdateProjectPhase :one
 UPDATE project_phases
 SET

@@ -325,6 +325,41 @@ func (q *Queries) InsertProjectPhase(ctx context.Context, arg InsertProjectPhase
 	return i, err
 }
 
+const insertProjectPhaseAuto = `-- name: InsertProjectPhaseAuto :one
+INSERT INTO project_phases (
+  name,
+  sort_order
+)
+SELECT
+  ?,
+  COALESCE(NULLIF(?, 0), COALESCE(MAX(sort_order), 0) + 1)
+FROM project_phases
+RETURNING
+  id,
+  name,
+  sort_order,
+  created_at,
+  updated_at
+`
+
+type InsertProjectPhaseAutoParams struct {
+	Name      string
+	SortOrder int64
+}
+
+func (q *Queries) InsertProjectPhaseAuto(ctx context.Context, arg InsertProjectPhaseAutoParams) (ProjectPhase, error) {
+	row := q.db.QueryRowContext(ctx, insertProjectPhaseAuto, arg.Name, arg.SortOrder)
+	var i ProjectPhase
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateProject = `-- name: UpdateProject :one
 UPDATE projects
 SET

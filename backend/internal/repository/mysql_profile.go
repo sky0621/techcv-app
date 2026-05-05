@@ -688,6 +688,18 @@ func (r *SQLiteProfileRepository) ListProjectOptions(ctx context.Context) (*doma
 }
 
 func (r *SQLiteProfileRepository) CreateProjectPhase(ctx context.Context, input domain.ProjectPhaseInput) (*domain.ProjectPhase, error) {
+	if input.ID == "" {
+		row, err := r.queries.InsertProjectPhaseAuto(ctx, dbgen.InsertProjectPhaseAutoParams{
+			Name:      input.Name,
+			SortOrder: input.SortOrder,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("insert project phase: %w", err)
+		}
+
+		return toDomainProjectPhase(row), nil
+	}
+
 	row, err := r.queries.InsertProjectPhase(ctx, dbgen.InsertProjectPhaseParams{
 		ID:        input.ID,
 		Name:      input.Name,

@@ -660,8 +660,7 @@ export function SettingsPage() {
   };
 
   const canSaveProjectPhase =
-    projectPhaseForm.name.trim() !== "" &&
-    (editingProjectPhase !== null || projectPhaseForm.id.trim() !== "");
+    projectPhaseForm.name.trim() !== "";
 
   const handleSaveProfileLinkMaster = async () => {
     setIsSavingProfileLinkMaster(true);
@@ -1689,27 +1688,11 @@ export function SettingsPage() {
               <DialogDescription>
                 {editingProjectPhase
                   ? "案件登録・編集フォームで選択する担当工程の名称と表示順を変更します。"
-                  : "案件登録・編集フォームで選択する担当工程のID、名称、表示順を登録します。"}
+                  : "案件登録・編集フォームで選択する担当工程の名称と表示順を登録します。IDは自動で採番されます。"}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
-              {!editingProjectPhase && (
-                <div className="space-y-2">
-                  <Label htmlFor="project-phase-id">ID</Label>
-                  <Input
-                    id="project-phase-id"
-                    type="number"
-                    min={1}
-                    value={projectPhaseForm.id}
-                    onChange={(e) =>
-                      setProjectPhaseForm({ ...projectPhaseForm, id: e.target.value })
-                    }
-                    placeholder="1"
-                  />
-                </div>
-              )}
-
               <div className="space-y-2">
                 <Label htmlFor="project-phase-name">名称</Label>
                 <Input

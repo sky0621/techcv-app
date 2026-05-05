@@ -128,8 +128,8 @@ func (h *ProjectHandler) CreateProjectPhase(w http.ResponseWriter, r *http.Reque
 	}
 
 	input := toProjectPhaseInput(request, true)
-	if input.ID == "" || input.Name == "" {
-		writeJSONError(w, http.StatusBadRequest, "bad_request", "id and name are required")
+	if input.Name == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "name is required")
 		return
 	}
 
