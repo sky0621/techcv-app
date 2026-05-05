@@ -26,15 +26,12 @@ type SkillMaster struct {
 	CategoryID   string
 	CategoryName string
 	URL          string
-	SortOrder    int64
 }
 
 type SkillMasterInput struct {
-	ID         string
 	Name       string
 	CategoryID string
 	URL        string
-	SortOrder  int64
 }
 
 type SkillProficiencyLevelInput struct {

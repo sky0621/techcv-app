@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strconv"
 	"sync"
 	"testing"
@@ -360,10 +361,10 @@ func TestSkillOptionsRoute(t *testing.T) {
 	if len(resp.SkillMasters) != 2 {
 		t.Fatalf("expected two skill masters, got %#v", resp.SkillMasters)
 	}
-	if resp.SkillMasters[0].ID != "1" ||
-		resp.SkillMasters[0].Name != "TypeScript" ||
-		resp.SkillMasters[0].CategoryID != "1" ||
-		resp.SkillMasters[0].Category != "言語" {
+	if resp.SkillMasters[0].ID != "4" ||
+		resp.SkillMasters[0].Name != "React" ||
+		resp.SkillMasters[0].CategoryID != "2" ||
+		resp.SkillMasters[0].Category != "フレームワーク" {
 		t.Fatalf("unexpected first skill master: %#v", resp.SkillMasters[0])
 	}
 }
@@ -434,7 +435,6 @@ func TestSkillMasterMutationRoutes(t *testing.T) {
 	router := NewRouter(repository, repository, repository, repository)
 
 	createBody := []byte(`{
-		"id":"12",
 		"name":"Kotlin",
 		"categoryId":"1"
 	}`)
@@ -457,7 +457,7 @@ func TestSkillMasterMutationRoutes(t *testing.T) {
 	if err := json.Unmarshal(createRec.Body.Bytes(), &createResp); err != nil {
 		t.Fatalf("failed to decode create response: %v", err)
 	}
-	if createResp.SkillMaster.ID != "12" ||
+	if createResp.SkillMaster.ID != "5" ||
 		createResp.SkillMaster.Name != "Kotlin" ||
 		createResp.SkillMaster.Category != "言語" {
 		t.Fatalf("unexpected created skill master: %#v", createResp.SkillMaster)
@@ -467,7 +467,7 @@ func TestSkillMasterMutationRoutes(t *testing.T) {
 		"name":"Kotlin/JVM",
 		"categoryId":"2"
 	}`)
-	updateReq := httptest.NewRequest(http.MethodPut, "/api/skills/masters/12", bytes.NewReader(updateBody))
+	updateReq := httptest.NewRequest(http.MethodPut, "/api/skills/masters/5", bytes.NewReader(updateBody))
 	updateRec := httptest.NewRecorder()
 	router.ServeHTTP(updateRec, updateReq)
 
@@ -486,7 +486,7 @@ func TestSkillMasterMutationRoutes(t *testing.T) {
 	if err := json.Unmarshal(updateRec.Body.Bytes(), &updateResp); err != nil {
 		t.Fatalf("failed to decode update response: %v", err)
 	}
-	if updateResp.SkillMaster.ID != "12" ||
+	if updateResp.SkillMaster.ID != "5" ||
 		updateResp.SkillMaster.Name != "Kotlin/JVM" ||
 		updateResp.SkillMaster.CategoryID != "2" ||
 		updateResp.SkillMaster.Category != "フレームワーク" {
@@ -1065,14 +1065,12 @@ func newTestProfileRepository() *testProfileRepository {
 				Name:         "TypeScript",
 				CategoryID:   "1",
 				CategoryName: "言語",
-				SortOrder:    1,
 			},
 			{
 				ID:           "4",
 				Name:         "React",
 				CategoryID:   "2",
 				CategoryName: "フレームワーク",
-				SortOrder:    2,
 			},
 		},
 		profileLinkMasters: []domain.ProfileLinkMaster{
@@ -1231,6 +1229,9 @@ func (r *testProfileRepository) ListSkillOptions(context.Context) (*domain.Skill
 	copy(proficiencyLevels, r.proficiencyLevels)
 	skillMasters := make([]domain.SkillMaster, len(r.skillMasters))
 	copy(skillMasters, r.skillMasters)
+	sort.Slice(skillMasters, func(i, j int) bool {
+		return skillMasters[i].Name < skillMasters[j].Name
+	})
 
 	return &domain.SkillOptions{
 		Categories:        categories,
@@ -1301,18 +1302,29 @@ func (r *testProfileRepository) CreateSkillMaster(_ context.Context, input domai
 	}
 
 	skillMaster := domain.SkillMaster{
-		ID:           input.ID,
+		ID:           strconv.Itoa(nextSkillMasterID(r.skillMasters)),
 		Name:         input.Name,
 		CategoryID:   input.CategoryID,
 		CategoryName: category.Name,
-		SortOrder:    input.SortOrder,
-	}
-	if skillMaster.SortOrder == 0 {
-		skillMaster.SortOrder = int64(len(r.skillMasters) + 1)
 	}
 	r.skillMasters = append(r.skillMasters, skillMaster)
 
 	return &skillMaster, nil
+}
+
+func nextSkillMasterID(skillMasters []domain.SkillMaster) int {
+	maxID := 0
+	for _, skillMaster := range skillMasters {
+		id, err := strconv.Atoi(skillMaster.ID)
+		if err != nil {
+			continue
+		}
+		if id > maxID {
+			maxID = id
+		}
+	}
+
+	return maxID + 1
 }
 
 func (r *testProfileRepository) UpdateSkillMaster(_ context.Context, id string, input domain.SkillMasterInput) (*domain.SkillMaster, error) {
@@ -1329,9 +1341,6 @@ func (r *testProfileRepository) UpdateSkillMaster(_ context.Context, id string, 
 			r.skillMasters[index].Name = input.Name
 			r.skillMasters[index].CategoryID = input.CategoryID
 			r.skillMasters[index].CategoryName = category.Name
-			if input.SortOrder != 0 {
-				r.skillMasters[index].SortOrder = input.SortOrder
-			}
 			result := r.skillMasters[index]
 			return &result, nil
 		}

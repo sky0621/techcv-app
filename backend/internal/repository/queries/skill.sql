@@ -77,12 +77,11 @@ SELECT
   skill_masters.category_id,
   skill_categories.name AS category_name,
   skill_masters.url,
-  skill_masters.sort_order,
   skill_masters.created_at,
   skill_masters.updated_at
 FROM skill_masters
 JOIN skill_categories ON skill_categories.id = skill_masters.category_id
-ORDER BY skill_masters.sort_order ASC, skill_masters.name ASC;
+ORDER BY skill_masters.name ASC;
 
 -- name: GetSkillMaster :one
 SELECT
@@ -91,7 +90,6 @@ SELECT
   skill_masters.category_id,
   skill_categories.name AS category_name,
   skill_masters.url,
-  skill_masters.sort_order,
   skill_masters.created_at,
   skill_masters.updated_at
 FROM skill_masters
@@ -100,25 +98,20 @@ WHERE skill_masters.id = ?;
 
 -- name: InsertSkillMaster :one
 INSERT INTO skill_masters (
-  id,
   name,
   category_id,
-  url,
-  sort_order
+  url
 )
-SELECT
+VALUES (
   ?,
   ?,
-  ?,
-  ?,
-  COALESCE(NULLIF(?, 0), COALESCE(MAX(sort_order), 0) + 1)
-FROM skill_masters
+  ?
+)
 RETURNING
   id,
   name,
   category_id,
   url,
-  sort_order,
   created_at,
   updated_at;
 
@@ -128,7 +121,6 @@ SET
   name = ?,
   category_id = ?,
   url = ?,
-  sort_order = COALESCE(NULLIF(?, 0), sort_order),
   updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING
@@ -136,7 +128,6 @@ RETURNING
   name,
   category_id,
   url,
-  sort_order,
   created_at,
   updated_at;
 

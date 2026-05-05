@@ -260,6 +260,9 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.migrateIntegerPrimaryKeys(ctx); err != nil {
 		return err
 	}
+	if err := r.dropSkillMasterSortOrderColumn(ctx); err != nil {
+		return err
+	}
 	if err := r.cleanupSeededSkills(ctx); err != nil {
 		return err
 	}
@@ -414,11 +417,9 @@ func (r *SQLiteProfileRepository) UpdateSkillProficiencyLevel(ctx context.Contex
 
 func (r *SQLiteProfileRepository) CreateSkillMaster(ctx context.Context, input domain.SkillMasterInput) (*domain.SkillMaster, error) {
 	row, err := r.queries.InsertSkillMaster(ctx, dbgen.InsertSkillMasterParams{
-		ID:         input.ID,
 		Name:       input.Name,
 		CategoryID: input.CategoryID,
 		Url:        toNullString(input.URL),
-		SortOrder:  input.SortOrder,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("insert skill master: %w", err)
@@ -438,7 +439,6 @@ func (r *SQLiteProfileRepository) UpdateSkillMaster(ctx context.Context, id stri
 		Name:       input.Name,
 		CategoryID: input.CategoryID,
 		Url:        toNullString(input.URL),
-		SortOrder:  input.SortOrder,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("update skill master: %w", err)
@@ -919,6 +919,22 @@ func (r *SQLiteProfileRepository) addSkillMasterURLColumn(ctx context.Context) e
 
 	if _, err := r.db.ExecContext(ctx, "ALTER TABLE skill_masters ADD COLUMN url TEXT"); err != nil {
 		return fmt.Errorf("add skill_masters.url column: %w", err)
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) dropSkillMasterSortOrderColumn(ctx context.Context) error {
+	hasSortOrderColumn, err := r.tableHasColumn(ctx, "skill_masters", "sort_order")
+	if err != nil {
+		return err
+	}
+	if !hasSortOrderColumn {
+		return nil
+	}
+
+	if _, err := r.db.ExecContext(ctx, `ALTER TABLE skill_masters DROP COLUMN sort_order`); err != nil {
+		return fmt.Errorf("drop skill_masters.sort_order column: %w", err)
 	}
 
 	return nil
@@ -1464,6 +1480,18 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 	if hasJobHistoryCompanyIDColumn {
 		jobHistoryCompanyIDExpression = "job_histories.company_id"
 	}
+	skillMasterIDMapStatement := `CREATE TEMP TABLE _skill_master_id_map AS
+		SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY name ASC, id ASC) AS new_id
+		FROM skill_masters`
+	hasSkillMasterSortOrderColumn, err := r.tableHasColumn(ctx, "skill_masters", "sort_order")
+	if err != nil {
+		return err
+	}
+	if hasSkillMasterSortOrderColumn {
+		skillMasterIDMapStatement = `CREATE TEMP TABLE _skill_master_id_map AS
+			SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, name ASC, id ASC) AS new_id
+			FROM skill_masters`
+	}
 
 	statements := []string{
 		`PRAGMA foreign_keys = OFF`,
@@ -1497,9 +1525,7 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 		`CREATE TEMP TABLE _skill_proficiency_id_map AS
 		SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, name ASC, id ASC) AS new_id
 		FROM skill_proficiency_levels`,
-		`CREATE TEMP TABLE _skill_master_id_map AS
-		SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, name ASC, id ASC) AS new_id
-		FROM skill_masters`,
+		skillMasterIDMapStatement,
 		`CREATE TEMP TABLE _skill_id_map AS
 		SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, id ASC) AS new_id
 		FROM skills`,
@@ -1606,7 +1632,6 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 				name TEXT NOT NULL UNIQUE,
 				category_id INTEGER NOT NULL,
 				url TEXT,
-				sort_order INTEGER NOT NULL,
 				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 				updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 				FOREIGN KEY (category_id) REFERENCES skill_categories(id)
@@ -1617,7 +1642,6 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 				skill_masters.name,
 				_skill_category_id_map.new_id,
 				skill_masters.url,
-				skill_masters.sort_order,
 				skill_masters.created_at,
 			skill_masters.updated_at
 		FROM skill_masters
@@ -2099,7 +2123,6 @@ func toDomainSkillMasters(rows []dbgen.ListSkillMastersRow) []domain.SkillMaster
 			CategoryID:   row.CategoryID,
 			CategoryName: row.CategoryName,
 			URL:          fromNullString(row.Url),
-			SortOrder:    row.SortOrder,
 		})
 	}
 
@@ -2113,7 +2136,6 @@ func toDomainSkillMaster(row dbgen.GetSkillMasterRow) *domain.SkillMaster {
 		CategoryID:   row.CategoryID,
 		CategoryName: row.CategoryName,
 		URL:          fromNullString(row.Url),
-		SortOrder:    row.SortOrder,
 	}
 }
 

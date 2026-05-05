@@ -43,7 +43,6 @@ type SkillMaster = {
   categoryId: string;
   category: string;
   url: string;
-  sortOrder: number;
 };
 
 type JobEmploymentType = {
@@ -94,11 +93,9 @@ type CategoryForm = {
 };
 
 type SkillMasterForm = {
-  id: string;
   name: string;
   categoryId: string;
   url: string;
-  sortOrder: number;
 };
 
 type ProficiencyLevelForm = {
@@ -140,11 +137,9 @@ const emptyCategoryForm: CategoryForm = {
   sortOrder: 0,
 };
 const emptySkillMasterForm: SkillMasterForm = {
-  id: "",
   name: "",
   categoryId: "",
   url: "",
-  sortOrder: 0,
 };
 const emptyProficiencyLevelForm: ProficiencyLevelForm = {
   name: "",
@@ -389,11 +384,9 @@ export function SettingsPage() {
   const openEditSkillMasterDialog = (skillMaster: SkillMaster) => {
     setEditingSkillMaster(skillMaster);
     setSkillMasterForm({
-      id: skillMaster.id,
       name: skillMaster.name,
       categoryId: skillMaster.categoryId,
       url: skillMaster.url,
-      sortOrder: skillMaster.sortOrder,
     });
     setSkillMasterDialogOpen(true);
     setMessage("");
@@ -517,8 +510,7 @@ export function SettingsPage() {
 
   const canSaveSkillMaster =
     skillMasterForm.name.trim() !== "" &&
-    skillMasterForm.categoryId.trim() !== "" &&
-    (editingSkillMaster !== null || skillMasterForm.id.trim() !== "");
+    skillMasterForm.categoryId.trim() !== "";
 
   const handleSaveProficiencyLevel = async () => {
     if (!editingProficiencyLevel) {
@@ -895,7 +887,6 @@ export function SettingsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>表示順</TableHead>
                     <TableHead>名称</TableHead>
                     <TableHead>カテゴリ</TableHead>
                     <TableHead>ID</TableHead>
@@ -905,7 +896,6 @@ export function SettingsPage() {
                 <TableBody>
                   {skillMasters.map((skillMaster) => (
                     <TableRow key={skillMaster.id}>
-                      <TableCell>{skillMaster.sortOrder}</TableCell>
                       <TableCell className="font-medium">
                         {skillMaster.url ? (
                           <a
@@ -939,7 +929,7 @@ export function SettingsPage() {
                   ))}
                   {!isLoading && skillMasters.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-gray-500">
+                      <TableCell colSpan={4} className="text-center text-gray-500">
                         スキルマスタは登録されていません。
                       </TableCell>
                     </TableRow>
@@ -1398,28 +1388,12 @@ export function SettingsPage() {
               <DialogTitle>{editingSkillMaster ? "スキルマスタを編集" : "スキルマスタを追加"}</DialogTitle>
               <DialogDescription>
                 {editingSkillMaster
-                  ? "スキル名、URL、カテゴリ、表示順を変更します。"
-                  : "スキルマスタのID、名称、URL、カテゴリ、表示順を登録します。"}
+                  ? "スキル名、URL、カテゴリを変更します。"
+                  : "スキルマスタの名称、URL、カテゴリを登録します。"}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
-              {!editingSkillMaster && (
-                <div className="space-y-2">
-                  <Label htmlFor="skill-master-id">ID</Label>
-                  <Input
-                    id="skill-master-id"
-                    type="number"
-                    min={1}
-                    value={skillMasterForm.id}
-                    onChange={(e) =>
-                      setSkillMasterForm({ ...skillMasterForm, id: e.target.value })
-                    }
-                    placeholder="12"
-                  />
-                </div>
-              )}
-
               <div className="space-y-2">
                 <Label htmlFor="skill-master-name">名称</Label>
                 <Input
@@ -1466,18 +1440,6 @@ export function SettingsPage() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="skill-master-sort-order">表示順</Label>
-                <Input
-                  id="skill-master-sort-order"
-                  type="number"
-                  value={skillMasterForm.sortOrder}
-                  onChange={(e) =>
-                    setSkillMasterForm({ ...skillMasterForm, sortOrder: Number(e.target.value) })
-                  }
-                  placeholder="12"
-                />
-              </div>
             </div>
 
             <DialogFooter>

@@ -84,7 +84,6 @@ SELECT
   skill_masters.category_id,
   skill_categories.name AS category_name,
   skill_masters.url,
-  skill_masters.sort_order,
   skill_masters.created_at,
   skill_masters.updated_at
 FROM skill_masters
@@ -98,7 +97,6 @@ type GetSkillMasterRow struct {
 	CategoryID   string
 	CategoryName string
 	Url          sql.NullString
-	SortOrder    int64
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -112,7 +110,6 @@ func (q *Queries) GetSkillMaster(ctx context.Context, id string) (GetSkillMaster
 		&i.CategoryID,
 		&i.CategoryName,
 		&i.Url,
-		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -216,46 +213,38 @@ func (q *Queries) InsertSkillCategory(ctx context.Context, arg InsertSkillCatego
 
 const insertSkillMaster = `-- name: InsertSkillMaster :one
 INSERT INTO skill_masters (
-  id,
   name,
   category_id,
-  url,
-  sort_order
+  url
 )
-SELECT
+VALUES (
   ?,
   ?,
-  ?,
-  ?,
-  COALESCE(NULLIF(?, 0), COALESCE(MAX(sort_order), 0) + 1)
-FROM skill_masters
+  ?
+)
 RETURNING
   id,
   name,
   category_id,
   url,
-  sort_order,
   created_at,
   updated_at
 `
 
 type InsertSkillMasterParams struct {
-	ID         string
 	Name       string
 	CategoryID string
 	Url        sql.NullString
-	SortOrder  int64
 }
 
 func (q *Queries) InsertSkillMaster(ctx context.Context, arg InsertSkillMasterParams) (SkillMaster, error) {
-	row := q.db.QueryRowContext(ctx, insertSkillMaster, arg.ID, arg.Name, arg.CategoryID, arg.Url, arg.SortOrder)
+	row := q.db.QueryRowContext(ctx, insertSkillMaster, arg.Name, arg.CategoryID, arg.Url)
 	var i SkillMaster
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.CategoryID,
 		&i.Url,
-		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -311,12 +300,11 @@ SELECT
   skill_masters.category_id,
   skill_categories.name AS category_name,
   skill_masters.url,
-  skill_masters.sort_order,
   skill_masters.created_at,
   skill_masters.updated_at
 FROM skill_masters
 JOIN skill_categories ON skill_categories.id = skill_masters.category_id
-ORDER BY skill_masters.sort_order ASC, skill_masters.name ASC
+ORDER BY skill_masters.name ASC
 `
 
 type ListSkillMastersRow struct {
@@ -325,7 +313,6 @@ type ListSkillMastersRow struct {
 	CategoryID   string
 	CategoryName string
 	Url          sql.NullString
-	SortOrder    int64
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -345,7 +332,6 @@ func (q *Queries) ListSkillMasters(ctx context.Context) ([]ListSkillMastersRow, 
 			&i.CategoryID,
 			&i.CategoryName,
 			&i.Url,
-			&i.SortOrder,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -594,7 +580,6 @@ SET
   name = ?,
   category_id = ?,
   url = ?,
-  sort_order = COALESCE(NULLIF(?, 0), sort_order),
   updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING
@@ -602,7 +587,6 @@ RETURNING
   name,
   category_id,
   url,
-  sort_order,
   created_at,
   updated_at
 `
@@ -611,19 +595,17 @@ type UpdateSkillMasterParams struct {
 	Name       string
 	CategoryID string
 	Url        sql.NullString
-	SortOrder  int64
 	ID         string
 }
 
 func (q *Queries) UpdateSkillMaster(ctx context.Context, arg UpdateSkillMasterParams) (SkillMaster, error) {
-	row := q.db.QueryRowContext(ctx, updateSkillMaster, arg.Name, arg.CategoryID, arg.Url, arg.SortOrder, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateSkillMaster, arg.Name, arg.CategoryID, arg.Url, arg.ID)
 	var i SkillMaster
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.CategoryID,
 		&i.Url,
-		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

@@ -78,7 +78,6 @@ CREATE TABLE IF NOT EXISTS skill_masters (
     name TEXT NOT NULL UNIQUE,
     category_id INTEGER NOT NULL,
     url TEXT,
-    sort_order INTEGER NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (category_id) REFERENCES skill_categories(id)

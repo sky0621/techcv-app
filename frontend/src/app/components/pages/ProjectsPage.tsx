@@ -82,7 +82,6 @@ type SkillMaster = {
   categoryId: string;
   category: string;
   url: string;
-  sortOrder: number;
 };
 
 type SkillOptionsResponse = {

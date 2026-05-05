@@ -40,7 +40,6 @@ type SkillMaster = {
   name: string;
   categoryId: string;
   category: string;
-  sortOrder: number;
 };
 
 type SkillsResponse = {

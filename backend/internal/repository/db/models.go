@@ -117,7 +117,6 @@ type SkillMaster struct {
 	Name       string
 	CategoryID string
 	Url        sql.NullString
-	SortOrder  int64
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }

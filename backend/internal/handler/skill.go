@@ -132,9 +132,9 @@ func (h *SkillOptionsHandler) CreateSkillMaster(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	input := toSkillMasterInput(request, true)
-	if input.ID == "" || input.Name == "" || input.CategoryID == "" {
-		writeJSONError(w, http.StatusBadRequest, "bad_request", "id, name and categoryId are required")
+	input := toSkillMasterInput(request)
+	if input.Name == "" || input.CategoryID == "" {
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "name and categoryId are required")
 		return
 	}
 
@@ -162,7 +162,7 @@ func (h *SkillOptionsHandler) UpdateSkillMaster(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	input := toSkillMasterInput(request, false)
+	input := toSkillMasterInput(request)
 	if input.Name == "" || input.CategoryID == "" {
 		writeJSONError(w, http.StatusBadRequest, "bad_request", "name and categoryId are required")
 		return
@@ -318,11 +318,9 @@ type skillCategoryRequest struct {
 }
 
 type skillMasterRequest struct {
-	ID         string `json:"id,omitempty"`
 	Name       string `json:"name"`
 	CategoryID string `json:"categoryId"`
 	URL        string `json:"url"`
-	SortOrder  int64  `json:"sortOrder"`
 }
 
 type skillProficiencyLevelRequest struct {
@@ -361,7 +359,6 @@ type skillMasterPayload struct {
 	CategoryID string `json:"categoryId"`
 	Category   string `json:"category"`
 	URL        string `json:"url"`
-	SortOrder  int64  `json:"sortOrder"`
 }
 
 func toSkillOptionPayloads(values []domain.SkillOption) []skillOptionPayload {
@@ -398,7 +395,6 @@ func toSkillMasterPayload(value domain.SkillMaster) skillMasterPayload {
 		CategoryID: value.CategoryID,
 		Category:   value.CategoryName,
 		URL:        value.URL,
-		SortOrder:  value.SortOrder,
 	}
 }
 
@@ -445,18 +441,12 @@ func toSkillProficiencyLevelInput(request skillProficiencyLevelRequest) domain.S
 	}
 }
 
-func toSkillMasterInput(request skillMasterRequest, includeID bool) domain.SkillMasterInput {
-	input := domain.SkillMasterInput{
+func toSkillMasterInput(request skillMasterRequest) domain.SkillMasterInput {
+	return domain.SkillMasterInput{
 		Name:       strings.TrimSpace(request.Name),
 		CategoryID: strings.TrimSpace(request.CategoryID),
 		URL:        strings.TrimSpace(request.URL),
-		SortOrder:  request.SortOrder,
 	}
-	if includeID {
-		input.ID = strings.TrimSpace(request.ID)
-	}
-
-	return input
 }
 
 func toSkillInput(request skillRequest) domain.SkillInput {
