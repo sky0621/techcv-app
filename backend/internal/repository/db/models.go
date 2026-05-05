@@ -77,7 +77,6 @@ type Project struct {
 	Description  string
 	Role         string
 	TeamSize     string
-	Technologies string
 	Phases       string
 	Achievements string
 	IsDraft      int64

@@ -36,7 +36,6 @@ SELECT
   projects.description,
   projects.role,
   projects.team_size,
-  projects.technologies,
   projects.phases,
   projects.achievements,
   projects.is_draft,
@@ -63,7 +62,6 @@ func (q *Queries) GetProject(ctx context.Context, id string) (Project, error) {
 		&i.Description,
 		&i.Role,
 		&i.TeamSize,
-		&i.Technologies,
 		&i.Phases,
 		&i.Achievements,
 		&i.IsDraft,
@@ -86,14 +84,12 @@ INSERT INTO projects (
   description,
   role,
   team_size,
-  technologies,
   phases,
   achievements,
   is_draft,
   sort_order
 )
 SELECT
-  ?,
   ?,
   ?,
   ?,
@@ -121,7 +117,6 @@ RETURNING
   description,
   role,
   team_size,
-  technologies,
   phases,
   achievements,
   is_draft,
@@ -141,7 +136,6 @@ type InsertProjectParams struct {
 	Description  string
 	Role         string
 	TeamSize     string
-	Technologies string
 	Phases       string
 	Achievements string
 	IsDraft      int64
@@ -159,7 +153,6 @@ func (q *Queries) InsertProject(ctx context.Context, arg InsertProjectParams) (P
 		arg.Description,
 		arg.Role,
 		arg.TeamSize,
-		arg.Technologies,
 		arg.Phases,
 		arg.Achievements,
 		arg.IsDraft,
@@ -177,7 +170,6 @@ func (q *Queries) InsertProject(ctx context.Context, arg InsertProjectParams) (P
 		&i.Description,
 		&i.Role,
 		&i.TeamSize,
-		&i.Technologies,
 		&i.Phases,
 		&i.Achievements,
 		&i.IsDraft,
@@ -201,7 +193,6 @@ SELECT
   projects.description,
   projects.role,
   projects.team_size,
-  projects.technologies,
   projects.phases,
   projects.achievements,
   projects.is_draft,
@@ -234,7 +225,6 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 			&i.Description,
 			&i.Role,
 			&i.TeamSize,
-			&i.Technologies,
 			&i.Phases,
 			&i.Achievements,
 			&i.IsDraft,
@@ -253,6 +243,82 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const listProjectSkillMasters = `-- name: ListProjectSkillMasters :many
+SELECT
+  CAST(project_skill_masters.project_id AS TEXT) AS project_id,
+  CAST(project_skill_masters.skill_master_id AS TEXT) AS skill_master_id,
+  skill_masters.name AS skill_master_name,
+  project_skill_masters.sort_order
+FROM project_skill_masters
+JOIN skill_masters ON skill_masters.id = project_skill_masters.skill_master_id
+ORDER BY project_skill_masters.project_id ASC, project_skill_masters.sort_order ASC, skill_masters.name ASC
+`
+
+type ListProjectSkillMastersRow struct {
+	ProjectID       string
+	SkillMasterID   string
+	SkillMasterName string
+	SortOrder       int64
+}
+
+func (q *Queries) ListProjectSkillMasters(ctx context.Context) ([]ListProjectSkillMastersRow, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectSkillMasters)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListProjectSkillMastersRow
+	for rows.Next() {
+		var i ListProjectSkillMastersRow
+		if err := rows.Scan(
+			&i.ProjectID,
+			&i.SkillMasterID,
+			&i.SkillMasterName,
+			&i.SortOrder,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const deleteProjectSkillMasters = `-- name: DeleteProjectSkillMasters :exec
+DELETE FROM project_skill_masters
+WHERE project_id = ?
+`
+
+func (q *Queries) DeleteProjectSkillMasters(ctx context.Context, projectID string) error {
+	_, err := q.db.ExecContext(ctx, deleteProjectSkillMasters, projectID)
+	return err
+}
+
+const insertProjectSkillMaster = `-- name: InsertProjectSkillMaster :exec
+INSERT INTO project_skill_masters (
+  project_id,
+  skill_master_id,
+  sort_order
+)
+VALUES (?, ?, ?)
+`
+
+type InsertProjectSkillMasterParams struct {
+	ProjectID     string
+	SkillMasterID string
+	SortOrder     int64
+}
+
+func (q *Queries) InsertProjectSkillMaster(ctx context.Context, arg InsertProjectSkillMasterParams) error {
+	_, err := q.db.ExecContext(ctx, insertProjectSkillMaster, arg.ProjectID, arg.SkillMasterID, arg.SortOrder)
+	return err
 }
 
 const listProjectPhases = `-- name: ListProjectPhases :many
@@ -380,7 +446,6 @@ SET
   description = ?,
   role = ?,
   team_size = ?,
-  technologies = ?,
   phases = ?,
   achievements = ?,
   is_draft = ?,
@@ -398,7 +463,6 @@ RETURNING
   description,
   role,
   team_size,
-  technologies,
   phases,
   achievements,
   is_draft,
@@ -417,7 +481,6 @@ type UpdateProjectParams struct {
 	Description  string
 	Role         string
 	TeamSize     string
-	Technologies string
 	Phases       string
 	Achievements string
 	IsDraft      int64
@@ -435,7 +498,6 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		arg.Description,
 		arg.Role,
 		arg.TeamSize,
-		arg.Technologies,
 		arg.Phases,
 		arg.Achievements,
 		arg.IsDraft,
@@ -454,7 +516,6 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.Description,
 		&i.Role,
 		&i.TeamSize,
-		&i.Technologies,
 		&i.Phases,
 		&i.Achievements,
 		&i.IsDraft,

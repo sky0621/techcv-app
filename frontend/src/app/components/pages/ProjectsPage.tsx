@@ -22,6 +22,7 @@ type Project = {
   description: string;
   role: string;
   teamSize: string;
+  technologyIds: string[];
   technologies: string[];
   phases: string[];
   achievements: string;
@@ -37,7 +38,7 @@ type ProjectForm = {
   description: string;
   role: string;
   teamSize: string;
-  technologies: string[];
+  technologyIds: string[];
   phases: string[];
   achievements: string;
 };
@@ -98,7 +99,7 @@ const emptyForm: ProjectForm = {
   description: "",
   role: "",
   teamSize: "",
-  technologies: [],
+  technologyIds: [],
   phases: [],
   achievements: "",
 };
@@ -218,7 +219,7 @@ export function ProjectsPage() {
       description: project.description,
       role: project.role,
       teamSize: project.teamSize,
-      technologies: project.technologies,
+      technologyIds: project.technologyIds,
       phases: project.phases,
       achievements: project.achievements,
     });
@@ -286,23 +287,26 @@ export function ProjectsPage() {
     }
   };
 
-  const addTechnology = (skillName: string) => {
-    if (formData.technologies.includes(skillName)) {
+  const addTechnology = (skillMasterId: string) => {
+    if (formData.technologyIds.includes(skillMasterId)) {
       return;
     }
 
     setFormData({
       ...formData,
-      technologies: [...formData.technologies, skillName],
+      technologyIds: [...formData.technologyIds, skillMasterId],
     });
   };
 
-  const removeTechnology = (skillName: string) => {
+  const removeTechnology = (skillMasterId: string) => {
     setFormData({
       ...formData,
-      technologies: formData.technologies.filter((technology) => technology !== skillName),
+      technologyIds: formData.technologyIds.filter((technologyId) => technologyId !== skillMasterId),
     });
   };
+
+  const getSkillMasterName = (skillMasterId: string) =>
+    skillMasters.find((skillMaster) => skillMaster.id === skillMasterId)?.name ?? skillMasterId;
 
   const togglePhase = (phase: string) => {
     const current = formData.phases;
@@ -552,7 +556,7 @@ export function ProjectsPage() {
                             </SelectTrigger>
                             <SelectContent>
                               {categorySkillMasters.map((skillMaster) => (
-                                <SelectItem key={skillMaster.id} value={skillMaster.name}>
+                                <SelectItem key={skillMaster.id} value={skillMaster.id}>
                                   {skillMaster.name}
                                 </SelectItem>
                               ))}
@@ -567,16 +571,16 @@ export function ProjectsPage() {
                       設定画面でスキルカテゴリとスキルマスタを登録すると、ここで選択できます。
                     </p>
                   )}
-                  {formData.technologies.length > 0 && (
+                  {formData.technologyIds.length > 0 && (
                     <div className="flex flex-wrap gap-2 border-t pt-3">
-                      {formData.technologies.map((technology) => (
-                        <Badge key={technology} variant="secondary" className="gap-1 pr-1">
-                          {technology}
+                      {formData.technologyIds.map((technologyId) => (
+                        <Badge key={technologyId} variant="secondary" className="gap-1 pr-1">
+                          {getSkillMasterName(technologyId)}
                           <button
                             type="button"
                             className="rounded-sm p-0.5 hover:bg-gray-200"
-                            onClick={() => removeTechnology(technology)}
-                            aria-label={`${technology}を削除`}
+                            onClick={() => removeTechnology(technologyId)}
+                            aria-label={`${getSkillMasterName(technologyId)}を削除`}
                           >
                             <X className="h-3 w-3" />
                           </button>

@@ -856,17 +856,18 @@ func TestProjectRoutes(t *testing.T) {
 
 	var listResp struct {
 		Projects []struct {
-			ID           string   `json:"id"`
-			Name         string   `json:"name"`
-			CompanyID    string   `json:"companyId"`
-			Company      string   `json:"company"`
-			StartYear    int64    `json:"startYear"`
-			StartMonth   int64    `json:"startMonth"`
-			EndYear      *int64   `json:"endYear"`
-			EndMonth     *int64   `json:"endMonth"`
-			Technologies []string `json:"technologies"`
-			Phases       []string `json:"phases"`
-			IsDraft      bool     `json:"isDraft"`
+			ID            string   `json:"id"`
+			Name          string   `json:"name"`
+			CompanyID     string   `json:"companyId"`
+			Company       string   `json:"company"`
+			TechnologyIDs []string `json:"technologyIds"`
+			StartYear     int64    `json:"startYear"`
+			StartMonth    int64    `json:"startMonth"`
+			EndYear       *int64   `json:"endYear"`
+			EndMonth      *int64   `json:"endMonth"`
+			Technologies  []string `json:"technologies"`
+			Phases        []string `json:"phases"`
+			IsDraft       bool     `json:"isDraft"`
 		} `json:"projects"`
 	}
 	if err := json.Unmarshal(listRec.Body.Bytes(), &listResp); err != nil {
@@ -883,6 +884,8 @@ func TestProjectRoutes(t *testing.T) {
 		listResp.Projects[0].EndYear != nil ||
 		listResp.Projects[0].EndMonth != nil ||
 		len(listResp.Projects[0].Technologies) != 2 ||
+		len(listResp.Projects[0].TechnologyIDs) != 2 ||
+		listResp.Projects[0].TechnologyIDs[0] != "4" ||
 		listResp.Projects[0].Technologies[0] != "React" ||
 		len(listResp.Projects[0].Phases) != 2 {
 		t.Fatalf("unexpected seeded project: %#v", listResp.Projects[0])
@@ -898,7 +901,7 @@ func TestProjectRoutes(t *testing.T) {
 		"description":"新規開発",
 		"role":"バックエンドエンジニア",
 		"teamSize":"4名",
-		"technologies":["Go","SQLite"],
+		"technologyIds":["1","4"],
 		"phases":["設計","実装"],
 		"achievements":"APIを構築",
 		"isDraft":true
@@ -913,12 +916,13 @@ func TestProjectRoutes(t *testing.T) {
 
 	var createResp struct {
 		Project struct {
-			ID           string   `json:"id"`
-			Name         string   `json:"name"`
-			CompanyID    string   `json:"companyId"`
-			Company      string   `json:"company"`
-			Technologies []string `json:"technologies"`
-			IsDraft      bool     `json:"isDraft"`
+			ID            string   `json:"id"`
+			Name          string   `json:"name"`
+			CompanyID     string   `json:"companyId"`
+			Company       string   `json:"company"`
+			TechnologyIDs []string `json:"technologyIds"`
+			Technologies  []string `json:"technologies"`
+			IsDraft       bool     `json:"isDraft"`
 		} `json:"project"`
 	}
 	if err := json.Unmarshal(createRec.Body.Bytes(), &createResp); err != nil {
@@ -928,6 +932,7 @@ func TestProjectRoutes(t *testing.T) {
 		createResp.Project.Name != "新規案件" ||
 		createResp.Project.CompanyID != "1" ||
 		createResp.Project.Company != "株式会社A" ||
+		len(createResp.Project.TechnologyIDs) != 2 ||
 		len(createResp.Project.Technologies) != 2 ||
 		!createResp.Project.IsDraft {
 		t.Fatalf("unexpected created project: %#v", createResp.Project)
@@ -943,7 +948,7 @@ func TestProjectRoutes(t *testing.T) {
 		"description":"新規開発",
 		"role":"テックリード",
 		"teamSize":"4名",
-		"technologies":["Go","SQLite","React"],
+		"technologyIds":["1"],
 		"phases":["設計","実装","テスト"],
 		"achievements":"APIと画面を構築",
 		"isDraft":false
@@ -958,12 +963,13 @@ func TestProjectRoutes(t *testing.T) {
 
 	var updateResp struct {
 		Project struct {
-			Name         string   `json:"name"`
-			EndYear      *int64   `json:"endYear"`
-			EndMonth     *int64   `json:"endMonth"`
-			Technologies []string `json:"technologies"`
-			Phases       []string `json:"phases"`
-			IsDraft      bool     `json:"isDraft"`
+			Name          string   `json:"name"`
+			EndYear       *int64   `json:"endYear"`
+			EndMonth      *int64   `json:"endMonth"`
+			TechnologyIDs []string `json:"technologyIds"`
+			Technologies  []string `json:"technologies"`
+			Phases        []string `json:"phases"`
+			IsDraft       bool     `json:"isDraft"`
 		} `json:"project"`
 	}
 	if err := json.Unmarshal(updateRec.Body.Bytes(), &updateResp); err != nil {
@@ -974,7 +980,8 @@ func TestProjectRoutes(t *testing.T) {
 		*updateResp.Project.EndYear != 2025 ||
 		updateResp.Project.EndMonth == nil ||
 		*updateResp.Project.EndMonth != 3 ||
-		len(updateResp.Project.Technologies) != 3 ||
+		len(updateResp.Project.TechnologyIDs) != 1 ||
+		len(updateResp.Project.Technologies) != 1 ||
 		len(updateResp.Project.Phases) != 3 ||
 		updateResp.Project.IsDraft {
 		t.Fatalf("unexpected updated project: %#v", updateResp.Project)
@@ -1123,22 +1130,23 @@ func newTestProfileRepository() *testProfileRepository {
 		},
 		projects: []domain.Project{
 			{
-				ID:           "1",
-				Name:         "ECサイトリニューアル",
-				CompanyID:    "1",
-				Company:      "株式会社A",
-				StartYear:    2024,
-				StartMonth:   1,
-				EndYear:      nil,
-				EndMonth:     nil,
-				Description:  "大手ECサイトのフロントエンド刷新プロジェクト",
-				Role:         "フロントエンドエンジニア",
-				TeamSize:     "8名",
-				Technologies: []string{"React", "TypeScript"},
-				Phases:       []string{"設計", "実装"},
-				Achievements: "ページ表示速度を改善",
-				IsDraft:      false,
-				SortOrder:    1,
+				ID:            "1",
+				Name:          "ECサイトリニューアル",
+				CompanyID:     "1",
+				Company:       "株式会社A",
+				StartYear:     2024,
+				StartMonth:    1,
+				EndYear:       nil,
+				EndMonth:      nil,
+				Description:   "大手ECサイトのフロントエンド刷新プロジェクト",
+				Role:          "フロントエンドエンジニア",
+				TeamSize:      "8名",
+				TechnologyIDs: []string{"4", "1"},
+				Technologies:  []string{"React", "TypeScript"},
+				Phases:        []string{"設計", "実装"},
+				Achievements:  "ページ表示速度を改善",
+				IsDraft:       false,
+				SortOrder:     1,
 			},
 		},
 		projectPhases: []domain.ProjectPhase{
@@ -1643,22 +1651,23 @@ func (r *testProfileRepository) CreateProject(_ context.Context, input domain.Pr
 	}
 
 	project := domain.Project{
-		ID:           "project_test_new",
-		Name:         input.Name,
-		CompanyID:    input.CompanyID,
-		Company:      company.Name,
-		StartYear:    input.StartYear,
-		StartMonth:   input.StartMonth,
-		EndYear:      input.EndYear,
-		EndMonth:     input.EndMonth,
-		Description:  input.Description,
-		Role:         input.Role,
-		TeamSize:     input.TeamSize,
-		Technologies: input.Technologies,
-		Phases:       input.Phases,
-		Achievements: input.Achievements,
-		IsDraft:      input.IsDraft,
-		SortOrder:    int64(len(r.projects) + 1),
+		ID:            "project_test_new",
+		Name:          input.Name,
+		CompanyID:     input.CompanyID,
+		Company:       company.Name,
+		StartYear:     input.StartYear,
+		StartMonth:    input.StartMonth,
+		EndYear:       input.EndYear,
+		EndMonth:      input.EndMonth,
+		Description:   input.Description,
+		Role:          input.Role,
+		TeamSize:      input.TeamSize,
+		TechnologyIDs: input.TechnologyIDs,
+		Technologies:  r.skillMasterNames(input.TechnologyIDs),
+		Phases:        input.Phases,
+		Achievements:  input.Achievements,
+		IsDraft:       input.IsDraft,
+		SortOrder:     int64(len(r.projects) + 1),
 	}
 	r.projects = append(r.projects, project)
 
@@ -1686,7 +1695,8 @@ func (r *testProfileRepository) UpdateProject(_ context.Context, id string, inpu
 			r.projects[index].Description = input.Description
 			r.projects[index].Role = input.Role
 			r.projects[index].TeamSize = input.TeamSize
-			r.projects[index].Technologies = input.Technologies
+			r.projects[index].TechnologyIDs = input.TechnologyIDs
+			r.projects[index].Technologies = r.skillMasterNames(input.TechnologyIDs)
 			r.projects[index].Phases = input.Phases
 			r.projects[index].Achievements = input.Achievements
 			r.projects[index].IsDraft = input.IsDraft
@@ -1779,6 +1789,19 @@ func (r *testProfileRepository) findSkillMaster(id string) (domain.SkillMaster, 
 	}
 
 	return domain.SkillMaster{}, false
+}
+
+func (r *testProfileRepository) skillMasterNames(ids []string) []string {
+	names := make([]string, 0, len(ids))
+	for _, id := range ids {
+		skillMaster, ok := r.findSkillMaster(id)
+		if !ok {
+			continue
+		}
+		names = append(names, skillMaster.Name)
+	}
+
+	return names
 }
 
 func (r *testProfileRepository) findProficiencyLevel(id string) (domain.SkillOption, bool) {

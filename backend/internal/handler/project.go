@@ -195,38 +195,39 @@ type projectPhaseResponse struct {
 }
 
 type projectRequest struct {
-	Name         string   `json:"name"`
-	CompanyID    string   `json:"companyId"`
-	StartYear    int64    `json:"startYear"`
-	StartMonth   int64    `json:"startMonth"`
-	EndYear      *int64   `json:"endYear"`
-	EndMonth     *int64   `json:"endMonth"`
-	Description  string   `json:"description"`
-	Role         string   `json:"role"`
-	TeamSize     string   `json:"teamSize"`
-	Technologies []string `json:"technologies"`
-	Phases       []string `json:"phases"`
-	Achievements string   `json:"achievements"`
-	IsDraft      bool     `json:"isDraft"`
+	Name          string   `json:"name"`
+	CompanyID     string   `json:"companyId"`
+	StartYear     int64    `json:"startYear"`
+	StartMonth    int64    `json:"startMonth"`
+	EndYear       *int64   `json:"endYear"`
+	EndMonth      *int64   `json:"endMonth"`
+	Description   string   `json:"description"`
+	Role          string   `json:"role"`
+	TeamSize      string   `json:"teamSize"`
+	TechnologyIDs []string `json:"technologyIds"`
+	Phases        []string `json:"phases"`
+	Achievements  string   `json:"achievements"`
+	IsDraft       bool     `json:"isDraft"`
 }
 
 type projectPayload struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	CompanyID    string   `json:"companyId"`
-	Company      string   `json:"company"`
-	StartYear    int64    `json:"startYear"`
-	StartMonth   int64    `json:"startMonth"`
-	EndYear      *int64   `json:"endYear"`
-	EndMonth     *int64   `json:"endMonth"`
-	Description  string   `json:"description"`
-	Role         string   `json:"role"`
-	TeamSize     string   `json:"teamSize"`
-	Technologies []string `json:"technologies"`
-	Phases       []string `json:"phases"`
-	Achievements string   `json:"achievements"`
-	IsDraft      bool     `json:"isDraft"`
-	SortOrder    int64    `json:"sortOrder"`
+	ID            string   `json:"id"`
+	Name          string   `json:"name"`
+	CompanyID     string   `json:"companyId"`
+	Company       string   `json:"company"`
+	StartYear     int64    `json:"startYear"`
+	StartMonth    int64    `json:"startMonth"`
+	EndYear       *int64   `json:"endYear"`
+	EndMonth      *int64   `json:"endMonth"`
+	Description   string   `json:"description"`
+	Role          string   `json:"role"`
+	TeamSize      string   `json:"teamSize"`
+	TechnologyIDs []string `json:"technologyIds"`
+	Technologies  []string `json:"technologies"`
+	Phases        []string `json:"phases"`
+	Achievements  string   `json:"achievements"`
+	IsDraft       bool     `json:"isDraft"`
+	SortOrder     int64    `json:"sortOrder"`
 }
 
 type projectPhaseRequest struct {
@@ -252,40 +253,41 @@ func toProjectPayloads(values []domain.Project) []projectPayload {
 
 func toProjectPayload(value domain.Project) projectPayload {
 	return projectPayload{
-		ID:           value.ID,
-		Name:         value.Name,
-		CompanyID:    value.CompanyID,
-		Company:      value.Company,
-		StartYear:    value.StartYear,
-		StartMonth:   value.StartMonth,
-		EndYear:      value.EndYear,
-		EndMonth:     value.EndMonth,
-		Description:  value.Description,
-		Role:         value.Role,
-		TeamSize:     value.TeamSize,
-		Technologies: value.Technologies,
-		Phases:       value.Phases,
-		Achievements: value.Achievements,
-		IsDraft:      value.IsDraft,
-		SortOrder:    value.SortOrder,
+		ID:            value.ID,
+		Name:          value.Name,
+		CompanyID:     value.CompanyID,
+		Company:       value.Company,
+		StartYear:     value.StartYear,
+		StartMonth:    value.StartMonth,
+		EndYear:       value.EndYear,
+		EndMonth:      value.EndMonth,
+		Description:   value.Description,
+		Role:          value.Role,
+		TeamSize:      value.TeamSize,
+		TechnologyIDs: value.TechnologyIDs,
+		Technologies:  value.Technologies,
+		Phases:        value.Phases,
+		Achievements:  value.Achievements,
+		IsDraft:       value.IsDraft,
+		SortOrder:     value.SortOrder,
 	}
 }
 
 func toProjectInput(request projectRequest) domain.ProjectInput {
 	return domain.ProjectInput{
-		Name:         strings.TrimSpace(request.Name),
-		CompanyID:    strings.TrimSpace(request.CompanyID),
-		StartYear:    request.StartYear,
-		StartMonth:   request.StartMonth,
-		EndYear:      request.EndYear,
-		EndMonth:     request.EndMonth,
-		Description:  strings.TrimSpace(request.Description),
-		Role:         strings.TrimSpace(request.Role),
-		TeamSize:     strings.TrimSpace(request.TeamSize),
-		Technologies: trimStringSlice(request.Technologies),
-		Phases:       trimStringSlice(request.Phases),
-		Achievements: strings.TrimSpace(request.Achievements),
-		IsDraft:      request.IsDraft,
+		Name:          strings.TrimSpace(request.Name),
+		CompanyID:     strings.TrimSpace(request.CompanyID),
+		StartYear:     request.StartYear,
+		StartMonth:    request.StartMonth,
+		EndYear:       request.EndYear,
+		EndMonth:      request.EndMonth,
+		Description:   strings.TrimSpace(request.Description),
+		Role:          strings.TrimSpace(request.Role),
+		TeamSize:      strings.TrimSpace(request.TeamSize),
+		TechnologyIDs: trimStringSlice(request.TechnologyIDs),
+		Phases:        trimStringSlice(request.Phases),
+		Achievements:  strings.TrimSpace(request.Achievements),
+		IsDraft:       request.IsDraft,
 	}
 }
 

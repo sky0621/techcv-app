@@ -290,6 +290,9 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.migrateProjectCompanyID(ctx); err != nil {
 		return err
 	}
+	if err := r.migrateProjectSkillMasters(ctx); err != nil {
+		return err
+	}
 	if err := r.backfillEmptySkillCategoryIcons(ctx); err != nil {
 		return err
 	}
@@ -586,22 +589,29 @@ func (r *SQLiteProfileRepository) ListProjects(ctx context.Context) ([]domain.Pr
 	if err != nil {
 		return nil, fmt.Errorf("query projects: %w", err)
 	}
+	projectSkillMasters, err := r.queries.ListProjectSkillMasters(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("query project skill masters: %w", err)
+	}
 
-	return toDomainProjects(rows)
+	return toDomainProjects(rows, projectSkillMasters)
 }
 
 func (r *SQLiteProfileRepository) CreateProject(ctx context.Context, input domain.ProjectInput) (*domain.Project, error) {
 	now := time.Now().UTC()
-	technologies, err := encodeStringSlice(input.Technologies)
-	if err != nil {
-		return nil, err
-	}
 	phases, err := encodeStringSlice(input.Phases)
 	if err != nil {
 		return nil, err
 	}
 
-	row, err := r.queries.InsertProject(ctx, dbgen.InsertProjectParams{
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin project transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	queries := r.queries.WithTx(tx)
+	row, err := queries.InsertProject(ctx, dbgen.InsertProjectParams{
 		ID:           projectID(now),
 		Name:         input.Name,
 		CompanyID:    input.CompanyID,
@@ -612,7 +622,6 @@ func (r *SQLiteProfileRepository) CreateProject(ctx context.Context, input domai
 		Description:  input.Description,
 		Role:         input.Role,
 		TeamSize:     input.TeamSize,
-		Technologies: technologies,
 		Phases:       phases,
 		Achievements: input.Achievements,
 		IsDraft:      boolToInt64(input.IsDraft),
@@ -620,26 +629,35 @@ func (r *SQLiteProfileRepository) CreateProject(ctx context.Context, input domai
 	if err != nil {
 		return nil, fmt.Errorf("insert project: %w", err)
 	}
+	if err := saveProjectSkillMasters(ctx, queries, row.ID, input.TechnologyIDs); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit project transaction: %w", err)
+	}
 
 	created, err := r.queries.GetProject(ctx, row.ID)
 	if err != nil {
 		return nil, fmt.Errorf("reload project: %w", err)
 	}
 
-	return toDomainProject(created)
+	return r.toDomainProjectWithSkillMasters(ctx, created)
 }
 
 func (r *SQLiteProfileRepository) UpdateProject(ctx context.Context, id string, input domain.ProjectInput) (*domain.Project, error) {
-	technologies, err := encodeStringSlice(input.Technologies)
-	if err != nil {
-		return nil, err
-	}
 	phases, err := encodeStringSlice(input.Phases)
 	if err != nil {
 		return nil, err
 	}
 
-	row, err := r.queries.UpdateProject(ctx, dbgen.UpdateProjectParams{
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin project transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	queries := r.queries.WithTx(tx)
+	row, err := queries.UpdateProject(ctx, dbgen.UpdateProjectParams{
 		ID:           id,
 		Name:         input.Name,
 		CompanyID:    input.CompanyID,
@@ -650,7 +668,6 @@ func (r *SQLiteProfileRepository) UpdateProject(ctx context.Context, id string, 
 		Description:  input.Description,
 		Role:         input.Role,
 		TeamSize:     input.TeamSize,
-		Technologies: technologies,
 		Phases:       phases,
 		Achievements: input.Achievements,
 		IsDraft:      boolToInt64(input.IsDraft),
@@ -658,22 +675,58 @@ func (r *SQLiteProfileRepository) UpdateProject(ctx context.Context, id string, 
 	if err != nil {
 		return nil, fmt.Errorf("update project: %w", err)
 	}
+	if err := saveProjectSkillMasters(ctx, queries, row.ID, input.TechnologyIDs); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit project transaction: %w", err)
+	}
 
 	updated, err := r.queries.GetProject(ctx, row.ID)
 	if err != nil {
 		return nil, fmt.Errorf("reload project: %w", err)
 	}
 
-	return toDomainProject(updated)
+	return r.toDomainProjectWithSkillMasters(ctx, updated)
 }
 
 func (r *SQLiteProfileRepository) DeleteProject(ctx context.Context, id string) error {
+	if err := r.queries.DeleteProjectSkillMasters(ctx, id); err != nil {
+		return fmt.Errorf("delete project skill masters: %w", err)
+	}
 	rowsAffected, err := r.queries.DeleteProject(ctx, id)
 	if err != nil {
 		return fmt.Errorf("delete project: %w", err)
 	}
 	if rowsAffected == 0 {
 		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
+func saveProjectSkillMasters(ctx context.Context, queries *dbgen.Queries, projectID string, skillMasterIDs []string) error {
+	if err := queries.DeleteProjectSkillMasters(ctx, projectID); err != nil {
+		return fmt.Errorf("delete project skill masters: %w", err)
+	}
+	seen := map[string]struct{}{}
+	sortOrder := int64(1)
+	for _, skillMasterID := range skillMasterIDs {
+		if skillMasterID == "" {
+			continue
+		}
+		if _, ok := seen[skillMasterID]; ok {
+			continue
+		}
+		seen[skillMasterID] = struct{}{}
+		if err := queries.InsertProjectSkillMaster(ctx, dbgen.InsertProjectSkillMasterParams{
+			ProjectID:     projectID,
+			SkillMasterID: skillMasterID,
+			SortOrder:     sortOrder,
+		}); err != nil {
+			return fmt.Errorf("insert project skill master: %w", err)
+		}
+		sortOrder++
 	}
 
 	return nil
@@ -1408,6 +1461,87 @@ func (r *SQLiteProfileRepository) migrateProjectCompanyID(ctx context.Context) e
 	return nil
 }
 
+func (r *SQLiteProfileRepository) migrateProjectSkillMasters(ctx context.Context) error {
+	statements := []string{
+		`PRAGMA foreign_keys = OFF`,
+		`CREATE TABLE IF NOT EXISTS project_skill_masters (
+			project_id INTEGER NOT NULL,
+			skill_master_id INTEGER NOT NULL,
+			sort_order INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (project_id, skill_master_id),
+			FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+			FOREIGN KEY (skill_master_id) REFERENCES skill_masters(id)
+		)`,
+	}
+	hasTechnologiesColumn, err := r.tableHasColumn(ctx, "projects", "technologies")
+	if err != nil {
+		return err
+	}
+	if hasTechnologiesColumn {
+		statements = append(statements,
+			`INSERT OR IGNORE INTO project_skill_masters (project_id, skill_master_id, sort_order)
+			SELECT
+				projects.id,
+				skill_masters.id,
+				CAST(json_each.key AS INTEGER) + 1
+			FROM projects
+			JOIN json_each(projects.technologies)
+			JOIN skill_masters ON skill_masters.name = json_each.value`,
+			`DROP TABLE IF EXISTS projects_new`,
+			`CREATE TABLE projects_new (
+				id INTEGER PRIMARY KEY,
+				name TEXT NOT NULL,
+				company_id INTEGER NOT NULL,
+				start_year INTEGER NOT NULL,
+				start_month INTEGER NOT NULL,
+				end_year INTEGER,
+				end_month INTEGER,
+				description TEXT NOT NULL,
+				role TEXT NOT NULL,
+				team_size TEXT NOT NULL,
+				phases TEXT NOT NULL,
+				achievements TEXT NOT NULL,
+				is_draft INTEGER NOT NULL DEFAULT 0,
+				sort_order INTEGER NOT NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				FOREIGN KEY (company_id) REFERENCES job_companies(id)
+			)`,
+			`INSERT INTO projects_new
+			SELECT
+				id,
+				name,
+				company_id,
+				start_year,
+				start_month,
+				end_year,
+				end_month,
+				description,
+				role,
+				team_size,
+				phases,
+				achievements,
+				is_draft,
+				sort_order,
+				created_at,
+				updated_at
+			FROM projects`,
+			`DROP TABLE projects`,
+			`ALTER TABLE projects_new RENAME TO projects`,
+		)
+	}
+	statements = append(statements, `PRAGMA foreign_keys = ON`)
+	for _, statement := range statements {
+		if _, err := r.db.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("migrate project skill masters: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (r *SQLiteProfileRepository) migrateSkillExperienceColumn(ctx context.Context) error {
 	columnType, err := r.tableColumnType(ctx, "skills", "experience")
 	if err != nil {
@@ -1594,6 +1728,25 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 			WHERE company IS NOT NULL AND company <> ''`
 		projectCompanyIDExpression = `(SELECT job_companies.id FROM job_companies WHERE job_companies.name = projects.company)`
 	}
+	projectSkillMastersBackfillStatement := `SELECT 1`
+	hasProjectTechnologiesColumn, err := r.tableHasColumn(ctx, "projects", "technologies")
+	if err != nil {
+		return err
+	}
+	if hasProjectTechnologiesColumn {
+		projectSkillMastersBackfillStatement = `INSERT OR IGNORE INTO project_skill_masters_new
+		SELECT
+			_project_id_map.new_id,
+			_skill_master_id_map.new_id,
+			CAST(json_each.key AS INTEGER) + 1,
+			projects.created_at,
+			projects.updated_at
+		FROM projects
+		JOIN _project_id_map ON _project_id_map.old_id = projects.id
+		JOIN json_each(projects.technologies)
+		JOIN skill_masters ON skill_masters.name = json_each.value
+		JOIN _skill_master_id_map ON _skill_master_id_map.old_id = skill_masters.id`
+	}
 
 	statements := []string{
 		`PRAGMA foreign_keys = OFF`,
@@ -1606,6 +1759,7 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 		`DROP TABLE IF EXISTS job_histories_new`,
 		`DROP TABLE IF EXISTS job_employment_types_new`,
 		`DROP TABLE IF EXISTS projects_new`,
+		`DROP TABLE IF EXISTS project_skill_masters_new`,
 		`DROP TABLE IF EXISTS _profile_id_map`,
 		`DROP TABLE IF EXISTS _qualification_id_map`,
 		`DROP TABLE IF EXISTS _skill_category_id_map`,
@@ -1816,6 +1970,17 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 			JOIN _job_history_id_map ON _job_history_id_map.old_id = job_histories.id
 			JOIN _job_employment_type_id_map ON _job_employment_type_id_map.old_id = job_histories.employment_type_id`, jobHistoryCompanyIDExpression),
 		projectCompanyBackfillStatement,
+		`CREATE TABLE project_skill_masters_new (
+			project_id INTEGER NOT NULL,
+			skill_master_id INTEGER NOT NULL,
+			sort_order INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (project_id, skill_master_id),
+			FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+			FOREIGN KEY (skill_master_id) REFERENCES skill_masters(id)
+		)`,
+		projectSkillMastersBackfillStatement,
 		`CREATE TABLE projects_new (
 			id INTEGER PRIMARY KEY,
 			name TEXT NOT NULL,
@@ -1827,7 +1992,6 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 			description TEXT NOT NULL,
 			role TEXT NOT NULL,
 			team_size TEXT NOT NULL,
-			technologies TEXT NOT NULL,
 			phases TEXT NOT NULL,
 			achievements TEXT NOT NULL,
 			is_draft INTEGER NOT NULL DEFAULT 0,
@@ -1848,7 +2012,6 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 			projects.description,
 			projects.role,
 			projects.team_size,
-			projects.technologies,
 			projects.phases,
 			projects.achievements,
 			projects.is_draft,
@@ -1865,6 +2028,7 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 		`DROP TABLE skill_proficiency_levels`,
 		`DROP TABLE job_histories`,
 		`DROP TABLE job_employment_types`,
+		`DROP TABLE project_skill_masters`,
 		`DROP TABLE projects`,
 		`ALTER TABLE profiles_new RENAME TO profiles`,
 		`ALTER TABLE profile_qualifications_new RENAME TO profile_qualifications`,
@@ -1874,6 +2038,7 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 		`ALTER TABLE skills_new RENAME TO skills`,
 		`ALTER TABLE job_employment_types_new RENAME TO job_employment_types`,
 		`ALTER TABLE job_histories_new RENAME TO job_histories`,
+		`ALTER TABLE project_skill_masters_new RENAME TO project_skill_masters`,
 		`ALTER TABLE projects_new RENAME TO projects`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_skill_master_id_unique ON skills(skill_master_id)`,
 		`PRAGMA foreign_keys = ON`,
@@ -2313,13 +2478,15 @@ func toDomainJobHistory(row dbgen.GetJobHistoryRow) *domain.JobHistory {
 	}
 }
 
-func toDomainProjects(rows []dbgen.Project) ([]domain.Project, error) {
+func toDomainProjects(rows []dbgen.Project, skillMasterRows []dbgen.ListProjectSkillMastersRow) ([]domain.Project, error) {
+	projectSkills := projectSkillMastersByProjectID(skillMasterRows)
 	projects := make([]domain.Project, 0, len(rows))
 	for _, row := range rows {
 		project, err := toDomainProject(row)
 		if err != nil {
 			return nil, err
 		}
+		attachProjectSkillMasters(project, projectSkills[row.ID])
 		projects = append(projects, *project)
 	}
 
@@ -2327,10 +2494,6 @@ func toDomainProjects(rows []dbgen.Project) ([]domain.Project, error) {
 }
 
 func toDomainProject(row dbgen.Project) (*domain.Project, error) {
-	technologies, err := decodeStringSlice(row.Technologies)
-	if err != nil {
-		return nil, fmt.Errorf("decode project technologies: %w", err)
-	}
 	phases, err := decodeStringSlice(row.Phases)
 	if err != nil {
 		return nil, fmt.Errorf("decode project phases: %w", err)
@@ -2348,12 +2511,43 @@ func toDomainProject(row dbgen.Project) (*domain.Project, error) {
 		Description:  row.Description,
 		Role:         row.Role,
 		TeamSize:     row.TeamSize,
-		Technologies: technologies,
 		Phases:       phases,
 		Achievements: row.Achievements,
 		IsDraft:      row.IsDraft != 0,
 		SortOrder:    row.SortOrder,
 	}, nil
+}
+
+func (r *SQLiteProfileRepository) toDomainProjectWithSkillMasters(ctx context.Context, row dbgen.Project) (*domain.Project, error) {
+	project, err := toDomainProject(row)
+	if err != nil {
+		return nil, err
+	}
+	skillMasterRows, err := r.queries.ListProjectSkillMasters(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("query project skill masters: %w", err)
+	}
+	attachProjectSkillMasters(project, projectSkillMastersByProjectID(skillMasterRows)[project.ID])
+
+	return project, nil
+}
+
+func projectSkillMastersByProjectID(rows []dbgen.ListProjectSkillMastersRow) map[string][]dbgen.ListProjectSkillMastersRow {
+	result := map[string][]dbgen.ListProjectSkillMastersRow{}
+	for _, row := range rows {
+		result[row.ProjectID] = append(result[row.ProjectID], row)
+	}
+
+	return result
+}
+
+func attachProjectSkillMasters(project *domain.Project, rows []dbgen.ListProjectSkillMastersRow) {
+	project.TechnologyIDs = make([]string, 0, len(rows))
+	project.Technologies = make([]string, 0, len(rows))
+	for _, row := range rows {
+		project.TechnologyIDs = append(project.TechnologyIDs, row.SkillMasterID)
+		project.Technologies = append(project.Technologies, row.SkillMasterName)
+	}
 }
 
 func toDomainProjectPhases(rows []dbgen.ProjectPhase) []domain.ProjectPhase {

@@ -11,7 +11,6 @@ SELECT
   projects.description,
   projects.role,
   projects.team_size,
-  projects.technologies,
   projects.phases,
   projects.achievements,
   projects.is_draft,
@@ -35,7 +34,6 @@ SELECT
   projects.description,
   projects.role,
   projects.team_size,
-  projects.technologies,
   projects.phases,
   projects.achievements,
   projects.is_draft,
@@ -58,14 +56,12 @@ INSERT INTO projects (
   description,
   role,
   team_size,
-  technologies,
   phases,
   achievements,
   is_draft,
   sort_order
 )
 SELECT
-  ?,
   ?,
   ?,
   ?,
@@ -93,7 +89,6 @@ RETURNING
   description,
   role,
   team_size,
-  technologies,
   phases,
   achievements,
   is_draft,
@@ -113,7 +108,6 @@ SET
   description = ?,
   role = ?,
   team_size = ?,
-  technologies = ?,
   phases = ?,
   achievements = ?,
   is_draft = ?,
@@ -131,7 +125,6 @@ RETURNING
   description,
   role,
   team_size,
-  technologies,
   phases,
   achievements,
   is_draft,
@@ -142,6 +135,28 @@ RETURNING
 -- name: DeleteProject :execrows
 DELETE FROM projects
 WHERE id = ?;
+
+-- name: ListProjectSkillMasters :many
+SELECT
+  CAST(project_skill_masters.project_id AS TEXT) AS project_id,
+  CAST(project_skill_masters.skill_master_id AS TEXT) AS skill_master_id,
+  skill_masters.name AS skill_master_name,
+  project_skill_masters.sort_order
+FROM project_skill_masters
+JOIN skill_masters ON skill_masters.id = project_skill_masters.skill_master_id
+ORDER BY project_skill_masters.project_id ASC, project_skill_masters.sort_order ASC, skill_masters.name ASC;
+
+-- name: DeleteProjectSkillMasters :exec
+DELETE FROM project_skill_masters
+WHERE project_id = ?;
+
+-- name: InsertProjectSkillMaster :exec
+INSERT INTO project_skill_masters (
+  project_id,
+  skill_master_id,
+  sort_order
+)
+VALUES (?, ?, ?);
 
 -- name: ListProjectPhases :many
 SELECT

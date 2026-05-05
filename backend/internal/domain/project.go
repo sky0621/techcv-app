@@ -1,38 +1,39 @@
 package domain
 
 type Project struct {
-	ID           string
-	Name         string
-	CompanyID    string
-	Company      string
-	StartYear    int64
-	StartMonth   int64
-	EndYear      *int64
-	EndMonth     *int64
-	Description  string
-	Role         string
-	TeamSize     string
-	Technologies []string
-	Phases       []string
-	Achievements string
-	IsDraft      bool
-	SortOrder    int64
+	ID            string
+	Name          string
+	CompanyID     string
+	Company       string
+	StartYear     int64
+	StartMonth    int64
+	EndYear       *int64
+	EndMonth      *int64
+	Description   string
+	Role          string
+	TeamSize      string
+	TechnologyIDs []string
+	Technologies  []string
+	Phases        []string
+	Achievements  string
+	IsDraft       bool
+	SortOrder     int64
 }
 
 type ProjectInput struct {
-	Name         string
-	CompanyID    string
-	StartYear    int64
-	StartMonth   int64
-	EndYear      *int64
-	EndMonth     *int64
-	Description  string
-	Role         string
-	TeamSize     string
-	Technologies []string
-	Phases       []string
-	Achievements string
-	IsDraft      bool
+	Name          string
+	CompanyID     string
+	StartYear     int64
+	StartMonth    int64
+	EndYear       *int64
+	EndMonth      *int64
+	Description   string
+	Role          string
+	TeamSize      string
+	TechnologyIDs []string
+	Phases        []string
+	Achievements  string
+	IsDraft       bool
 }
 
 type ProjectPhase struct {

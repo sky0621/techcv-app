@@ -138,7 +138,6 @@ CREATE TABLE IF NOT EXISTS projects (
     description TEXT NOT NULL,
     role TEXT NOT NULL,
     team_size TEXT NOT NULL,
-    technologies TEXT NOT NULL,
     phases TEXT NOT NULL,
     achievements TEXT NOT NULL,
     is_draft INTEGER NOT NULL DEFAULT 0,
@@ -146,6 +145,17 @@ CREATE TABLE IF NOT EXISTS projects (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (company_id) REFERENCES job_companies(id)
+);
+
+CREATE TABLE IF NOT EXISTS project_skill_masters (
+    project_id INTEGER NOT NULL,
+    skill_master_id INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (project_id, skill_master_id),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (skill_master_id) REFERENCES skill_masters(id)
 );
 
 CREATE TABLE IF NOT EXISTS project_phases (
