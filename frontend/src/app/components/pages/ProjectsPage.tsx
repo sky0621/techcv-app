@@ -13,6 +13,7 @@ import { Checkbox } from "../ui/checkbox";
 type Project = {
   id: string;
   name: string;
+  companyId: string;
   company: string;
   startYear: number;
   startMonth: number;
@@ -30,7 +31,7 @@ type Project = {
 
 type ProjectForm = {
   name: string;
-  company: string;
+  companyId: string;
   startDate: string;
   endDate: string;
   description: string;
@@ -41,18 +42,18 @@ type ProjectForm = {
   achievements: string;
 };
 
-type JobHistory = {
+type JobCompany = {
   id: string;
-  company: string;
-  displayName: string;
+  name: string;
+  url: string;
 };
 
 type ProjectsResponse = {
   projects: Project[];
 };
 
-type JobHistoriesResponse = {
-  jobHistories: JobHistory[];
+type JobHistoryOptionsResponse = {
+  companies: JobCompany[];
 };
 
 type ProjectResponse = {
@@ -91,7 +92,7 @@ type SkillOptionsResponse = {
 
 const emptyForm: ProjectForm = {
   name: "",
-  company: "",
+  companyId: "",
   startDate: "",
   endDate: "",
   description: "",
@@ -125,7 +126,7 @@ function parseYearMonth(value: string) {
 
 export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [jobHistories, setJobHistories] = useState<JobHistory[]>([]);
+  const [companies, setCompanies] = useState<JobCompany[]>([]);
   const [projectPhases, setProjectPhases] = useState<ProjectPhase[]>([]);
   const [skillCategories, setSkillCategories] = useState<SkillCategory[]>([]);
   const [skillMasters, setSkillMasters] = useState<SkillMaster[]>([]);
@@ -145,17 +146,17 @@ export function ProjectsPage() {
       setError("");
 
       try {
-        const [projectsResponse, jobHistoriesResponse, projectOptionsResponse, skillOptionsResponse] = await Promise.all([
+        const [projectsResponse, jobHistoryOptionsResponse, projectOptionsResponse, skillOptionsResponse] = await Promise.all([
           fetch("/api/projects", { signal: controller.signal }),
-          fetch("/api/job-histories", { signal: controller.signal }),
+          fetch("/api/job-histories/options", { signal: controller.signal }),
           fetch("/api/projects/options", { signal: controller.signal }),
           fetch("/api/skills/options", { signal: controller.signal }),
         ]);
         if (!projectsResponse.ok) {
           throw new Error("案件の取得に失敗しました");
         }
-        if (!jobHistoriesResponse.ok) {
-          throw new Error("職歴の取得に失敗しました");
+        if (!jobHistoryOptionsResponse.ok) {
+          throw new Error("会社設定の取得に失敗しました");
         }
         if (!projectOptionsResponse.ok) {
           throw new Error("案件設定の取得に失敗しました");
@@ -165,11 +166,11 @@ export function ProjectsPage() {
         }
 
         const projectsData = (await projectsResponse.json()) as ProjectsResponse;
-        const jobHistoriesData = (await jobHistoriesResponse.json()) as JobHistoriesResponse;
+        const jobHistoryOptionsData = (await jobHistoryOptionsResponse.json()) as JobHistoryOptionsResponse;
         const projectOptionsData = (await projectOptionsResponse.json()) as ProjectOptionsResponse;
         const skillOptionsData = (await skillOptionsResponse.json()) as SkillOptionsResponse;
         setProjects(projectsData.projects ?? []);
-        setJobHistories(jobHistoriesData.jobHistories ?? []);
+        setCompanies(jobHistoryOptionsData.companies ?? []);
         setProjectPhases(projectOptionsData.phases ?? []);
         setSkillCategories(skillOptionsData.categories ?? []);
         setSkillMasters(skillOptionsData.skillMasters ?? []);
@@ -198,17 +199,6 @@ export function ProjectsPage() {
     p.technologies.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const companyOptions = jobHistories.reduce<JobHistory[]>((options, jobHistory) => {
-    if (jobHistory.company.trim() === "") {
-      return options;
-    }
-    if (options.some(option => option.company === jobHistory.company)) {
-      return options;
-    }
-
-    return [...options, jobHistory];
-  }, []);
-
   const handleAdd = () => {
     setEditingProject(null);
     setFormData(emptyForm);
@@ -219,7 +209,7 @@ export function ProjectsPage() {
     setEditingProject(project);
     setFormData({
       name: project.name,
-      company: project.company,
+      companyId: project.companyId,
       startDate: formatYearMonth(project.startYear, project.startMonth),
       endDate:
         project.endYear === null || project.endMonth === null
@@ -332,7 +322,7 @@ export function ProjectsPage() {
             <h1 className="text-3xl font-bold text-gray-900">案件管理</h1>
             <p className="text-gray-600 mt-1">プロジェクト実績を詳細に記録</p>
           </div>
-          <Button onClick={handleAdd} disabled={isLoading || companyOptions.length === 0}>
+          <Button onClick={handleAdd} disabled={isLoading || companies.length === 0}>
             <Plus className="w-4 h-4 mr-2" />
             案件を追加
           </Button>
@@ -348,7 +338,7 @@ export function ProjectsPage() {
             {error}
           </div>
         )}
-        {!isLoading && companyOptions.length === 0 && (
+        {!isLoading && companies.length === 0 && (
           <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             案件を登録するには、先に職歴管理で会社名を登録してください。
           </div>
@@ -462,19 +452,17 @@ export function ProjectsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="company">会社名</Label>
                   <Select
-                    value={formData.company}
-                    onValueChange={(value) => setFormData({ ...formData, company: value })}
-                    disabled={companyOptions.length === 0}
+                    value={formData.companyId}
+                    onValueChange={(value) => setFormData({ ...formData, companyId: value })}
+                    disabled={companies.length === 0}
                   >
                     <SelectTrigger id="company">
                       <SelectValue placeholder="職歴から選択" />
                     </SelectTrigger>
                     <SelectContent>
-                      {companyOptions.map((jobHistory) => (
-                        <SelectItem key={jobHistory.id} value={jobHistory.company}>
-                          {jobHistory.displayName && jobHistory.displayName !== jobHistory.company
-                            ? `${jobHistory.displayName}（${jobHistory.company}）`
-                            : jobHistory.company}
+                      {companies.map((company) => (
+                        <SelectItem key={company.id} value={company.id}>
+                          {company.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

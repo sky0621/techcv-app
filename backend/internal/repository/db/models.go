@@ -68,6 +68,7 @@ type ProfileQualification struct {
 type Project struct {
 	ID           string
 	Name         string
+	CompanyID    string
 	Company      string
 	StartYear    int64
 	StartMonth   int64

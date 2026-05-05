@@ -287,6 +287,9 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.migrateProjectDateColumns(ctx); err != nil {
 		return err
 	}
+	if err := r.migrateProjectCompanyID(ctx); err != nil {
+		return err
+	}
 	if err := r.backfillEmptySkillCategoryIcons(ctx); err != nil {
 		return err
 	}
@@ -601,7 +604,7 @@ func (r *SQLiteProfileRepository) CreateProject(ctx context.Context, input domai
 	row, err := r.queries.InsertProject(ctx, dbgen.InsertProjectParams{
 		ID:           projectID(now),
 		Name:         input.Name,
-		Company:      input.Company,
+		CompanyID:    input.CompanyID,
 		StartYear:    input.StartYear,
 		StartMonth:   input.StartMonth,
 		EndYear:      toNullInt64(input.EndYear),
@@ -639,7 +642,7 @@ func (r *SQLiteProfileRepository) UpdateProject(ctx context.Context, id string, 
 	row, err := r.queries.UpdateProject(ctx, dbgen.UpdateProjectParams{
 		ID:           id,
 		Name:         input.Name,
-		Company:      input.Company,
+		CompanyID:    input.CompanyID,
 		StartYear:    input.StartYear,
 		StartMonth:   input.StartMonth,
 		EndYear:      toNullInt64(input.EndYear),
@@ -1319,6 +1322,92 @@ func (r *SQLiteProfileRepository) migrateProjectDateColumns(ctx context.Context)
 	return nil
 }
 
+func (r *SQLiteProfileRepository) migrateProjectCompanyID(ctx context.Context) error {
+	hasCompanyColumn, err := r.tableHasColumn(ctx, "projects", "company")
+	if err != nil {
+		return err
+	}
+	if !hasCompanyColumn {
+		return nil
+	}
+
+	statements := []string{
+		`INSERT OR IGNORE INTO job_companies (name, url)
+		SELECT DISTINCT company, ''
+		FROM projects
+		WHERE company IS NOT NULL AND company <> ''`,
+		`DROP TABLE IF EXISTS projects_new`,
+		`CREATE TABLE projects_new (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL,
+			company_id INTEGER NOT NULL,
+			start_year INTEGER NOT NULL,
+			start_month INTEGER NOT NULL,
+			end_year INTEGER,
+			end_month INTEGER,
+			description TEXT NOT NULL,
+			role TEXT NOT NULL,
+			team_size TEXT NOT NULL,
+			technologies TEXT NOT NULL,
+			phases TEXT NOT NULL,
+			achievements TEXT NOT NULL,
+			is_draft INTEGER NOT NULL DEFAULT 0,
+			sort_order INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (company_id) REFERENCES job_companies(id)
+		)`,
+		`INSERT INTO projects_new (
+			id,
+			name,
+			company_id,
+			start_year,
+			start_month,
+			end_year,
+			end_month,
+			description,
+			role,
+			team_size,
+			technologies,
+			phases,
+			achievements,
+			is_draft,
+			sort_order,
+			created_at,
+			updated_at
+		)
+		SELECT
+			projects.id,
+			projects.name,
+			job_companies.id,
+			projects.start_year,
+			projects.start_month,
+			projects.end_year,
+			projects.end_month,
+			projects.description,
+			projects.role,
+			projects.team_size,
+			projects.technologies,
+			projects.phases,
+			projects.achievements,
+			projects.is_draft,
+			projects.sort_order,
+			projects.created_at,
+			projects.updated_at
+		FROM projects
+		JOIN job_companies ON job_companies.name = projects.company`,
+		`DROP TABLE projects`,
+		`ALTER TABLE projects_new RENAME TO projects`,
+	}
+	for _, statement := range statements {
+		if _, err := r.db.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("migrate projects company_id: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (r *SQLiteProfileRepository) migrateSkillExperienceColumn(ctx context.Context) error {
 	columnType, err := r.tableColumnType(ctx, "skills", "experience")
 	if err != nil {
@@ -1491,6 +1580,19 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 		skillMasterIDMapStatement = `CREATE TEMP TABLE _skill_master_id_map AS
 			SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, name ASC, id ASC) AS new_id
 			FROM skill_masters`
+	}
+	projectCompanyBackfillStatement := `SELECT 1`
+	projectCompanyIDExpression := "projects.company_id"
+	hasProjectCompanyIDColumn, err := r.tableHasColumn(ctx, "projects", "company_id")
+	if err != nil {
+		return err
+	}
+	if !hasProjectCompanyIDColumn {
+		projectCompanyBackfillStatement = `INSERT OR IGNORE INTO job_companies (name, url)
+			SELECT DISTINCT company, ''
+			FROM projects
+			WHERE company IS NOT NULL AND company <> ''`
+		projectCompanyIDExpression = `(SELECT job_companies.id FROM job_companies WHERE job_companies.name = projects.company)`
 	}
 
 	statements := []string{
@@ -1710,13 +1812,14 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 			job_histories.project_count,
 			job_histories.created_at,
 			job_histories.updated_at
-		FROM job_histories
-		JOIN _job_history_id_map ON _job_history_id_map.old_id = job_histories.id
-		JOIN _job_employment_type_id_map ON _job_employment_type_id_map.old_id = job_histories.employment_type_id`, jobHistoryCompanyIDExpression),
+			FROM job_histories
+			JOIN _job_history_id_map ON _job_history_id_map.old_id = job_histories.id
+			JOIN _job_employment_type_id_map ON _job_employment_type_id_map.old_id = job_histories.employment_type_id`, jobHistoryCompanyIDExpression),
+		projectCompanyBackfillStatement,
 		`CREATE TABLE projects_new (
 			id INTEGER PRIMARY KEY,
 			name TEXT NOT NULL,
-			company TEXT NOT NULL,
+			company_id INTEGER NOT NULL,
 			start_year INTEGER NOT NULL,
 			start_month INTEGER NOT NULL,
 			end_year INTEGER,
@@ -1730,13 +1833,14 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 			is_draft INTEGER NOT NULL DEFAULT 0,
 			sort_order INTEGER NOT NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (company_id) REFERENCES job_companies(id)
 		)`,
-		`INSERT INTO projects_new
+		fmt.Sprintf(`INSERT INTO projects_new
 		SELECT
 			_project_id_map.new_id,
 			projects.name,
-			projects.company,
+			%s,
 			projects.start_year,
 			projects.start_month,
 			projects.end_year,
@@ -1752,7 +1856,7 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 			projects.created_at,
 			projects.updated_at
 		FROM projects
-		JOIN _project_id_map ON _project_id_map.old_id = projects.id`,
+		JOIN _project_id_map ON _project_id_map.old_id = projects.id`, projectCompanyIDExpression),
 		`DROP TABLE profile_qualifications`,
 		`DROP TABLE profiles`,
 		`DROP TABLE skills`,
@@ -2235,6 +2339,7 @@ func toDomainProject(row dbgen.Project) (*domain.Project, error) {
 	return &domain.Project{
 		ID:           row.ID,
 		Name:         row.Name,
+		CompanyID:    row.CompanyID,
 		Company:      row.Company,
 		StartYear:    row.StartYear,
 		StartMonth:   row.StartMonth,

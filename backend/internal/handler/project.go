@@ -52,7 +52,7 @@ func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 
 	input := toProjectInput(request)
 	if !isValidProjectInput(input) {
-		writeJSONError(w, http.StatusBadRequest, "bad_request", "name, company, startYear and startMonth are required")
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "name, companyId, startYear and startMonth are required")
 		return
 	}
 
@@ -82,7 +82,7 @@ func (h *ProjectHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 
 	input := toProjectInput(request)
 	if !isValidProjectInput(input) {
-		writeJSONError(w, http.StatusBadRequest, "bad_request", "name, company, startYear and startMonth are required")
+		writeJSONError(w, http.StatusBadRequest, "bad_request", "name, companyId, startYear and startMonth are required")
 		return
 	}
 
@@ -196,7 +196,7 @@ type projectPhaseResponse struct {
 
 type projectRequest struct {
 	Name         string   `json:"name"`
-	Company      string   `json:"company"`
+	CompanyID    string   `json:"companyId"`
 	StartYear    int64    `json:"startYear"`
 	StartMonth   int64    `json:"startMonth"`
 	EndYear      *int64   `json:"endYear"`
@@ -213,6 +213,7 @@ type projectRequest struct {
 type projectPayload struct {
 	ID           string   `json:"id"`
 	Name         string   `json:"name"`
+	CompanyID    string   `json:"companyId"`
 	Company      string   `json:"company"`
 	StartYear    int64    `json:"startYear"`
 	StartMonth   int64    `json:"startMonth"`
@@ -253,6 +254,7 @@ func toProjectPayload(value domain.Project) projectPayload {
 	return projectPayload{
 		ID:           value.ID,
 		Name:         value.Name,
+		CompanyID:    value.CompanyID,
 		Company:      value.Company,
 		StartYear:    value.StartYear,
 		StartMonth:   value.StartMonth,
@@ -272,7 +274,7 @@ func toProjectPayload(value domain.Project) projectPayload {
 func toProjectInput(request projectRequest) domain.ProjectInput {
 	return domain.ProjectInput{
 		Name:         strings.TrimSpace(request.Name),
-		Company:      strings.TrimSpace(request.Company),
+		CompanyID:    strings.TrimSpace(request.CompanyID),
 		StartYear:    request.StartYear,
 		StartMonth:   request.StartMonth,
 		EndYear:      request.EndYear,
@@ -317,7 +319,7 @@ func toProjectPhaseInput(request projectPhaseRequest, includeID bool) domain.Pro
 }
 
 func isValidProjectInput(input domain.ProjectInput) bool {
-	if input.Name == "" || input.Company == "" || input.StartYear == 0 || !isValidMonth(input.StartMonth) {
+	if input.Name == "" || input.CompanyID == "" || input.StartYear == 0 || !isValidMonth(input.StartMonth) {
 		return false
 	}
 	if input.EndYear == nil || input.EndMonth == nil {

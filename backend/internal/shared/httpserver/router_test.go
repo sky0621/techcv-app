@@ -858,6 +858,7 @@ func TestProjectRoutes(t *testing.T) {
 		Projects []struct {
 			ID           string   `json:"id"`
 			Name         string   `json:"name"`
+			CompanyID    string   `json:"companyId"`
 			Company      string   `json:"company"`
 			StartYear    int64    `json:"startYear"`
 			StartMonth   int64    `json:"startMonth"`
@@ -875,6 +876,7 @@ func TestProjectRoutes(t *testing.T) {
 		t.Fatalf("expected one seeded project, got %#v", listResp.Projects)
 	}
 	if listResp.Projects[0].Name != "ECサイトリニューアル" ||
+		listResp.Projects[0].CompanyID != "1" ||
 		listResp.Projects[0].Company != "株式会社A" ||
 		listResp.Projects[0].StartYear != 2024 ||
 		listResp.Projects[0].StartMonth != 1 ||
@@ -888,7 +890,7 @@ func TestProjectRoutes(t *testing.T) {
 
 	createBody := []byte(`{
 		"name":"新規案件",
-		"company":"株式会社C",
+		"companyId":"1",
 		"startYear":2025,
 		"startMonth":1,
 		"endYear":null,
@@ -913,6 +915,8 @@ func TestProjectRoutes(t *testing.T) {
 		Project struct {
 			ID           string   `json:"id"`
 			Name         string   `json:"name"`
+			CompanyID    string   `json:"companyId"`
+			Company      string   `json:"company"`
 			Technologies []string `json:"technologies"`
 			IsDraft      bool     `json:"isDraft"`
 		} `json:"project"`
@@ -922,6 +926,8 @@ func TestProjectRoutes(t *testing.T) {
 	}
 	if createResp.Project.ID == "" ||
 		createResp.Project.Name != "新規案件" ||
+		createResp.Project.CompanyID != "1" ||
+		createResp.Project.Company != "株式会社A" ||
 		len(createResp.Project.Technologies) != 2 ||
 		!createResp.Project.IsDraft {
 		t.Fatalf("unexpected created project: %#v", createResp.Project)
@@ -929,7 +935,7 @@ func TestProjectRoutes(t *testing.T) {
 
 	updateBody := []byte(`{
 		"name":"新規案件 Updated",
-		"company":"株式会社C",
+		"companyId":"1",
 		"startYear":2025,
 		"startMonth":1,
 		"endYear":2025,
@@ -1119,6 +1125,7 @@ func newTestProfileRepository() *testProfileRepository {
 			{
 				ID:           "1",
 				Name:         "ECサイトリニューアル",
+				CompanyID:    "1",
 				Company:      "株式会社A",
 				StartYear:    2024,
 				StartMonth:   1,
@@ -1630,10 +1637,16 @@ func (r *testProfileRepository) CreateProject(_ context.Context, input domain.Pr
 	defer r.mu.Unlock()
 
 	r.nextProjectID++
+	company, ok := r.findJobCompany(input.CompanyID)
+	if !ok {
+		return nil, sql.ErrNoRows
+	}
+
 	project := domain.Project{
 		ID:           "project_test_new",
 		Name:         input.Name,
-		Company:      input.Company,
+		CompanyID:    input.CompanyID,
+		Company:      company.Name,
 		StartYear:    input.StartYear,
 		StartMonth:   input.StartMonth,
 		EndYear:      input.EndYear,
@@ -1658,8 +1671,14 @@ func (r *testProfileRepository) UpdateProject(_ context.Context, id string, inpu
 
 	for index, project := range r.projects {
 		if project.ID == id {
+			company, ok := r.findJobCompany(input.CompanyID)
+			if !ok {
+				return nil, sql.ErrNoRows
+			}
+
 			r.projects[index].Name = input.Name
-			r.projects[index].Company = input.Company
+			r.projects[index].CompanyID = input.CompanyID
+			r.projects[index].Company = company.Name
 			r.projects[index].StartYear = input.StartYear
 			r.projects[index].StartMonth = input.StartMonth
 			r.projects[index].EndYear = input.EndYear

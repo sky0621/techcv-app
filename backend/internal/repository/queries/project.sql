@@ -1,52 +1,56 @@
 -- name: ListProjects :many
 SELECT
-  id,
-  name,
-  company,
-  start_year,
-  start_month,
-  end_year,
-  end_month,
-  description,
-  role,
-  team_size,
-  technologies,
-  phases,
-  achievements,
-  is_draft,
-  sort_order,
-  created_at,
-  updated_at
+  projects.id,
+  projects.name,
+  CAST(projects.company_id AS TEXT) AS company_id,
+  job_companies.name AS company,
+  projects.start_year,
+  projects.start_month,
+  projects.end_year,
+  projects.end_month,
+  projects.description,
+  projects.role,
+  projects.team_size,
+  projects.technologies,
+  projects.phases,
+  projects.achievements,
+  projects.is_draft,
+  projects.sort_order,
+  projects.created_at,
+  projects.updated_at
 FROM projects
-ORDER BY sort_order ASC, start_year DESC, start_month DESC, name ASC;
+JOIN job_companies ON job_companies.id = projects.company_id
+ORDER BY projects.sort_order ASC, projects.start_year DESC, projects.start_month DESC, projects.name ASC;
 
 -- name: GetProject :one
 SELECT
-  id,
-  name,
-  company,
-  start_year,
-  start_month,
-  end_year,
-  end_month,
-  description,
-  role,
-  team_size,
-  technologies,
-  phases,
-  achievements,
-  is_draft,
-  sort_order,
-  created_at,
-  updated_at
+  projects.id,
+  projects.name,
+  CAST(projects.company_id AS TEXT) AS company_id,
+  job_companies.name AS company,
+  projects.start_year,
+  projects.start_month,
+  projects.end_year,
+  projects.end_month,
+  projects.description,
+  projects.role,
+  projects.team_size,
+  projects.technologies,
+  projects.phases,
+  projects.achievements,
+  projects.is_draft,
+  projects.sort_order,
+  projects.created_at,
+  projects.updated_at
 FROM projects
-WHERE id = ?;
+JOIN job_companies ON job_companies.id = projects.company_id
+WHERE projects.id = ?;
 
 -- name: InsertProject :one
 INSERT INTO projects (
   id,
   name,
-  company,
+  company_id,
   start_year,
   start_month,
   end_year,
@@ -80,7 +84,8 @@ FROM projects
 RETURNING
   id,
   name,
-  company,
+  CAST(company_id AS TEXT) AS company_id,
+  '' AS company,
   start_year,
   start_month,
   end_year,
@@ -100,7 +105,7 @@ RETURNING
 UPDATE projects
 SET
   name = ?,
-  company = ?,
+  company_id = ?,
   start_year = ?,
   start_month = ?,
   end_year = ?,
@@ -117,7 +122,8 @@ WHERE id = ?
 RETURNING
   id,
   name,
-  company,
+  CAST(company_id AS TEXT) AS company_id,
+  '' AS company,
   start_year,
   start_month,
   end_year,

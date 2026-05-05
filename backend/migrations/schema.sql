@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS job_histories (
 CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
-    company TEXT NOT NULL,
+    company_id INTEGER NOT NULL,
     start_year INTEGER NOT NULL,
     start_month INTEGER NOT NULL,
     end_year INTEGER,
@@ -144,7 +144,8 @@ CREATE TABLE IF NOT EXISTS projects (
     is_draft INTEGER NOT NULL DEFAULT 0,
     sort_order INTEGER NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (company_id) REFERENCES job_companies(id)
 );
 
 CREATE TABLE IF NOT EXISTS project_phases (

@@ -25,25 +25,27 @@ func (q *Queries) DeleteProject(ctx context.Context, id string) (int64, error) {
 
 const getProject = `-- name: GetProject :one
 SELECT
-  id,
-  name,
-  company,
-  start_year,
-  start_month,
-  end_year,
-  end_month,
-  description,
-  role,
-  team_size,
-  technologies,
-  phases,
-  achievements,
-  is_draft,
-  sort_order,
-  created_at,
-  updated_at
+  projects.id,
+  projects.name,
+  CAST(projects.company_id AS TEXT) AS company_id,
+  job_companies.name AS company,
+  projects.start_year,
+  projects.start_month,
+  projects.end_year,
+  projects.end_month,
+  projects.description,
+  projects.role,
+  projects.team_size,
+  projects.technologies,
+  projects.phases,
+  projects.achievements,
+  projects.is_draft,
+  projects.sort_order,
+  projects.created_at,
+  projects.updated_at
 FROM projects
-WHERE id = ?
+JOIN job_companies ON job_companies.id = projects.company_id
+WHERE projects.id = ?
 `
 
 func (q *Queries) GetProject(ctx context.Context, id string) (Project, error) {
@@ -52,6 +54,7 @@ func (q *Queries) GetProject(ctx context.Context, id string) (Project, error) {
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
+		&i.CompanyID,
 		&i.Company,
 		&i.StartYear,
 		&i.StartMonth,
@@ -75,7 +78,7 @@ const insertProject = `-- name: InsertProject :one
 INSERT INTO projects (
   id,
   name,
-  company,
+  company_id,
   start_year,
   start_month,
   end_year,
@@ -109,7 +112,8 @@ FROM projects
 RETURNING
   id,
   name,
-  company,
+  CAST(company_id AS TEXT) AS company_id,
+  '' AS company,
   start_year,
   start_month,
   end_year,
@@ -129,7 +133,7 @@ RETURNING
 type InsertProjectParams struct {
 	ID           string
 	Name         string
-	Company      string
+	CompanyID    string
 	StartYear    int64
 	StartMonth   int64
 	EndYear      sql.NullInt64
@@ -147,7 +151,7 @@ func (q *Queries) InsertProject(ctx context.Context, arg InsertProjectParams) (P
 	row := q.db.QueryRowContext(ctx, insertProject,
 		arg.ID,
 		arg.Name,
-		arg.Company,
+		arg.CompanyID,
 		arg.StartYear,
 		arg.StartMonth,
 		arg.EndYear,
@@ -164,6 +168,7 @@ func (q *Queries) InsertProject(ctx context.Context, arg InsertProjectParams) (P
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
+		&i.CompanyID,
 		&i.Company,
 		&i.StartYear,
 		&i.StartMonth,
@@ -185,25 +190,27 @@ func (q *Queries) InsertProject(ctx context.Context, arg InsertProjectParams) (P
 
 const listProjects = `-- name: ListProjects :many
 SELECT
-  id,
-  name,
-  company,
-  start_year,
-  start_month,
-  end_year,
-  end_month,
-  description,
-  role,
-  team_size,
-  technologies,
-  phases,
-  achievements,
-  is_draft,
-  sort_order,
-  created_at,
-  updated_at
+  projects.id,
+  projects.name,
+  CAST(projects.company_id AS TEXT) AS company_id,
+  job_companies.name AS company,
+  projects.start_year,
+  projects.start_month,
+  projects.end_year,
+  projects.end_month,
+  projects.description,
+  projects.role,
+  projects.team_size,
+  projects.technologies,
+  projects.phases,
+  projects.achievements,
+  projects.is_draft,
+  projects.sort_order,
+  projects.created_at,
+  projects.updated_at
 FROM projects
-ORDER BY sort_order ASC, start_year DESC, start_month DESC, name ASC
+JOIN job_companies ON job_companies.id = projects.company_id
+ORDER BY projects.sort_order ASC, projects.start_year DESC, projects.start_month DESC, projects.name ASC
 `
 
 func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
@@ -218,6 +225,7 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
+			&i.CompanyID,
 			&i.Company,
 			&i.StartYear,
 			&i.StartMonth,
@@ -364,7 +372,7 @@ const updateProject = `-- name: UpdateProject :one
 UPDATE projects
 SET
   name = ?,
-  company = ?,
+  company_id = ?,
   start_year = ?,
   start_month = ?,
   end_year = ?,
@@ -381,7 +389,8 @@ WHERE id = ?
 RETURNING
   id,
   name,
-  company,
+  CAST(company_id AS TEXT) AS company_id,
+  '' AS company,
   start_year,
   start_month,
   end_year,
@@ -400,7 +409,7 @@ RETURNING
 
 type UpdateProjectParams struct {
 	Name         string
-	Company      string
+	CompanyID    string
 	StartYear    int64
 	StartMonth   int64
 	EndYear      sql.NullInt64
@@ -418,7 +427,7 @@ type UpdateProjectParams struct {
 func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error) {
 	row := q.db.QueryRowContext(ctx, updateProject,
 		arg.Name,
-		arg.Company,
+		arg.CompanyID,
 		arg.StartYear,
 		arg.StartMonth,
 		arg.EndYear,
@@ -436,6 +445,7 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
+		&i.CompanyID,
 		&i.Company,
 		&i.StartYear,
 		&i.StartMonth,
