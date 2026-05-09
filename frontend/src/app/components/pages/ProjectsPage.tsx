@@ -116,6 +116,32 @@ function formatEndYearMonth(year: number | null, month: number | null) {
   return formatYearMonth(year, month);
 }
 
+function formatDurationMonths(totalMonths: number) {
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
+
+  if (years === 0) {
+    return `${months}ヶ月`;
+  }
+  if (months === 0) {
+    return `${years}年`;
+  }
+
+  return `${years}年${months}ヶ月`;
+}
+
+function formatProjectDuration(project: Project) {
+  const now = new Date();
+  const endYear = project.endYear ?? now.getFullYear();
+  const endMonth = project.endMonth ?? now.getMonth() + 1;
+  const totalMonths = Math.max(
+    1,
+    (endYear - project.startYear) * 12 + endMonth - project.startMonth + 1,
+  );
+
+  return formatDurationMonths(totalMonths);
+}
+
 function parseYearMonth(value: string) {
   const [year, month] = value.split("-").map(Number);
 
@@ -379,6 +405,9 @@ export function ProjectsPage() {
                       <p className="text-sm text-gray-700 mt-2">{project.description}</p>
                       <div className="mt-3 space-y-2">
                         <div className="flex items-center gap-2 text-sm">
+                          <span className="font-medium text-gray-700">期間:</span>
+                          <span className="text-gray-600">{formatProjectDuration(project)}</span>
+                          <span className="text-gray-400">•</span>
                           <span className="font-medium text-gray-700">役割:</span>
                           <span className="text-gray-600">{project.role}</span>
                           <span className="text-gray-400">•</span>
@@ -443,35 +472,34 @@ export function ProjectsPage() {
             </DialogHeader>
 
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">案件名</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="ECサイトリニューアル"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="company">会社名</Label>
-                  <Select
-                    value={formData.companyId}
-                    onValueChange={(value) => setFormData({ ...formData, companyId: value })}
-                    disabled={companies.length === 0}
-                  >
-                    <SelectTrigger id="company">
-                      <SelectValue placeholder="職歴から選択" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companies.map((company) => (
-                        <SelectItem key={company.id} value={company.id}>
-                          {company.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="name">案件名</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="ECサイトリニューアル"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="company">会社名</Label>
+                <Select
+                  value={formData.companyId}
+                  onValueChange={(value) => setFormData({ ...formData, companyId: value })}
+                  disabled={companies.length === 0}
+                >
+                  <SelectTrigger id="company">
+                    <SelectValue placeholder="職歴から選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map((company) => (
+                      <SelectItem key={company.id} value={company.id}>
+                        {company.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
