@@ -21,14 +21,16 @@ type QualificationForm = {
 };
 
 type ProfileForm = {
-  displayName: string;
+  familyName: string;
+  givenName: string;
+  nickname: string;
+  avatarUrl: string;
+  birthdayYear: string;
+  birthdayMonth: string;
+  birthdayDay: string;
   email: string;
   location: string;
   bio: string;
-  githubUrl: string;
-  zennUrl: string;
-  qiitaUrl: string;
-  websiteUrl: string;
   occupation: string;
   employmentType: string;
   workStyle: string;
@@ -48,25 +50,32 @@ type ProfileLinkForm = {
 };
 
 type VisibilityForm = {
+  name: boolean;
+  birthday: boolean;
   location: boolean;
   email: boolean;
 };
 
 type ProfilePayload = {
-  displayName?: string;
+  familyName?: string;
+  givenName?: string;
+  nickname?: string;
+  avatarUrl?: string;
+  birthdayYear?: number;
+  birthdayMonth?: number;
+  birthdayDay?: number;
   location?: string;
   email?: string;
   bio?: string;
-  githubUrl?: string;
-  zennUrl?: string;
-  qiitaUrl?: string;
-  websiteUrl?: string;
   occupation?: string;
   employmentType?: string;
   workStyle?: string;
   qualifications?: QualificationForm[];
   links?: ProfileLinkForm[];
-  visibilitySettings?: Partial<VisibilityForm>;
+  visibilitySettings?: Partial<VisibilityForm> & {
+    familyName?: boolean;
+    givenName?: boolean;
+  };
 };
 
 type ProfileResponse = {
@@ -87,14 +96,16 @@ type ProfileLinkMaster = {
 };
 
 const initialProfile: ProfileForm = {
-  displayName: "",
+  familyName: "",
+  givenName: "",
+  nickname: "",
+  avatarUrl: "",
+  birthdayYear: "",
+  birthdayMonth: "",
+  birthdayDay: "",
   email: "",
   location: "",
   bio: "",
-  githubUrl: "",
-  zennUrl: "",
-  qiitaUrl: "",
-  websiteUrl: "",
   occupation: "",
   employmentType: "",
   workStyle: "",
@@ -103,20 +114,24 @@ const initialProfile: ProfileForm = {
 };
 
 const initialVisibility: VisibilityForm = {
+  name: true,
+  birthday: true,
   location: true,
   email: true,
 };
 
 function toProfileForm(profile: ProfilePayload): ProfileForm {
   return {
-    displayName: profile.displayName ?? "",
+    familyName: profile.familyName ?? "",
+    givenName: profile.givenName ?? "",
+    nickname: profile.nickname ?? "",
+    avatarUrl: profile.avatarUrl ?? "",
+    birthdayYear: profile.birthdayYear ? String(profile.birthdayYear) : "",
+    birthdayMonth: profile.birthdayMonth ? String(profile.birthdayMonth) : "",
+    birthdayDay: profile.birthdayDay ? String(profile.birthdayDay) : "",
     email: profile.email ?? "",
     location: profile.location ?? "",
     bio: profile.bio ?? "",
-    githubUrl: profile.githubUrl ?? "",
-    zennUrl: profile.zennUrl ?? "",
-    qiitaUrl: profile.qiitaUrl ?? "",
-    websiteUrl: profile.websiteUrl ?? "",
     occupation: profile.occupation ?? "",
     employmentType: profile.employmentType ?? "",
     workStyle: profile.workStyle ?? "",
@@ -127,14 +142,16 @@ function toProfileForm(profile: ProfilePayload): ProfileForm {
 
 function toProfilePayload(profile: ProfileForm, visibility: VisibilityForm): ProfilePayload {
   return {
-    displayName: profile.displayName,
+    familyName: profile.familyName,
+    givenName: profile.givenName,
+    nickname: profile.nickname,
+    avatarUrl: profile.avatarUrl,
+    birthdayYear: numericProfileValue(profile.birthdayYear),
+    birthdayMonth: numericProfileValue(profile.birthdayMonth),
+    birthdayDay: numericProfileValue(profile.birthdayDay),
     email: profile.email,
     location: profile.location,
     bio: profile.bio,
-    githubUrl: profile.githubUrl,
-    zennUrl: profile.zennUrl,
-    qiitaUrl: profile.qiitaUrl,
-    websiteUrl: profile.websiteUrl,
     occupation: profile.occupation,
     employmentType: profile.employmentType,
     workStyle: profile.workStyle,
@@ -142,6 +159,24 @@ function toProfilePayload(profile: ProfileForm, visibility: VisibilityForm): Pro
     links: profile.links,
     visibilitySettings: visibility,
   };
+}
+
+function toVisibilityForm(settings?: ProfilePayload["visibilitySettings"]): VisibilityForm {
+  const legacyNameVisibility =
+    settings?.familyName !== undefined || settings?.givenName !== undefined
+      ? Boolean(settings.familyName ?? true) && Boolean(settings.givenName ?? true)
+      : undefined;
+
+  return {
+    ...initialVisibility,
+    ...settings,
+    name: settings?.name ?? legacyNameVisibility ?? initialVisibility.name,
+  };
+}
+
+function numericProfileValue(value: string): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
 function toProfileLinkForm(link: ProfileLinkForm): ProfileLinkForm {
@@ -242,10 +277,7 @@ export function ProfilePage() {
         setProfile(toProfileForm(data.profile));
         const registeredMasterIds = new Set((data.profile.links ?? []).map((link) => link.linkMasterId));
         setNewLinkMasterId(masters.find((master) => !registeredMasterIds.has(master.id))?.id ?? "");
-        setVisibility({
-          ...initialVisibility,
-          ...data.profile.visibilitySettings,
-        });
+        setVisibility(toVisibilityForm(data.profile.visibilitySettings));
       } catch (caught) {
         if (caught instanceof DOMException && caught.name === "AbortError") {
           return;
@@ -286,10 +318,7 @@ export function ProfilePage() {
       setProfile(toProfileForm(data.profile));
       const registeredMasterIds = new Set((data.profile.links ?? []).map((link) => link.linkMasterId));
       setNewLinkMasterId(linkMasters.find((master) => !registeredMasterIds.has(master.id))?.id ?? "");
-      setVisibility({
-        ...initialVisibility,
-        ...data.profile.visibilitySettings,
-      });
+      setVisibility(toVisibilityForm(data.profile.visibilitySettings));
       setMessage("保存しました");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "プロフィールの保存に失敗しました");
@@ -412,15 +441,38 @@ export function ProfilePage() {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="displayName">表示名</Label>
+                    <Label htmlFor="familyName">姓</Label>
                     <Input
-                      id="displayName"
-                      value={profile.displayName}
+                      id="familyName"
+                      value={profile.familyName}
                       onChange={(e) =>
-                        setProfile({ ...profile, displayName: e.target.value })
+                        setProfile({ ...profile, familyName: e.target.value })
                       }
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="givenName">名</Label>
+                    <Input
+                      id="givenName"
+                      value={profile.givenName}
+                      onChange={(e) =>
+                        setProfile({ ...profile, givenName: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between rounded-md border px-4 py-3">
+                  <Label htmlFor="name-visibility">姓名を表示</Label>
+                  <Switch
+                    id="name-visibility"
+                    checked={visibility.name}
+                    onCheckedChange={(checked) =>
+                      setVisibility({ ...visibility, name: checked })
+                    }
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="email">メールアドレス</Label>
                     <Input
@@ -429,6 +481,70 @@ export function ProfilePage() {
                       value={profile.email}
                       onChange={(e) =>
                         setProfile({ ...profile, email: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="nickname">ニックネーム</Label>
+                  <Input
+                    id="nickname"
+                    value={profile.nickname}
+                    onChange={(e) =>
+                      setProfile({ ...profile, nickname: e.target.value })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="avatarUrl">アバターURL</Label>
+                  <Input
+                    id="avatarUrl"
+                    type="url"
+                    value={profile.avatarUrl}
+                    onChange={(e) =>
+                      setProfile({ ...profile, avatarUrl: e.target.value })
+                    }
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="birthdayYear">生年月日の年</Label>
+                    <Input
+                      id="birthdayYear"
+                      type="number"
+                      min="0"
+                      value={profile.birthdayYear}
+                      onChange={(e) =>
+                        setProfile({ ...profile, birthdayYear: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="birthdayMonth">生年月日の月</Label>
+                    <Input
+                      id="birthdayMonth"
+                      type="number"
+                      min="1"
+                      max="12"
+                      value={profile.birthdayMonth}
+                      onChange={(e) =>
+                        setProfile({ ...profile, birthdayMonth: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="birthdayDay">生年月日の日</Label>
+                    <Input
+                      id="birthdayDay"
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={profile.birthdayDay}
+                      onChange={(e) =>
+                        setProfile({ ...profile, birthdayDay: e.target.value })
                       }
                     />
                   </div>
@@ -446,7 +562,7 @@ export function ProfilePage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="bio">自己紹介</Label>
+                  <Label htmlFor="bio">PR</Label>
                   <Textarea
                     id="bio"
                     rows={4}
@@ -465,6 +581,16 @@ export function ProfilePage() {
                 <CardDescription>経歴書に表示する項目を選択</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="birthday-visibility">生年月日を表示</Label>
+                  <Switch
+                    id="birthday-visibility"
+                    checked={visibility.birthday}
+                    onCheckedChange={(checked) =>
+                      setVisibility({ ...visibility, birthday: checked })
+                    }
+                  />
+                </div>
                 <div className="flex items-center justify-between">
                   <Label htmlFor="location-visibility">居住地を表示</Label>
                   <Switch

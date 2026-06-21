@@ -4,16 +4,16 @@ import "time"
 
 type Profile struct {
 	ID                 string
-	UserID             string
-	FullName           string
+	FamilyName         string
+	GivenName          string
 	Nickname           string
+	AvatarURL          string
+	BirthdayYear       int64
+	BirthdayMonth      int64
+	BirthdayDay        int64
 	Location           string
 	Email              string
-	Summary            string
-	GitHubURL          string
-	ZennURL            string
-	QiitaURL           string
-	WebsiteURL         string
+	PR                 string
 	Occupation         string
 	EmploymentType     string
 	PreferredWorkStyle string

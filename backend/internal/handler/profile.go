@@ -38,14 +38,16 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	profile, err := h.usecase.Update(r.Context(), usecase.ProfileInput{
-		FullName:           stringValue(request.DisplayName),
+		FamilyName:         stringValue(request.FamilyName),
+		GivenName:          stringValue(request.GivenName),
+		Nickname:           stringValue(request.Nickname),
+		AvatarURL:          stringValue(request.AvatarUrl),
+		BirthdayYear:       int64Value(request.BirthdayYear),
+		BirthdayMonth:      int64Value(request.BirthdayMonth),
+		BirthdayDay:        int64Value(request.BirthdayDay),
 		Location:           stringValue(request.Location),
 		Email:              stringValue(request.Email),
-		Summary:            stringValue(request.Bio),
-		GitHubURL:          stringValue(request.GithubUrl),
-		ZennURL:            stringValue(request.ZennUrl),
-		QiitaURL:           stringValue(request.QiitaUrl),
-		WebsiteURL:         stringValue(request.WebsiteUrl),
+		PR:                 stringValue(request.Bio),
 		Occupation:         stringValue(request.Occupation),
 		EmploymentType:     stringValue(request.EmploymentType),
 		PreferredWorkStyle: stringValue(request.WorkStyle),
@@ -142,14 +144,16 @@ type profileLinkMasterResponse struct {
 }
 
 type profilePayload struct {
-	DisplayName        string                 `json:"displayName"`
+	FamilyName         string                 `json:"familyName"`
+	GivenName          string                 `json:"givenName"`
+	Nickname           string                 `json:"nickname"`
+	AvatarUrl          string                 `json:"avatarUrl"`
+	BirthdayYear       int64                  `json:"birthdayYear"`
+	BirthdayMonth      int64                  `json:"birthdayMonth"`
+	BirthdayDay        int64                  `json:"birthdayDay"`
 	Location           string                 `json:"location"`
 	Email              string                 `json:"email"`
 	Bio                string                 `json:"bio"`
-	GithubUrl          string                 `json:"githubUrl"`
-	ZennUrl            string                 `json:"zennUrl"`
-	QiitaUrl           string                 `json:"qiitaUrl"`
-	WebsiteUrl         string                 `json:"websiteUrl"`
 	Occupation         string                 `json:"occupation"`
 	EmploymentType     string                 `json:"employmentType"`
 	WorkStyle          string                 `json:"workStyle"`
@@ -159,14 +163,16 @@ type profilePayload struct {
 }
 
 type profileUpdateRequest struct {
-	DisplayName        *string                `json:"displayName,omitempty"`
+	FamilyName         *string                `json:"familyName,omitempty"`
+	GivenName          *string                `json:"givenName,omitempty"`
+	Nickname           *string                `json:"nickname,omitempty"`
+	AvatarUrl          *string                `json:"avatarUrl,omitempty"`
+	BirthdayYear       *int64                 `json:"birthdayYear,omitempty"`
+	BirthdayMonth      *int64                 `json:"birthdayMonth,omitempty"`
+	BirthdayDay        *int64                 `json:"birthdayDay,omitempty"`
 	Location           *string                `json:"location,omitempty"`
 	Email              *string                `json:"email,omitempty"`
 	Bio                *string                `json:"bio,omitempty"`
-	GithubUrl          *string                `json:"githubUrl,omitempty"`
-	ZennUrl            *string                `json:"zennUrl,omitempty"`
-	QiitaUrl           *string                `json:"qiitaUrl,omitempty"`
-	WebsiteUrl         *string                `json:"websiteUrl,omitempty"`
 	Occupation         *string                `json:"occupation,omitempty"`
 	EmploymentType     *string                `json:"employmentType,omitempty"`
 	WorkStyle          *string                `json:"workStyle,omitempty"`
@@ -220,14 +226,16 @@ type errorResponse struct {
 
 func toProfileResponse(profile *domain.Profile) profilePayload {
 	return profilePayload{
-		DisplayName:        profile.FullName,
+		FamilyName:         profile.FamilyName,
+		GivenName:          profile.GivenName,
+		Nickname:           profile.Nickname,
+		AvatarUrl:          profile.AvatarURL,
+		BirthdayYear:       profile.BirthdayYear,
+		BirthdayMonth:      profile.BirthdayMonth,
+		BirthdayDay:        profile.BirthdayDay,
 		Location:           profile.Location,
 		Email:              profile.Email,
-		Bio:                profile.Summary,
-		GithubUrl:          profile.GitHubURL,
-		ZennUrl:            profile.ZennURL,
-		QiitaUrl:           profile.QiitaURL,
-		WebsiteUrl:         profile.WebsiteURL,
+		Bio:                profile.PR,
 		Occupation:         profile.Occupation,
 		EmploymentType:     profile.EmploymentType,
 		WorkStyle:          profile.PreferredWorkStyle,
@@ -368,6 +376,14 @@ func toUseCaseVisibilitySettings(values *map[string]bool) map[string]any {
 func stringValue(value *string) string {
 	if value == nil {
 		return ""
+	}
+
+	return *value
+}
+
+func int64Value(value *int64) int64 {
+	if value == nil {
+		return 0
 	}
 
 	return *value

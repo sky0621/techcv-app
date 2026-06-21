@@ -31,29 +31,33 @@ func TestProfileRoutes(t *testing.T) {
 
 	var getResp struct {
 		Profile struct {
-			DisplayName string `json:"displayName"`
+			FamilyName string `json:"familyName"`
+			GivenName  string `json:"givenName"`
 		} `json:"profile"`
 	}
 	if err := json.Unmarshal(getRec.Body.Bytes(), &getResp); err != nil {
 		t.Fatalf("failed to decode get response: %v", err)
 	}
 
-	if getResp.Profile.DisplayName != "Initial User" {
-		t.Fatalf("expected initial displayName, got %v", getResp.Profile.DisplayName)
+	if getResp.Profile.FamilyName != "Initial" || getResp.Profile.GivenName != "User" {
+		t.Fatalf("expected initial name fields, got %+v", getResp.Profile)
 	}
 
 	body := []byte(`{
-		"displayName":"Sky Sample",
+		"familyName":"Sky",
+		"givenName":"Sample",
 		"location":"Tokyo",
 		"email":"me@example.com",
 		"bio":"Backend engineer",
-		"githubUrl":"https://github.com/sky0621",
-		"zennUrl":"https://zenn.dev/sky0621",
-		"qiitaUrl":"https://qiita.com/sky0621",
-		"websiteUrl":"https://example.com",
 		"occupation":"Software Engineer",
 		"employmentType":"Freelance",
 		"workStyle":"Full remote",
+		"links":[
+			{"linkMasterId":"1","key":"github","url":"https://github.com/sky0621"},
+			{"linkMasterId":"2","key":"zenn","url":"https://zenn.dev/sky0621"},
+			{"linkMasterId":"3","key":"qiita","url":"https://qiita.com/sky0621"},
+			{"linkMasterId":"4","key":"website","url":"https://example.com"}
+		],
 		"qualifications":[
 			{
 				"name":"AWS Certified Solutions Architect",
@@ -83,17 +87,19 @@ func TestProfileRoutes(t *testing.T) {
 
 	var putResp struct {
 		Profile struct {
-			DisplayName    string `json:"displayName"`
+			FamilyName     string `json:"familyName"`
+			GivenName      string `json:"givenName"`
 			Location       string `json:"location"`
 			Email          string `json:"email"`
 			Bio            string `json:"bio"`
-			GithubURL      string `json:"githubUrl"`
-			ZennURL        string `json:"zennUrl"`
-			QiitaURL       string `json:"qiitaUrl"`
-			WebsiteURL     string `json:"websiteUrl"`
 			Occupation     string `json:"occupation"`
 			EmploymentType string `json:"employmentType"`
 			WorkStyle      string `json:"workStyle"`
+			Links          []struct {
+				LinkMasterID string `json:"linkMasterId"`
+				Key          string `json:"key"`
+				URL          string `json:"url"`
+			} `json:"links"`
 			Qualifications []struct {
 				ID           string `json:"id"`
 				Name         string `json:"name"`
@@ -112,8 +118,8 @@ func TestProfileRoutes(t *testing.T) {
 		t.Fatalf("failed to decode put response: %v", err)
 	}
 
-	if putResp.Profile.DisplayName != "Sky Sample" {
-		t.Fatalf("expected updated displayName, got %v", putResp.Profile.DisplayName)
+	if putResp.Profile.FamilyName != "Sky" || putResp.Profile.GivenName != "Sample" {
+		t.Fatalf("expected updated name fields, got %+v", putResp.Profile)
 	}
 	if putResp.Profile.Location != "Tokyo" {
 		t.Fatalf("expected updated location, got %v", putResp.Profile.Location)
@@ -124,17 +130,8 @@ func TestProfileRoutes(t *testing.T) {
 	if putResp.Profile.Bio != "Backend engineer" {
 		t.Fatalf("expected updated bio, got %v", putResp.Profile.Bio)
 	}
-	if putResp.Profile.GithubURL != "https://github.com/sky0621" {
-		t.Fatalf("expected updated githubUrl, got %v", putResp.Profile.GithubURL)
-	}
-	if putResp.Profile.ZennURL != "https://zenn.dev/sky0621" {
-		t.Fatalf("expected updated zennUrl, got %v", putResp.Profile.ZennURL)
-	}
-	if putResp.Profile.QiitaURL != "https://qiita.com/sky0621" {
-		t.Fatalf("expected updated qiitaUrl, got %v", putResp.Profile.QiitaURL)
-	}
-	if putResp.Profile.WebsiteURL != "https://example.com" {
-		t.Fatalf("expected updated websiteUrl, got %v", putResp.Profile.WebsiteURL)
+	if len(putResp.Profile.Links) != 4 || putResp.Profile.Links[0].URL != "https://github.com/sky0621" {
+		t.Fatalf("expected updated profile links, got %#v", putResp.Profile.Links)
 	}
 	if putResp.Profile.Occupation != "Software Engineer" {
 		t.Fatalf("expected updated occupation, got %v", putResp.Profile.Occupation)
@@ -167,17 +164,19 @@ func TestProfileRoutes(t *testing.T) {
 
 	var getUpdatedResp struct {
 		Profile struct {
-			DisplayName    string `json:"displayName"`
+			FamilyName     string `json:"familyName"`
+			GivenName      string `json:"givenName"`
 			Location       string `json:"location"`
 			Email          string `json:"email"`
 			Bio            string `json:"bio"`
-			GithubURL      string `json:"githubUrl"`
-			ZennURL        string `json:"zennUrl"`
-			QiitaURL       string `json:"qiitaUrl"`
-			WebsiteURL     string `json:"websiteUrl"`
 			Occupation     string `json:"occupation"`
 			EmploymentType string `json:"employmentType"`
 			WorkStyle      string `json:"workStyle"`
+			Links          []struct {
+				LinkMasterID string `json:"linkMasterId"`
+				Key          string `json:"key"`
+				URL          string `json:"url"`
+			} `json:"links"`
 			Qualifications []struct {
 				ID           string `json:"id"`
 				Name         string `json:"name"`
@@ -196,8 +195,8 @@ func TestProfileRoutes(t *testing.T) {
 		t.Fatalf("failed to decode updated get response: %v", err)
 	}
 
-	if getUpdatedResp.Profile.DisplayName != "Sky Sample" {
-		t.Fatalf("expected persisted displayName, got %v", getUpdatedResp.Profile.DisplayName)
+	if getUpdatedResp.Profile.FamilyName != "Sky" || getUpdatedResp.Profile.GivenName != "Sample" {
+		t.Fatalf("expected persisted name fields, got %+v", getUpdatedResp.Profile)
 	}
 	if getUpdatedResp.Profile.Location != "Tokyo" {
 		t.Fatalf("expected persisted location, got %v", getUpdatedResp.Profile.Location)
@@ -208,17 +207,8 @@ func TestProfileRoutes(t *testing.T) {
 	if getUpdatedResp.Profile.Bio != "Backend engineer" {
 		t.Fatalf("expected persisted bio, got %v", getUpdatedResp.Profile.Bio)
 	}
-	if getUpdatedResp.Profile.GithubURL != "https://github.com/sky0621" {
-		t.Fatalf("expected persisted githubUrl, got %v", getUpdatedResp.Profile.GithubURL)
-	}
-	if getUpdatedResp.Profile.ZennURL != "https://zenn.dev/sky0621" {
-		t.Fatalf("expected persisted zennUrl, got %v", getUpdatedResp.Profile.ZennURL)
-	}
-	if getUpdatedResp.Profile.QiitaURL != "https://qiita.com/sky0621" {
-		t.Fatalf("expected persisted qiitaUrl, got %v", getUpdatedResp.Profile.QiitaURL)
-	}
-	if getUpdatedResp.Profile.WebsiteURL != "https://example.com" {
-		t.Fatalf("expected persisted websiteUrl, got %v", getUpdatedResp.Profile.WebsiteURL)
+	if len(getUpdatedResp.Profile.Links) != 4 || getUpdatedResp.Profile.Links[0].URL != "https://github.com/sky0621" {
+		t.Fatalf("expected persisted profile links, got %#v", getUpdatedResp.Profile.Links)
 	}
 	if getUpdatedResp.Profile.Occupation != "Software Engineer" {
 		t.Fatalf("expected persisted occupation, got %v", getUpdatedResp.Profile.Occupation)
@@ -246,17 +236,17 @@ func TestProfileRoutes(t *testing.T) {
 	}
 
 	replacementBody := []byte(`{
-		"displayName":"Sky Sample",
+		"familyName":"Sky",
+		"givenName":"Sample",
 		"location":"Tokyo",
 		"email":"me@example.com",
 		"bio":"Backend engineer",
-		"githubUrl":"https://github.com/sky0621",
-		"zennUrl":"https://zenn.dev/sky0621",
-		"qiitaUrl":"https://qiita.com/sky0621",
-		"websiteUrl":"https://example.com",
 		"occupation":"Software Engineer",
 		"employmentType":"Freelance",
 		"workStyle":"Full remote",
+		"links":[
+			{"linkMasterId":"1","key":"github","url":"https://github.com/sky0621"}
+		],
 		"qualifications":[
 			{
 				"id":"replacement_qualification",
@@ -1052,8 +1042,8 @@ func newTestProfileRepository() *testProfileRepository {
 	return &testProfileRepository{
 		profile: &domain.Profile{
 			ID:                 "1",
-			UserID:             "user_01",
-			FullName:           "Initial User",
+			FamilyName:         "Initial",
+			GivenName:          "User",
 			VisibilitySettings: map[string]any{"email": false},
 			CreatedAt:          now,
 			UpdatedAt:          now,

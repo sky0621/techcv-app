@@ -20,19 +20,19 @@ func (q *Queries) DeleteQualificationsByProfileID(ctx context.Context, profileID
 	return err
 }
 
-const getProfileByUserID = `-- name: GetProfileByUserID :one
+const getProfile = `-- name: GetProfile :one
 SELECT
   id,
-  user_id,
-  full_name,
+  family_name,
+  given_name,
   nickname,
+  avatar_url,
+  birthday_year,
+  birthday_month,
+  birthday_day,
   location,
   email,
-  summary,
-  github_url,
-  zenn_url,
-  qiita_url,
-  website_url,
+  pr,
   occupation,
   employment_type,
   preferred_work_style,
@@ -40,25 +40,25 @@ SELECT
   created_at,
   updated_at
 FROM profiles
-WHERE user_id = ?
+ORDER BY id ASC
 LIMIT 1
 `
 
-func (q *Queries) GetProfileByUserID(ctx context.Context, userID string) (Profile, error) {
-	row := q.db.QueryRowContext(ctx, getProfileByUserID, userID)
+func (q *Queries) GetProfile(ctx context.Context) (Profile, error) {
+	row := q.db.QueryRowContext(ctx, getProfile)
 	var i Profile
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
-		&i.FullName,
+		&i.FamilyName,
+		&i.GivenName,
 		&i.Nickname,
+		&i.AvatarUrl,
+		&i.BirthdayYear,
+		&i.BirthdayMonth,
+		&i.BirthdayDay,
 		&i.Location,
 		&i.Email,
-		&i.Summary,
-		&i.GithubUrl,
-		&i.ZennUrl,
-		&i.QiitaUrl,
-		&i.WebsiteUrl,
+		&i.Pr,
 		&i.Occupation,
 		&i.EmploymentType,
 		&i.PreferredWorkStyle,
@@ -169,16 +169,16 @@ func (q *Queries) ListQualificationsByProfileID(ctx context.Context, profileID s
 const upsertProfile = `-- name: UpsertProfile :exec
 INSERT INTO profiles (
   id,
-  user_id,
-  full_name,
+  family_name,
+  given_name,
   nickname,
+  avatar_url,
+  birthday_year,
+  birthday_month,
+  birthday_day,
   location,
   email,
-  summary,
-  github_url,
-  zenn_url,
-  qiita_url,
-  website_url,
+  pr,
   occupation,
   employment_type,
   preferred_work_style,
@@ -186,19 +186,20 @@ INSERT INTO profiles (
   created_at,
   updated_at
 ) VALUES (
-  ?, ?, ?, ?, ?, ?, ?, ?,
-  ?, ?, ?, ?, ?, ?, ?, ?, ?
+  ?, ?, ?, ?, ?, ?, ?, ?, ?,
+  ?, ?, ?, ?, ?, ?, ?, ?
 )
-ON CONFLICT(user_id) DO UPDATE SET
-  full_name = excluded.full_name,
+ON CONFLICT(id) DO UPDATE SET
+  family_name = excluded.family_name,
+  given_name = excluded.given_name,
   nickname = excluded.nickname,
+  avatar_url = excluded.avatar_url,
+  birthday_year = excluded.birthday_year,
+  birthday_month = excluded.birthday_month,
+  birthday_day = excluded.birthday_day,
   location = excluded.location,
   email = excluded.email,
-  summary = excluded.summary,
-  github_url = excluded.github_url,
-  zenn_url = excluded.zenn_url,
-  qiita_url = excluded.qiita_url,
-  website_url = excluded.website_url,
+  pr = excluded.pr,
   occupation = excluded.occupation,
   employment_type = excluded.employment_type,
   preferred_work_style = excluded.preferred_work_style,
@@ -208,16 +209,16 @@ ON CONFLICT(user_id) DO UPDATE SET
 
 type UpsertProfileParams struct {
 	ID                 string
-	UserID             string
-	FullName           string
+	FamilyName         string
+	GivenName          string
 	Nickname           string
+	AvatarUrl          string
+	BirthdayYear       int64
+	BirthdayMonth      int64
+	BirthdayDay        int64
 	Location           string
 	Email              string
-	Summary            string
-	GithubUrl          string
-	ZennUrl            string
-	QiitaUrl           string
-	WebsiteUrl         string
+	Pr                 string
 	Occupation         string
 	EmploymentType     string
 	PreferredWorkStyle string
@@ -229,16 +230,16 @@ type UpsertProfileParams struct {
 func (q *Queries) UpsertProfile(ctx context.Context, arg UpsertProfileParams) error {
 	_, err := q.db.ExecContext(ctx, upsertProfile,
 		arg.ID,
-		arg.UserID,
-		arg.FullName,
+		arg.FamilyName,
+		arg.GivenName,
 		arg.Nickname,
+		arg.AvatarUrl,
+		arg.BirthdayYear,
+		arg.BirthdayMonth,
+		arg.BirthdayDay,
 		arg.Location,
 		arg.Email,
-		arg.Summary,
-		arg.GithubUrl,
-		arg.ZennUrl,
-		arg.QiitaUrl,
-		arg.WebsiteUrl,
+		arg.Pr,
 		arg.Occupation,
 		arg.EmploymentType,
 		arg.PreferredWorkStyle,

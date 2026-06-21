@@ -64,7 +64,7 @@ func (r *SQLiteProfileRepository) Ping(ctx context.Context) error {
 }
 
 func (r *SQLiteProfileRepository) Get(ctx context.Context) (*domain.Profile, error) {
-	row, err := r.queries.GetProfileByUserID(ctx, "user_01")
+	row, err := r.queries.GetProfile(ctx)
 	if err == nil {
 		qualifications, err := r.queries.ListQualificationsByProfileID(ctx, row.ID)
 		if err != nil {
@@ -86,7 +86,6 @@ func (r *SQLiteProfileRepository) Get(ctx context.Context) (*domain.Profile, err
 	now := time.Now().UTC()
 	profile := domain.Profile{
 		ID:                 "1",
-		UserID:             "user_01",
 		VisibilitySettings: map[string]any{"email": true, "location": true},
 		CreatedAt:          now,
 		UpdatedAt:          now,
@@ -99,8 +98,6 @@ func (r *SQLiteProfileRepository) Save(ctx context.Context, profile *domain.Prof
 	if _, err := strconv.ParseInt(profile.ID, 10, 64); err != nil {
 		profile.ID = "1"
 	}
-	syncLegacyProfileLinkColumns(profile)
-
 	visibilitySettings := sanitizeVisibilitySettings(profile.VisibilitySettings)
 
 	visibilityBytes, err := json.Marshal(visibilitySettings)
@@ -126,16 +123,16 @@ func (r *SQLiteProfileRepository) Save(ctx context.Context, profile *domain.Prof
 
 	err = queries.UpsertProfile(ctx, dbgen.UpsertProfileParams{
 		ID:                 profile.ID,
-		UserID:             profile.UserID,
-		FullName:           profile.FullName,
+		FamilyName:         profile.FamilyName,
+		GivenName:          profile.GivenName,
 		Nickname:           profile.Nickname,
+		AvatarUrl:          profile.AvatarURL,
+		BirthdayYear:       profile.BirthdayYear,
+		BirthdayMonth:      profile.BirthdayMonth,
+		BirthdayDay:        profile.BirthdayDay,
 		Location:           profile.Location,
 		Email:              profile.Email,
-		Summary:            profile.Summary,
-		GithubUrl:          profile.GitHubURL,
-		ZennUrl:            profile.ZennURL,
-		QiitaUrl:           profile.QiitaURL,
-		WebsiteUrl:         profile.WebsiteURL,
+		Pr:                 profile.PR,
 		Occupation:         profile.Occupation,
 		EmploymentType:     profile.EmploymentType,
 		PreferredWorkStyle: profile.PreferredWorkStyle,
@@ -178,7 +175,7 @@ func (r *SQLiteProfileRepository) Save(ctx context.Context, profile *domain.Prof
 
 	queries = r.queries
 
-	row, err := queries.GetProfileByUserID(ctx, profile.UserID)
+	row, err := queries.GetProfile(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("reload profile: %w", err)
 	}
@@ -233,6 +230,24 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.dropProfilePhoneColumn(ctx); err != nil {
 		return err
 	}
+	if err := r.renameProfileSummaryColumn(ctx); err != nil {
+		return err
+	}
+	if err := r.migrateProfileNameColumns(ctx); err != nil {
+		return err
+	}
+	if err := r.addProfileTextColumn(ctx, "avatar_url"); err != nil {
+		return err
+	}
+	if err := r.addProfileIntegerColumn(ctx, "birthday_year"); err != nil {
+		return err
+	}
+	if err := r.addProfileIntegerColumn(ctx, "birthday_month"); err != nil {
+		return err
+	}
+	if err := r.addProfileIntegerColumn(ctx, "birthday_day"); err != nil {
+		return err
+	}
 	if err := r.addProfileTextColumn(ctx, "occupation"); err != nil {
 		return err
 	}
@@ -243,6 +258,9 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 		return err
 	}
 	if err := r.migrateProfileLinks(ctx); err != nil {
+		return err
+	}
+	if err := r.dropProfileLegacyLinkColumns(ctx); err != nil {
 		return err
 	}
 	if err := r.addSkillMasterURLColumn(ctx); err != nil {
@@ -258,6 +276,9 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 		return err
 	}
 	if err := r.migrateIntegerPrimaryKeys(ctx); err != nil {
+		return err
+	}
+	if err := r.dropProfileUserIDColumn(ctx); err != nil {
 		return err
 	}
 	if err := r.dropSkillMasterSortOrderColumn(ctx); err != nil {
@@ -908,6 +929,177 @@ func (r *SQLiteProfileRepository) dropProfilePhoneColumn(ctx context.Context) er
 	return nil
 }
 
+func (r *SQLiteProfileRepository) renameProfileSummaryColumn(ctx context.Context) error {
+	hasSummaryColumn, err := r.profileTableHasColumn(ctx, "summary")
+	if err != nil {
+		return err
+	}
+	if !hasSummaryColumn {
+		return nil
+	}
+
+	hasPRColumn, err := r.profileTableHasColumn(ctx, "pr")
+	if err != nil {
+		return err
+	}
+	if hasPRColumn {
+		if _, err := r.db.ExecContext(ctx, "UPDATE profiles SET pr = summary WHERE pr = ''"); err != nil {
+			return fmt.Errorf("backfill profiles.pr column: %w", err)
+		}
+		if _, err := r.db.ExecContext(ctx, "ALTER TABLE profiles DROP COLUMN summary"); err != nil {
+			return fmt.Errorf("drop profiles.summary column: %w", err)
+		}
+		return nil
+	}
+
+	if _, err := r.db.ExecContext(ctx, "ALTER TABLE profiles RENAME COLUMN summary TO pr"); err != nil {
+		return fmt.Errorf("rename profiles.summary column: %w", err)
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) migrateProfileNameColumns(ctx context.Context) error {
+	hasFullNameColumn, err := r.profileTableHasColumn(ctx, "full_name")
+	if err != nil {
+		return err
+	}
+	if !hasFullNameColumn {
+		return nil
+	}
+
+	if err := r.addProfileTextColumn(ctx, "family_name"); err != nil {
+		return err
+	}
+	if err := r.addProfileTextColumn(ctx, "given_name"); err != nil {
+		return err
+	}
+
+	if _, err := r.db.ExecContext(ctx, `
+		UPDATE profiles
+		SET
+			family_name = CASE
+				WHEN instr(trim(full_name), ' ') > 0 THEN substr(trim(full_name), 1, instr(trim(full_name), ' ') - 1)
+				ELSE trim(full_name)
+			END,
+			given_name = CASE
+				WHEN instr(trim(full_name), ' ') > 0 THEN trim(substr(trim(full_name), instr(trim(full_name), ' ') + 1))
+				ELSE ''
+			END
+		WHERE family_name = '' AND given_name = ''
+	`); err != nil {
+		return fmt.Errorf("split profiles.full_name column: %w", err)
+	}
+
+	if _, err := r.db.ExecContext(ctx, "ALTER TABLE profiles DROP COLUMN full_name"); err != nil {
+		return fmt.Errorf("drop profiles.full_name column: %w", err)
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) dropProfileUserIDColumn(ctx context.Context) error {
+	hasUserIDColumn, err := r.profileTableHasColumn(ctx, "user_id")
+	if err != nil {
+		return err
+	}
+	if !hasUserIDColumn {
+		return nil
+	}
+
+	statements := []string{
+		`PRAGMA foreign_keys = OFF`,
+		`DROP TABLE IF EXISTS profiles_without_user_id`,
+		`CREATE TABLE profiles_without_user_id (
+			id INTEGER PRIMARY KEY,
+			family_name TEXT NOT NULL,
+			given_name TEXT NOT NULL,
+			nickname TEXT NOT NULL,
+			avatar_url TEXT NOT NULL,
+			birthday_year INTEGER NOT NULL,
+			birthday_month INTEGER NOT NULL,
+			birthday_day INTEGER NOT NULL,
+			location TEXT NOT NULL,
+			email TEXT NOT NULL,
+			pr TEXT NOT NULL,
+			occupation TEXT NOT NULL,
+			employment_type TEXT NOT NULL,
+			preferred_work_style TEXT NOT NULL,
+			visibility_settings TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`INSERT INTO profiles_without_user_id (
+			id,
+			family_name,
+			given_name,
+			nickname,
+			avatar_url,
+			birthday_year,
+			birthday_month,
+			birthday_day,
+			location,
+			email,
+			pr,
+			occupation,
+			employment_type,
+			preferred_work_style,
+			visibility_settings,
+			created_at,
+			updated_at
+		)
+		SELECT
+			id,
+			family_name,
+			given_name,
+			nickname,
+			avatar_url,
+			birthday_year,
+			birthday_month,
+			birthday_day,
+			location,
+			email,
+			pr,
+			occupation,
+			employment_type,
+			preferred_work_style,
+			visibility_settings,
+			created_at,
+			updated_at
+		FROM profiles`,
+		`DROP TABLE profiles`,
+		`ALTER TABLE profiles_without_user_id RENAME TO profiles`,
+		`PRAGMA foreign_keys = ON`,
+	}
+
+	for _, statement := range statements {
+		if _, err := r.db.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("drop profiles.user_id column: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) dropProfileLegacyLinkColumns(ctx context.Context) error {
+	legacyColumns := []string{"github_url", "zenn_url", "qiita_url", "website_url"}
+	for _, columnName := range legacyColumns {
+		hasColumn, err := r.profileTableHasColumn(ctx, columnName)
+		if err != nil {
+			return err
+		}
+		if !hasColumn {
+			continue
+		}
+
+		if _, err := r.db.ExecContext(ctx, "ALTER TABLE profiles DROP COLUMN "+columnName); err != nil {
+			return fmt.Errorf("drop profiles.%s column: %w", columnName, err)
+		}
+	}
+
+	return nil
+}
+
 func (r *SQLiteProfileRepository) addProfileTextColumn(ctx context.Context, columnName string) error {
 	hasColumn, err := r.profileTableHasColumn(ctx, columnName)
 	if err != nil {
@@ -918,6 +1110,22 @@ func (r *SQLiteProfileRepository) addProfileTextColumn(ctx context.Context, colu
 	}
 
 	if _, err := r.db.ExecContext(ctx, "ALTER TABLE profiles ADD COLUMN "+columnName+" TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("add profiles.%s column: %w", columnName, err)
+	}
+
+	return nil
+}
+
+func (r *SQLiteProfileRepository) addProfileIntegerColumn(ctx context.Context, columnName string) error {
+	hasColumn, err := r.profileTableHasColumn(ctx, columnName)
+	if err != nil {
+		return err
+	}
+	if hasColumn {
+		return nil
+	}
+
+	if _, err := r.db.ExecContext(ctx, "ALTER TABLE profiles ADD COLUMN "+columnName+" INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return fmt.Errorf("add profiles.%s column: %w", columnName, err)
 	}
 
@@ -1794,16 +2002,16 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 		FROM projects`,
 		`CREATE TABLE profiles_new (
 			id INTEGER PRIMARY KEY,
-			user_id TEXT NOT NULL UNIQUE,
-			full_name TEXT NOT NULL,
+			family_name TEXT NOT NULL,
+			given_name TEXT NOT NULL,
 			nickname TEXT NOT NULL,
+			avatar_url TEXT NOT NULL,
+			birthday_year INTEGER NOT NULL,
+			birthday_month INTEGER NOT NULL,
+			birthday_day INTEGER NOT NULL,
 			location TEXT NOT NULL,
 			email TEXT NOT NULL,
-			summary TEXT NOT NULL,
-			github_url TEXT NOT NULL,
-			zenn_url TEXT NOT NULL,
-			qiita_url TEXT NOT NULL,
-			website_url TEXT NOT NULL,
+			pr TEXT NOT NULL,
 			occupation TEXT NOT NULL,
 			employment_type TEXT NOT NULL,
 			preferred_work_style TEXT NOT NULL,
@@ -1814,16 +2022,16 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 		`INSERT INTO profiles_new
 		SELECT
 			_profile_id_map.new_id,
-			profiles.user_id,
-			profiles.full_name,
+			profiles.family_name,
+			profiles.given_name,
 			profiles.nickname,
+			profiles.avatar_url,
+			profiles.birthday_year,
+			profiles.birthday_month,
+			profiles.birthday_day,
 			profiles.location,
 			profiles.email,
-			profiles.summary,
-			profiles.github_url,
-			profiles.zenn_url,
-			profiles.qiita_url,
-			profiles.website_url,
+			profiles.pr,
 			profiles.occupation,
 			profiles.employment_type,
 			profiles.preferred_work_style,
@@ -2054,6 +2262,16 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 }
 
 func (r *SQLiteProfileRepository) migrateProfileLinks(ctx context.Context) error {
+	for _, columnName := range []string{"github_url", "zenn_url", "qiita_url", "website_url"} {
+		hasColumn, err := r.profileTableHasColumn(ctx, columnName)
+		if err != nil {
+			return err
+		}
+		if !hasColumn {
+			return nil
+		}
+	}
+
 	_, err := r.db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO profile_links (profile_id, link_master_id, url, sort_order)
 		SELECT profiles.id, profile_link_masters.id,
@@ -2302,16 +2520,16 @@ func (r *SQLiteProfileRepository) tableColumnType(ctx context.Context, tableName
 func toDomainProfile(row dbgen.Profile, qualificationRows []dbgen.ProfileQualification, links []domain.ProfileLink) (*domain.Profile, error) {
 	profile := &domain.Profile{
 		ID:                 row.ID,
-		UserID:             row.UserID,
-		FullName:           row.FullName,
+		FamilyName:         row.FamilyName,
+		GivenName:          row.GivenName,
 		Nickname:           row.Nickname,
+		AvatarURL:          row.AvatarUrl,
+		BirthdayYear:       row.BirthdayYear,
+		BirthdayMonth:      row.BirthdayMonth,
+		BirthdayDay:        row.BirthdayDay,
 		Location:           row.Location,
 		Email:              row.Email,
-		Summary:            row.Summary,
-		GitHubURL:          row.GithubUrl,
-		ZennURL:            row.ZennUrl,
-		QiitaURL:           row.QiitaUrl,
-		WebsiteURL:         row.WebsiteUrl,
+		PR:                 row.Pr,
 		Occupation:         row.Occupation,
 		EmploymentType:     row.EmploymentType,
 		PreferredWorkStyle: row.PreferredWorkStyle,
@@ -2581,26 +2799,6 @@ func toDomainJobEmploymentType(row dbgen.JobEmploymentType) *domain.JobEmploymen
 		ID:        row.ID,
 		Name:      row.Name,
 		SortOrder: row.SortOrder,
-	}
-}
-
-func syncLegacyProfileLinkColumns(profile *domain.Profile) {
-	profile.GitHubURL = ""
-	profile.ZennURL = ""
-	profile.QiitaURL = ""
-	profile.WebsiteURL = ""
-
-	for _, link := range profile.Links {
-		switch link.Key {
-		case "github":
-			profile.GitHubURL = link.URL
-		case "zenn":
-			profile.ZennURL = link.URL
-		case "qiita":
-			profile.QiitaURL = link.URL
-		case "website":
-			profile.WebsiteURL = link.URL
-		}
 	}
 }
 

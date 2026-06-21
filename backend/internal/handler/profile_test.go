@@ -18,10 +18,10 @@ func TestGetProfileMapsDomainToResponse(t *testing.T) {
 	repo := &profileRepositoryStub{
 		profile: &domain.Profile{
 			ID:                 "1",
-			UserID:             "user_01",
-			FullName:           "Sky Sample",
+			FamilyName:         "Sky",
+			GivenName:          "Sample",
 			Email:              "me@example.com",
-			Summary:            "Backend engineer",
+			PR:                 "Backend engineer",
 			Occupation:         "Software Engineer",
 			EmploymentType:     "Freelance",
 			PreferredWorkStyle: "Full remote",
@@ -55,8 +55,8 @@ func TestGetProfileMapsDomainToResponse(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if resp.Profile.DisplayName != "Sky Sample" {
-		t.Fatalf("unexpected DisplayName: %+v", resp.Profile.DisplayName)
+	if resp.Profile.FamilyName != "Sky" || resp.Profile.GivenName != "Sample" {
+		t.Fatalf("unexpected name fields: %+v", resp.Profile)
 	}
 	if resp.Profile.Email != "me@example.com" {
 		t.Fatalf("unexpected Email: %+v", resp.Profile.Email)
@@ -118,7 +118,6 @@ func TestUpdateProfileMapsRequestToUseCase(t *testing.T) {
 	repo := &profileRepositoryStub{
 		profile: &domain.Profile{
 			ID:                 "1",
-			UserID:             "user_01",
 			VisibilitySettings: map[string]any{"email": true},
 			CreatedAt:          now,
 			UpdatedAt:          now,
@@ -127,7 +126,8 @@ func TestUpdateProfileMapsRequestToUseCase(t *testing.T) {
 
 	handler := NewProfileHandler(usecase.NewProfileUseCase(repo))
 
-	displayName := "Sky Sample"
+	familyName := "Sky"
+	givenName := "Sample"
 	email := "me@example.com"
 	bio := "Backend engineer"
 	occupation := "Software Engineer"
@@ -144,7 +144,8 @@ func TestUpdateProfileMapsRequestToUseCase(t *testing.T) {
 	}
 	visibility := map[string]bool{"email": false, "location": false}
 	body, err := json.Marshal(profileUpdateRequest{
-		DisplayName:        &displayName,
+		FamilyName:         &familyName,
+		GivenName:          &givenName,
 		Email:              &email,
 		Bio:                &bio,
 		Occupation:         &occupation,
@@ -170,8 +171,8 @@ func TestUpdateProfileMapsRequestToUseCase(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if resp.Profile.DisplayName != "Sky Sample" {
-		t.Fatalf("unexpected DisplayName: %+v", resp.Profile.DisplayName)
+	if resp.Profile.FamilyName != "Sky" || resp.Profile.GivenName != "Sample" {
+		t.Fatalf("unexpected name fields: %+v", resp.Profile)
 	}
 	if resp.Profile.Email != "me@example.com" {
 		t.Fatalf("unexpected Email: %+v", resp.Profile.Email)

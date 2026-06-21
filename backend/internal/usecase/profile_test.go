@@ -15,16 +15,12 @@ func TestUpdateReplacesFieldsAndPreservesVisibilityWhenInputIsNil(t *testing.T) 
 	repo := &stubRepository{
 		profile: &domain.Profile{
 			ID:                 "1",
-			UserID:             "user_01",
-			FullName:           "Before",
+			FamilyName:         "Before",
+			GivenName:          "Name",
 			Nickname:           "before",
 			Location:           "Osaka",
 			Email:              "before@example.com",
-			Summary:            "old summary",
-			GitHubURL:          "https://github.com/before",
-			ZennURL:            "https://zenn.dev/before",
-			QiitaURL:           "https://qiita.com/before",
-			WebsiteURL:         "https://before.example.com",
+			PR:                 "old pr",
 			Occupation:         "Before Occupation",
 			EmploymentType:     "Before Employment",
 			PreferredWorkStyle: "Hybrid",
@@ -39,15 +35,12 @@ func TestUpdateReplacesFieldsAndPreservesVisibilityWhenInputIsNil(t *testing.T) 
 
 	uc := NewProfileUseCase(repo)
 	got, err := uc.Update(context.Background(), ProfileInput{
-		FullName:           "After",
+		FamilyName:         "After",
+		GivenName:          "Name",
 		Nickname:           "after",
 		Location:           "Tokyo",
 		Email:              "after@example.com",
-		Summary:            "new summary",
-		GitHubURL:          "https://github.com/after",
-		ZennURL:            "https://zenn.dev/after",
-		QiitaURL:           "https://qiita.com/after",
-		WebsiteURL:         "https://after.example.com",
+		PR:                 "new pr",
 		Occupation:         "Software Engineer",
 		EmploymentType:     "Freelance",
 		PreferredWorkStyle: "Remote",
@@ -74,17 +67,11 @@ func TestUpdateReplacesFieldsAndPreservesVisibilityWhenInputIsNil(t *testing.T) 
 		t.Fatalf("expected Save to be called once, got %d", repo.saveCalls)
 	}
 
-	if got.FullName != "After" || got.Nickname != "after" || got.Location != "Tokyo" {
+	if got.FamilyName != "After" || got.GivenName != "Name" || got.Nickname != "after" || got.Location != "Tokyo" {
 		t.Fatalf("unexpected basic fields: %+v", got)
 	}
-	if got.Email != "after@example.com" || got.Summary != "new summary" {
+	if got.Email != "after@example.com" || got.PR != "new pr" {
 		t.Fatalf("unexpected contact fields: %+v", got)
-	}
-	if got.GitHubURL != "https://github.com/after" || got.ZennURL != "https://zenn.dev/after" {
-		t.Fatalf("unexpected social fields: %+v", got)
-	}
-	if got.QiitaURL != "https://qiita.com/after" || got.WebsiteURL != "https://after.example.com" {
-		t.Fatalf("unexpected site fields: %+v", got)
 	}
 	if got.Occupation != "Software Engineer" || got.EmploymentType != "Freelance" {
 		t.Fatalf("unexpected work fields: %+v", got)
@@ -108,7 +95,6 @@ func TestUpdateReplacesVisibilityWhenInputIsProvided(t *testing.T) {
 	repo := &stubRepository{
 		profile: &domain.Profile{
 			ID:                 "1",
-			UserID:             "user_01",
 			VisibilitySettings: map[string]any{"email": true},
 		},
 	}

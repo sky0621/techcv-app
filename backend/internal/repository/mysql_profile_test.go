@@ -33,9 +33,6 @@ func TestSQLiteProfileRepositoryGetCreatesDefaultProfile(t *testing.T) {
 	if got.ID != "1" {
 		t.Fatalf("expected default ID 1, got %q", got.ID)
 	}
-	if got.UserID != "user_01" {
-		t.Fatalf("expected default UserID user_01, got %q", got.UserID)
-	}
 	if got.VisibilitySettings["email"] != true || got.VisibilitySettings["location"] != true {
 		t.Fatalf("unexpected default visibility settings: %#v", got.VisibilitySettings)
 	}
@@ -71,7 +68,7 @@ func TestSQLiteProfileRepositorySavePersistsProfile(t *testing.T) {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	if saved.FullName != "Sky Sample" || saved.Email != "me@example.com" {
+	if saved.FamilyName != "Sky" || saved.GivenName != "Sample" || saved.Email != "me@example.com" {
 		t.Fatalf("unexpected saved profile: %+v", saved)
 	}
 	if saved.VisibilitySettings["github"] != true {
@@ -89,7 +86,7 @@ func TestSQLiteProfileRepositorySavePersistsProfile(t *testing.T) {
 		t.Fatalf("Get() after Save() error = %v", err)
 	}
 
-	if reloaded.FullName != "Sky Sample" || reloaded.PreferredWorkStyle != "Full remote" {
+	if reloaded.FamilyName != "Sky" || reloaded.GivenName != "Sample" || reloaded.PreferredWorkStyle != "Full remote" {
 		t.Fatalf("unexpected reloaded profile: %+v", reloaded)
 	}
 	if reloaded.Occupation != "Software Engineer" || reloaded.EmploymentType != "Freelance" {
@@ -174,6 +171,48 @@ func TestSQLiteProfileRepositoryMigratesProfilePhoneColumn(t *testing.T) {
 	}
 	if hasPhoneColumn {
 		t.Fatal("expected profiles.phone column to be dropped")
+	}
+	hasUserIDColumn, err := repo.profileTableHasColumn(ctx, "user_id")
+	if err != nil {
+		t.Fatalf("profileTableHasColumn(user_id) error = %v", err)
+	}
+	if hasUserIDColumn {
+		t.Fatal("expected profiles.user_id column to be dropped")
+	}
+	hasFullNameColumn, err := repo.profileTableHasColumn(ctx, "full_name")
+	if err != nil {
+		t.Fatalf("profileTableHasColumn(full_name) error = %v", err)
+	}
+	if hasFullNameColumn {
+		t.Fatal("expected profiles.full_name column to be split")
+	}
+	hasFamilyNameColumn, err := repo.profileTableHasColumn(ctx, "family_name")
+	if err != nil {
+		t.Fatalf("profileTableHasColumn(family_name) error = %v", err)
+	}
+	if !hasFamilyNameColumn {
+		t.Fatal("expected profiles.family_name column to exist")
+	}
+	hasGivenNameColumn, err := repo.profileTableHasColumn(ctx, "given_name")
+	if err != nil {
+		t.Fatalf("profileTableHasColumn(given_name) error = %v", err)
+	}
+	if !hasGivenNameColumn {
+		t.Fatal("expected profiles.given_name column to exist")
+	}
+	hasSummaryColumn, err := repo.profileTableHasColumn(ctx, "summary")
+	if err != nil {
+		t.Fatalf("profileTableHasColumn(summary) error = %v", err)
+	}
+	if hasSummaryColumn {
+		t.Fatal("expected profiles.summary column to be renamed")
+	}
+	hasPRColumn, err := repo.profileTableHasColumn(ctx, "pr")
+	if err != nil {
+		t.Fatalf("profileTableHasColumn(pr) error = %v", err)
+	}
+	if !hasPRColumn {
+		t.Fatal("expected profiles.pr column to exist")
 	}
 	hasOccupationColumn, err := repo.profileTableHasColumn(ctx, "occupation")
 	if err != nil {
@@ -358,16 +397,12 @@ func testSchemaPath() string {
 func profileFixture(createdAt time.Time) domain.Profile {
 	return domain.Profile{
 		ID:                 "1",
-		UserID:             "user_01",
-		FullName:           "Sky Sample",
+		FamilyName:         "Sky",
+		GivenName:          "Sample",
 		Nickname:           "sky0621",
 		Location:           "Tokyo",
 		Email:              "me@example.com",
-		Summary:            "Backend engineer",
-		GitHubURL:          "https://github.com/sky0621",
-		ZennURL:            "https://zenn.dev/sky0621",
-		QiitaURL:           "https://qiita.com/sky0621",
-		WebsiteURL:         "https://example.com",
+		PR:                 "Backend engineer",
 		Occupation:         "Software Engineer",
 		EmploymentType:     "Freelance",
 		PreferredWorkStyle: "Full remote",

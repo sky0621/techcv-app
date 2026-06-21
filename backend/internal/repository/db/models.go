@@ -34,16 +34,16 @@ type JobHistory struct {
 
 type Profile struct {
 	ID                 string
-	UserID             string
-	FullName           string
+	FamilyName         string
+	GivenName          string
 	Nickname           string
+	AvatarUrl          string
+	BirthdayYear       int64
+	BirthdayMonth      int64
+	BirthdayDay        int64
 	Location           string
 	Email              string
-	Summary            string
-	GithubUrl          string
-	ZennUrl            string
-	QiitaUrl           string
-	WebsiteUrl         string
+	Pr                 string
 	Occupation         string
 	EmploymentType     string
 	PreferredWorkStyle string

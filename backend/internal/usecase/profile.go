@@ -8,15 +8,16 @@ import (
 )
 
 type ProfileInput struct {
-	FullName           string
+	FamilyName         string
+	GivenName          string
 	Nickname           string
+	AvatarURL          string
+	BirthdayYear       int64
+	BirthdayMonth      int64
+	BirthdayDay        int64
 	Location           string
 	Email              string
-	Summary            string
-	GitHubURL          string
-	ZennURL            string
-	QiitaURL           string
-	WebsiteURL         string
+	PR                 string
 	Occupation         string
 	EmploymentType     string
 	PreferredWorkStyle string
@@ -43,15 +44,16 @@ func (u *ProfileUseCase) Update(ctx context.Context, input ProfileInput) (*domai
 		return nil, err
 	}
 
-	current.FullName = input.FullName
+	current.FamilyName = input.FamilyName
+	current.GivenName = input.GivenName
 	current.Nickname = input.Nickname
+	current.AvatarURL = input.AvatarURL
+	current.BirthdayYear = input.BirthdayYear
+	current.BirthdayMonth = input.BirthdayMonth
+	current.BirthdayDay = input.BirthdayDay
 	current.Location = input.Location
 	current.Email = input.Email
-	current.Summary = input.Summary
-	current.GitHubURL = input.GitHubURL
-	current.ZennURL = input.ZennURL
-	current.QiitaURL = input.QiitaURL
-	current.WebsiteURL = input.WebsiteURL
+	current.PR = input.PR
 	current.Occupation = input.Occupation
 	current.EmploymentType = input.EmploymentType
 	current.PreferredWorkStyle = input.PreferredWorkStyle
