@@ -317,11 +317,6 @@ func TestSkillOptionsRoute(t *testing.T) {
 			Icon      string `json:"icon"`
 			SortOrder int64  `json:"sortOrder"`
 		} `json:"categories"`
-		ProficiencyLevels []struct {
-			ID        string `json:"id"`
-			Name      string `json:"name"`
-			SortOrder int64  `json:"sortOrder"`
-		} `json:"proficiencyLevels"`
 		SkillMasters []struct {
 			ID         string `json:"id"`
 			Name       string `json:"name"`
@@ -341,12 +336,6 @@ func TestSkillOptionsRoute(t *testing.T) {
 	}
 	if resp.Categories[0].Icon != "code" {
 		t.Fatalf("unexpected first category icon: %#v", resp.Categories[0])
-	}
-	if len(resp.ProficiencyLevels) != 4 {
-		t.Fatalf("expected four proficiency levels, got %#v", resp.ProficiencyLevels)
-	}
-	if resp.ProficiencyLevels[0].ID != "1" || resp.ProficiencyLevels[0].Name != "初級" {
-		t.Fatalf("unexpected first proficiency level: %#v", resp.ProficiencyLevels[0])
 	}
 	if len(resp.SkillMasters) != 2 {
 		t.Fatalf("expected two skill masters, got %#v", resp.SkillMasters)
@@ -498,14 +487,12 @@ func TestSkillRoutes(t *testing.T) {
 
 	var listResp struct {
 		Skills []struct {
-			ID                 string `json:"id"`
-			SkillMasterID      string `json:"skillMasterId"`
-			Name               string `json:"name"`
-			CategoryID         string `json:"categoryId"`
-			Category           string `json:"category"`
-			Experience         int64  `json:"experience"`
-			ProficiencyLevelID string `json:"proficiencyLevelId"`
-			Proficiency        string `json:"proficiency"`
+			ID            string `json:"id"`
+			SkillMasterID string `json:"skillMasterId"`
+			Name          string `json:"name"`
+			CategoryID    string `json:"categoryId"`
+			Category      string `json:"category"`
+			Experience    int64  `json:"experience"`
 		} `json:"skills"`
 	}
 	if err := json.Unmarshal(listRec.Body.Bytes(), &listResp); err != nil {
@@ -515,15 +502,13 @@ func TestSkillRoutes(t *testing.T) {
 		t.Fatalf("expected one seeded skill, got %#v", listResp.Skills)
 	}
 	if listResp.Skills[0].SkillMasterID != "1" ||
-		listResp.Skills[0].Category != "言語" ||
-		listResp.Skills[0].Proficiency != "上級" {
+		listResp.Skills[0].Category != "言語" {
 		t.Fatalf("expected skill master names, got %#v", listResp.Skills[0])
 	}
 
 	duplicateBody := []byte(`{
 		"skillMasterId":"1",
-		"experience":5,
-		"proficiencyLevelId":"3"
+		"experience":5
 	}`)
 	duplicateReq := httptest.NewRequest(http.MethodPost, "/api/skills", bytes.NewReader(duplicateBody))
 	duplicateRec := httptest.NewRecorder()
@@ -535,8 +520,7 @@ func TestSkillRoutes(t *testing.T) {
 
 	createBody := []byte(`{
 		"skillMasterId":"4",
-		"experience":3,
-		"proficiencyLevelId":"3"
+		"experience":3
 	}`)
 	createReq := httptest.NewRequest(http.MethodPost, "/api/skills", bytes.NewReader(createBody))
 	createRec := httptest.NewRecorder()
@@ -548,14 +532,12 @@ func TestSkillRoutes(t *testing.T) {
 
 	var createResp struct {
 		Skill struct {
-			ID                 string `json:"id"`
-			SkillMasterID      string `json:"skillMasterId"`
-			Name               string `json:"name"`
-			CategoryID         string `json:"categoryId"`
-			Category           string `json:"category"`
-			Experience         int64  `json:"experience"`
-			ProficiencyLevelID string `json:"proficiencyLevelId"`
-			Proficiency        string `json:"proficiency"`
+			ID            string `json:"id"`
+			SkillMasterID string `json:"skillMasterId"`
+			Name          string `json:"name"`
+			CategoryID    string `json:"categoryId"`
+			Category      string `json:"category"`
+			Experience    int64  `json:"experience"`
 		} `json:"skill"`
 	}
 	if err := json.Unmarshal(createRec.Body.Bytes(), &createResp); err != nil {
@@ -569,8 +551,7 @@ func TestSkillRoutes(t *testing.T) {
 
 	updateBody := []byte(`{
 		"skillMasterId":"4",
-		"experience":4,
-		"proficiencyLevelId":"4"
+		"experience":4
 	}`)
 	updateReq := httptest.NewRequest(http.MethodPut, "/api/skills/"+createResp.Skill.ID, bytes.NewReader(updateBody))
 	updateRec := httptest.NewRecorder()
@@ -582,15 +563,14 @@ func TestSkillRoutes(t *testing.T) {
 
 	var updateResp struct {
 		Skill struct {
-			ID          string `json:"id"`
-			Experience  int64  `json:"experience"`
-			Proficiency string `json:"proficiency"`
+			ID         string `json:"id"`
+			Experience int64  `json:"experience"`
 		} `json:"skill"`
 	}
 	if err := json.Unmarshal(updateRec.Body.Bytes(), &updateResp); err != nil {
 		t.Fatalf("failed to decode update response: %v", err)
 	}
-	if updateResp.Skill.Experience != 4 || updateResp.Skill.Proficiency != "エキスパート" {
+	if updateResp.Skill.Experience != 4 {
 		t.Fatalf("unexpected updated skill: %#v", updateResp.Skill)
 	}
 
@@ -1022,7 +1002,6 @@ type testProfileRepository struct {
 	mu                 sync.RWMutex
 	profile            *domain.Profile
 	categories         []domain.SkillOption
-	proficiencyLevels  []domain.SkillOption
 	skillMasters       []domain.SkillMaster
 	profileLinkMasters []domain.ProfileLinkMaster
 	skills             []domain.Skill
@@ -1056,12 +1035,6 @@ func newTestProfileRepository() *testProfileRepository {
 			{ID: "5", Name: "ツール", Icon: "wrench", SortOrder: 5},
 			{ID: "6", Name: "その他", Icon: "wrench", SortOrder: 6},
 		},
-		proficiencyLevels: []domain.SkillOption{
-			{ID: "1", Name: "初級", SortOrder: 1},
-			{ID: "2", Name: "中級", SortOrder: 2},
-			{ID: "3", Name: "上級", SortOrder: 3},
-			{ID: "4", Name: "エキスパート", SortOrder: 4},
-		},
 		skillMasters: []domain.SkillMaster{
 			{
 				ID:           "1",
@@ -1084,15 +1057,13 @@ func newTestProfileRepository() *testProfileRepository {
 		},
 		skills: []domain.Skill{
 			{
-				ID:                 "skill_typescript",
-				SkillMasterID:      "1",
-				Name:               "TypeScript",
-				CategoryID:         "1",
-				CategoryName:       "言語",
-				Experience:         3,
-				ProficiencyLevelID: "3",
-				ProficiencyName:    "上級",
-				SortOrder:          1,
+				ID:            "skill_typescript",
+				SkillMasterID: "1",
+				Name:          "TypeScript",
+				CategoryID:    "1",
+				CategoryName:  "言語",
+				Experience:    3,
+				SortOrder:     1,
 			},
 		},
 		jobHistories: []domain.JobHistory{
@@ -1230,8 +1201,6 @@ func (r *testProfileRepository) ListSkillOptions(context.Context) (*domain.Skill
 
 	categories := make([]domain.SkillOption, len(r.categories))
 	copy(categories, r.categories)
-	proficiencyLevels := make([]domain.SkillOption, len(r.proficiencyLevels))
-	copy(proficiencyLevels, r.proficiencyLevels)
 	skillMasters := make([]domain.SkillMaster, len(r.skillMasters))
 	copy(skillMasters, r.skillMasters)
 	sort.Slice(skillMasters, func(i, j int) bool {
@@ -1239,9 +1208,8 @@ func (r *testProfileRepository) ListSkillOptions(context.Context) (*domain.Skill
 	})
 
 	return &domain.SkillOptions{
-		Categories:        categories,
-		ProficiencyLevels: proficiencyLevels,
-		SkillMasters:      skillMasters,
+		Categories:   categories,
+		SkillMasters: skillMasters,
 	}, nil
 }
 
@@ -1272,24 +1240,6 @@ func (r *testProfileRepository) UpdateSkillCategory(_ context.Context, id string
 				r.categories[index].SortOrder = input.SortOrder
 			}
 			result := r.categories[index]
-			return &result, nil
-		}
-	}
-
-	return nil, sql.ErrNoRows
-}
-
-func (r *testProfileRepository) UpdateSkillProficiencyLevel(_ context.Context, id string, input domain.SkillProficiencyLevelInput) (*domain.SkillOption, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	for index, level := range r.proficiencyLevels {
-		if level.ID == id {
-			r.proficiencyLevels[index].Name = input.Name
-			if input.SortOrder != 0 {
-				r.proficiencyLevels[index].SortOrder = input.SortOrder
-			}
-			result := r.proficiencyLevels[index]
 			return &result, nil
 		}
 	}
@@ -1372,10 +1322,6 @@ func (r *testProfileRepository) CreateSkill(_ context.Context, input domain.Skil
 	if !ok {
 		return nil, sql.ErrNoRows
 	}
-	proficiencyLevel, ok := r.findProficiencyLevel(input.ProficiencyLevelID)
-	if !ok {
-		return nil, sql.ErrNoRows
-	}
 	for _, skill := range r.skills {
 		if skill.SkillMasterID == input.SkillMasterID {
 			return nil, errors.New("UNIQUE constraint failed: skills.skill_master_id")
@@ -1384,15 +1330,13 @@ func (r *testProfileRepository) CreateSkill(_ context.Context, input domain.Skil
 
 	r.nextSkillID++
 	skill := domain.Skill{
-		ID:                 "skill_test_new",
-		SkillMasterID:      skillMaster.ID,
-		Name:               skillMaster.Name,
-		CategoryID:         skillMaster.CategoryID,
-		CategoryName:       skillMaster.CategoryName,
-		Experience:         input.Experience,
-		ProficiencyLevelID: input.ProficiencyLevelID,
-		ProficiencyName:    proficiencyLevel.Name,
-		SortOrder:          int64(len(r.skills) + 1),
+		ID:            "skill_test_new",
+		SkillMasterID: skillMaster.ID,
+		Name:          skillMaster.Name,
+		CategoryID:    skillMaster.CategoryID,
+		CategoryName:  skillMaster.CategoryName,
+		Experience:    input.Experience,
+		SortOrder:     int64(len(r.skills) + 1),
 	}
 	r.skills = append(r.skills, skill)
 
@@ -1404,10 +1348,6 @@ func (r *testProfileRepository) UpdateSkill(_ context.Context, id string, input 
 	defer r.mu.Unlock()
 
 	skillMaster, ok := r.findSkillMaster(input.SkillMasterID)
-	if !ok {
-		return nil, sql.ErrNoRows
-	}
-	proficiencyLevel, ok := r.findProficiencyLevel(input.ProficiencyLevelID)
 	if !ok {
 		return nil, sql.ErrNoRows
 	}
@@ -1424,8 +1364,6 @@ func (r *testProfileRepository) UpdateSkill(_ context.Context, id string, input 
 			r.skills[index].CategoryID = skillMaster.CategoryID
 			r.skills[index].CategoryName = skillMaster.CategoryName
 			r.skills[index].Experience = input.Experience
-			r.skills[index].ProficiencyLevelID = input.ProficiencyLevelID
-			r.skills[index].ProficiencyName = proficiencyLevel.Name
 			result := r.skills[index]
 			return &result, nil
 		}
@@ -1792,16 +1730,6 @@ func (r *testProfileRepository) skillMasterNames(ids []string) []string {
 	}
 
 	return names
-}
-
-func (r *testProfileRepository) findProficiencyLevel(id string) (domain.SkillOption, bool) {
-	for _, level := range r.proficiencyLevels {
-		if level.ID == id {
-			return level, true
-		}
-	}
-
-	return domain.SkillOption{}, false
 }
 
 func (r *testProfileRepository) findEmploymentType(id string) (domain.JobEmploymentType, bool) {

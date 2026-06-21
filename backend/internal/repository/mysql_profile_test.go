@@ -287,10 +287,6 @@ func TestSQLiteProfileRepositoryDoesNotSeedSkillOptions(t *testing.T) {
 	if len(options.Categories) != 0 {
 		t.Fatalf("expected no seeded categories, got %#v", options.Categories)
 	}
-	if len(options.ProficiencyLevels) != 0 {
-		t.Fatalf("expected no seeded proficiency levels, got %#v", options.ProficiencyLevels)
-	}
-
 	created, err := repo.CreateSkillCategory(ctx, domain.SkillCategoryInput{
 		ID:   "1",
 		Name: "バックエンド",

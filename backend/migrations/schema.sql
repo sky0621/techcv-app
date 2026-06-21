@@ -65,14 +65,6 @@ CREATE TABLE IF NOT EXISTS skill_categories (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS skill_proficiency_levels (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    sort_order INTEGER NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS skill_masters (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
@@ -87,12 +79,10 @@ CREATE TABLE IF NOT EXISTS skills (
     id INTEGER PRIMARY KEY,
     skill_master_id INTEGER NOT NULL UNIQUE,
     experience INTEGER NOT NULL,
-    proficiency_level_id INTEGER NOT NULL,
     sort_order INTEGER NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (skill_master_id) REFERENCES skill_masters(id),
-    FOREIGN KEY (proficiency_level_id) REFERENCES skill_proficiency_levels(id)
+    FOREIGN KEY (skill_master_id) REFERENCES skill_masters(id)
 );
 
 CREATE TABLE IF NOT EXISTS job_employment_types (

@@ -7,7 +7,6 @@ import { Label } from "../ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { Badge } from "../ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 
 type Skill = {
@@ -17,8 +16,6 @@ type Skill = {
   categoryId: string;
   category: string;
   experience: number;
-  proficiencyLevelId: string;
-  proficiency: string;
   sortOrder: number;
 };
 
@@ -31,7 +28,6 @@ type SkillOption = {
 
 type SkillOptionsResponse = {
   categories: SkillOption[];
-  proficiencyLevels: SkillOption[];
   skillMasters: SkillMaster[];
 };
 
@@ -55,7 +51,6 @@ type SkillFormData = {
   name: string;
   categoryId: string;
   experience: string;
-  proficiencyLevelId: string;
 };
 
 function normalizeIconName(icon?: string) {
@@ -91,7 +86,6 @@ function getCategoryIcon(icon?: string): LucideIcon {
 export function SkillsPage() {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [categories, setCategories] = useState<SkillOption[]>([]);
-  const [proficiencyLevels, setProficiencyLevels] = useState<SkillOption[]>([]);
   const [skillMasters, setSkillMasters] = useState<SkillMaster[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -103,7 +97,6 @@ export function SkillsPage() {
     name: "",
     categoryId: "",
     experience: "",
-    proficiencyLevelId: "",
   });
 
   useEffect(() => {
@@ -128,7 +121,6 @@ export function SkillsPage() {
         const optionsData = (await optionsResponse.json()) as SkillOptionsResponse;
         const skillsData = (await skillsResponse.json()) as SkillsResponse;
         setCategories(optionsData.categories ?? []);
-        setProficiencyLevels(optionsData.proficiencyLevels ?? []);
         setSkillMasters(optionsData.skillMasters ?? []);
         setSkills(skillsData.skills ?? []);
       } catch (caught) {
@@ -153,8 +145,6 @@ export function SkillsPage() {
   const availableSkillMasters = skillMasters.filter(
     (master) => !skills.some((skill) => skill.skillMasterId === master.id && skill.id !== editingSkill?.id),
   );
-  const selectedDefaultProficiencyLevelId =
-    proficiencyLevels.find((level) => level.name === "中級")?.id ?? proficiencyLevels[0]?.id ?? "";
 
   const skillsByCategory = categories.reduce((acc, category) => {
     acc[category.id] = skills.filter(s => s.categoryId === category.id);
@@ -172,7 +162,6 @@ export function SkillsPage() {
       name: firstAvailableSkillMaster?.name ?? "",
       categoryId: firstAvailableSkillMaster?.categoryId ?? "",
       experience: "",
-      proficiencyLevelId: selectedDefaultProficiencyLevelId,
     });
     setIsDialogOpen(true);
   };
@@ -186,7 +175,6 @@ export function SkillsPage() {
       name: skill.name,
       categoryId: skill.categoryId,
       experience: String(skill.experience),
-      proficiencyLevelId: skill.proficiencyLevelId,
     });
     setIsDialogOpen(true);
   };
@@ -218,7 +206,6 @@ export function SkillsPage() {
           body: JSON.stringify({
             skillMasterId: formData.skillMasterId,
             experience: Number(formData.experience),
-            proficiencyLevelId: formData.proficiencyLevelId,
           }),
         },
       );
@@ -262,21 +249,10 @@ export function SkillsPage() {
     }
   };
 
-  const getProficiencyColor = (proficiency: string) => {
-    switch (proficiency) {
-      case "初級": return "bg-blue-100 text-blue-700";
-      case "中級": return "bg-green-100 text-green-700";
-      case "上級": return "bg-purple-100 text-purple-700";
-      case "エキスパート": return "bg-orange-100 text-orange-700";
-      default: return "bg-gray-100 text-gray-700";
-    }
-  };
-
   const canSave =
     formData.skillMasterId !== "" &&
     formData.name.trim() !== "" &&
-    formData.categoryId !== "" &&
-    formData.proficiencyLevelId !== "";
+    formData.categoryId !== "";
 
   return (
     <div className="p-8">
@@ -284,9 +260,9 @@ export function SkillsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">スキル管理</h1>
-            <p className="text-gray-600 mt-1">技術スキルと習熟度を管理</p>
+            <p className="text-gray-600 mt-1">技術スキルと経験年数を管理</p>
           </div>
-          <Button onClick={handleAdd} disabled={isLoading || availableSkillMasters.length === 0 || proficiencyLevels.length === 0}>
+          <Button onClick={handleAdd} disabled={isLoading || availableSkillMasters.length === 0}>
             <LucideIcons.Plus className="w-4 h-4 mr-2" />
             スキルを追加
           </Button>
@@ -350,9 +326,6 @@ export function SkillsPage() {
                             <div className="font-medium text-gray-900">{skill.name}</div>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-xs text-gray-600">{skill.experience}年</span>
-                              <Badge variant="secondary" className={`text-xs ${getProficiencyColor(skill.proficiency)}`}>
-                                {skill.proficiency}
-                              </Badge>
                             </div>
                           </div>
                           <div className="flex gap-1">
@@ -384,7 +357,7 @@ export function SkillsPage() {
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <LucideIcons.Code className="w-12 h-12 text-gray-400 mb-4" />
                   <p className="text-gray-600 mb-4">スキルがまだ登録されていません</p>
-                  <Button onClick={handleAdd} disabled={availableSkillMasters.length === 0 || proficiencyLevels.length === 0}>
+                  <Button onClick={handleAdd} disabled={availableSkillMasters.length === 0}>
                     <LucideIcons.Plus className="w-4 h-4 mr-2" />
                     最初のスキルを追加
                   </Button>
@@ -422,9 +395,6 @@ export function SkillsPage() {
                               <div className="font-medium text-gray-900">{skill.name}</div>
                               <div className="flex items-center gap-2 mt-1">
                                 <span className="text-xs text-gray-600">{skill.experience}年</span>
-                                <Badge variant="secondary" className={`text-xs ${getProficiencyColor(skill.proficiency)}`}>
-                                  {skill.proficiency}
-                                </Badge>
                               </div>
                             </div>
                             <div className="flex gap-1">
@@ -465,7 +435,7 @@ export function SkillsPage() {
                 {editingSkill ? "スキルを編集" : "スキルを追加"}
               </DialogTitle>
               <DialogDescription>
-                スキル名、カテゴリ、経験年数、習熟度を入力してください
+                スキル名、カテゴリ、経験年数を入力してください
               </DialogDescription>
             </DialogHeader>
 
@@ -520,23 +490,6 @@ export function SkillsPage() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="proficiency">習熟度</Label>
-                <Select
-                  value={formData.proficiencyLevelId}
-                  onValueChange={(value) => setFormData({ ...formData, proficiencyLevelId: value })}
-                  disabled={proficiencyLevels.length === 0}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {proficiencyLevels.map(level => (
-                      <SelectItem key={level.id} value={level.id}>{level.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
 
             <DialogFooter>

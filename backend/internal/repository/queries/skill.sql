@@ -46,30 +46,6 @@ RETURNING
   created_at,
   updated_at;
 
--- name: UpdateSkillProficiencyLevel :one
-UPDATE skill_proficiency_levels
-SET
-  name = ?,
-  sort_order = COALESCE(NULLIF(?, 0), sort_order),
-  updated_at = CURRENT_TIMESTAMP
-WHERE id = ?
-RETURNING
-  id,
-  name,
-  sort_order,
-  created_at,
-  updated_at;
-
--- name: ListSkillProficiencyLevels :many
-SELECT
-  id,
-  name,
-  sort_order,
-  created_at,
-  updated_at
-FROM skill_proficiency_levels
-ORDER BY sort_order ASC, name ASC;
-
 -- name: ListSkillMasters :many
 SELECT
   skill_masters.id,
@@ -139,15 +115,12 @@ SELECT
   skill_masters.category_id,
   skill_categories.name AS category_name,
   skills.experience,
-  skills.proficiency_level_id,
-  skill_proficiency_levels.name AS proficiency_name,
   skills.sort_order,
   skills.created_at,
   skills.updated_at
 FROM skills
 JOIN skill_masters ON skill_masters.id = skills.skill_master_id
 JOIN skill_categories ON skill_categories.id = skill_masters.category_id
-JOIN skill_proficiency_levels ON skill_proficiency_levels.id = skills.proficiency_level_id
 ORDER BY skills.sort_order ASC, skill_masters.name ASC;
 
 -- name: GetSkill :one
@@ -158,15 +131,12 @@ SELECT
   skill_masters.category_id,
   skill_categories.name AS category_name,
   skills.experience,
-  skills.proficiency_level_id,
-  skill_proficiency_levels.name AS proficiency_name,
   skills.sort_order,
   skills.created_at,
   skills.updated_at
 FROM skills
 JOIN skill_masters ON skill_masters.id = skills.skill_master_id
 JOIN skill_categories ON skill_categories.id = skill_masters.category_id
-JOIN skill_proficiency_levels ON skill_proficiency_levels.id = skills.proficiency_level_id
 WHERE skills.id = ?;
 
 -- name: InsertSkill :one
@@ -174,11 +144,9 @@ INSERT INTO skills (
   id,
   skill_master_id,
   experience,
-  proficiency_level_id,
   sort_order
 )
 SELECT
-  ?,
   ?,
   ?,
   ?,
@@ -188,7 +156,6 @@ RETURNING
   id,
   skill_master_id,
   experience,
-  proficiency_level_id,
   sort_order,
   created_at,
   updated_at;
@@ -198,14 +165,12 @@ UPDATE skills
 SET
   skill_master_id = ?,
   experience = ?,
-  proficiency_level_id = ?,
   updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING
   id,
   skill_master_id,
   experience,
-  proficiency_level_id,
   sort_order,
   created_at,
   updated_at;

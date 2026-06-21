@@ -8,9 +8,8 @@ type SkillOption struct {
 }
 
 type SkillOptions struct {
-	Categories        []SkillOption
-	ProficiencyLevels []SkillOption
-	SkillMasters      []SkillMaster
+	Categories   []SkillOption
+	SkillMasters []SkillMaster
 }
 
 type SkillCategoryInput struct {
@@ -34,25 +33,17 @@ type SkillMasterInput struct {
 	URL        string
 }
 
-type SkillProficiencyLevelInput struct {
-	Name      string
-	SortOrder int64
-}
-
 type Skill struct {
-	ID                 string
-	SkillMasterID      string
-	Name               string
-	CategoryID         string
-	CategoryName       string
-	Experience         int64
-	ProficiencyLevelID string
-	ProficiencyName    string
-	SortOrder          int64
+	ID            string
+	SkillMasterID string
+	Name          string
+	CategoryID    string
+	CategoryName  string
+	Experience    int64
+	SortOrder     int64
 }
 
 type SkillInput struct {
-	SkillMasterID      string
-	Experience         int64
-	ProficiencyLevelID string
+	SkillMasterID string
+	Experience    int64
 }

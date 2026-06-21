@@ -94,13 +94,12 @@ type ProjectPhase struct {
 }
 
 type Skill struct {
-	ID                 string
-	SkillMasterID      string
-	Experience         int64
-	ProficiencyLevelID string
-	SortOrder          int64
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID            string
+	SkillMasterID string
+	Experience    int64
+	SortOrder     int64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type SkillCategory struct {
@@ -119,12 +118,4 @@ type SkillMaster struct {
 	Url        sql.NullString
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
-}
-
-type SkillProficiencyLevel struct {
-	ID        string
-	Name      string
-	SortOrder int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
 }

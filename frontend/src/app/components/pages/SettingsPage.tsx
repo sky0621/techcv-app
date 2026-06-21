@@ -33,7 +33,6 @@ type SkillOption = {
 
 type SkillOptionsResponse = {
   categories: SkillOption[];
-  proficiencyLevels: SkillOption[];
   skillMasters: SkillMaster[];
 };
 
@@ -98,11 +97,6 @@ type SkillMasterForm = {
   url: string;
 };
 
-type ProficiencyLevelForm = {
-  name: string;
-  sortOrder: number;
-};
-
 type EmploymentTypeForm = {
   id: string;
   name: string;
@@ -140,10 +134,6 @@ const emptySkillMasterForm: SkillMasterForm = {
   name: "",
   categoryId: "",
   url: "",
-};
-const emptyProficiencyLevelForm: ProficiencyLevelForm = {
-  name: "",
-  sortOrder: 0,
 };
 const emptyEmploymentTypeForm: EmploymentTypeForm = {
   id: "",
@@ -206,7 +196,6 @@ function getIcon(icon?: string): LucideIcon {
 
 export function SettingsPage() {
   const [categories, setCategories] = useState<SkillOption[]>([]);
-  const [proficiencyLevels, setProficiencyLevels] = useState<SkillOption[]>([]);
   const [skillMasters, setSkillMasters] = useState<SkillMaster[]>([]);
   const [employmentTypes, setEmploymentTypes] = useState<JobEmploymentType[]>([]);
   const [companies, setCompanies] = useState<JobCompany[]>([]);
@@ -215,28 +204,24 @@ export function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingCategory, setIsSavingCategory] = useState(false);
   const [isSavingSkillMaster, setIsSavingSkillMaster] = useState(false);
-  const [isSavingProficiencyLevel, setIsSavingProficiencyLevel] = useState(false);
   const [isSavingEmploymentType, setIsSavingEmploymentType] = useState(false);
   const [isSavingCompany, setIsSavingCompany] = useState(false);
   const [isSavingProjectPhase, setIsSavingProjectPhase] = useState(false);
   const [isSavingProfileLinkMaster, setIsSavingProfileLinkMaster] = useState(false);
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [skillMasterDialogOpen, setSkillMasterDialogOpen] = useState(false);
-  const [proficiencyLevelDialogOpen, setProficiencyLevelDialogOpen] = useState(false);
   const [employmentTypeDialogOpen, setEmploymentTypeDialogOpen] = useState(false);
   const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
   const [projectPhaseDialogOpen, setProjectPhaseDialogOpen] = useState(false);
   const [profileLinkMasterDialogOpen, setProfileLinkMasterDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<SkillOption | null>(null);
   const [editingSkillMaster, setEditingSkillMaster] = useState<SkillMaster | null>(null);
-  const [editingProficiencyLevel, setEditingProficiencyLevel] = useState<SkillOption | null>(null);
   const [editingEmploymentType, setEditingEmploymentType] = useState<JobEmploymentType | null>(null);
   const [editingCompany, setEditingCompany] = useState<JobCompany | null>(null);
   const [editingProjectPhase, setEditingProjectPhase] = useState<ProjectPhase | null>(null);
   const [editingProfileLinkMaster, setEditingProfileLinkMaster] = useState<ProfileLinkMaster | null>(null);
   const [categoryForm, setCategoryForm] = useState<CategoryForm>(emptyCategoryForm);
   const [skillMasterForm, setSkillMasterForm] = useState<SkillMasterForm>(emptySkillMasterForm);
-  const [proficiencyLevelForm, setProficiencyLevelForm] = useState<ProficiencyLevelForm>(emptyProficiencyLevelForm);
   const [employmentTypeForm, setEmploymentTypeForm] = useState<EmploymentTypeForm>(emptyEmploymentTypeForm);
   const [companyForm, setCompanyForm] = useState<CompanyForm>(emptyCompanyForm);
   const [projectPhaseForm, setProjectPhaseForm] = useState<ProjectPhaseForm>(emptyProjectPhaseForm);
@@ -274,7 +259,6 @@ export function SettingsPage() {
       const profileLinkMastersData = (await profileLinkMastersResponse.json()) as ProfileLinkMastersResponse;
       const projectOptions = (await projectOptionsResponse.json()) as ProjectOptionsResponse;
       setCategories(skillOptions.categories ?? []);
-      setProficiencyLevels(skillOptions.proficiencyLevels ?? []);
       setSkillMasters(skillOptions.skillMasters ?? []);
       setEmploymentTypes(jobHistoryOptions.employmentTypes ?? []);
       setCompanies(jobHistoryOptions.companies ?? []);
@@ -393,17 +377,6 @@ export function SettingsPage() {
     setError("");
   };
 
-  const openEditProficiencyLevelDialog = (level: SkillOption) => {
-    setEditingProficiencyLevel(level);
-    setProficiencyLevelForm({
-      name: level.name,
-      sortOrder: level.sortOrder,
-    });
-    setProficiencyLevelDialogOpen(true);
-    setMessage("");
-    setError("");
-  };
-
   const openEditEmploymentTypeDialog = (employmentType: JobEmploymentType) => {
     setEditingEmploymentType(employmentType);
     setEmploymentTypeForm({
@@ -511,43 +484,6 @@ export function SettingsPage() {
   const canSaveSkillMaster =
     skillMasterForm.name.trim() !== "" &&
     skillMasterForm.categoryId.trim() !== "";
-
-  const handleSaveProficiencyLevel = async () => {
-    if (!editingProficiencyLevel) {
-      return;
-    }
-
-    setIsSavingProficiencyLevel(true);
-    setMessage("");
-    setError("");
-
-    try {
-      const response = await fetch(
-        `/api/skills/proficiency-levels/${encodeURIComponent(editingProficiencyLevel.id)}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(proficiencyLevelForm),
-        },
-      );
-      if (!response.ok) {
-        throw new Error("習熟度の更新に失敗しました");
-      }
-
-      setProficiencyLevelDialogOpen(false);
-      await loadOptions();
-      setMessage("習熟度を更新しました");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "習熟度の保存に失敗しました");
-    } finally {
-      setIsSavingProficiencyLevel(false);
-    }
-  };
-
-  const canSaveProficiencyLevel =
-    proficiencyLevelForm.name.trim() !== "";
 
   const handleSaveEmploymentType = async () => {
     setIsSavingEmploymentType(true);
@@ -939,53 +875,6 @@ export function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>習熟度</CardTitle>
-              <CardDescription>skill_proficiency_levels テーブルの内容</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>表示順</TableHead>
-                    <TableHead>名称</TableHead>
-                    <TableHead>ID</TableHead>
-                    <TableHead className="text-right">操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {proficiencyLevels.map((level) => (
-                    <TableRow key={level.id}>
-                      <TableCell>{level.sortOrder}</TableCell>
-                      <TableCell className="font-medium">{level.name}</TableCell>
-                      <TableCell className="font-mono text-xs text-gray-600">
-                        {level.id}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEditProficiencyLevelDialog(level)}
-                        >
-                          <LucideIcons.Pencil className="w-4 h-4 mr-2" />
-                          編集
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {!isLoading && proficiencyLevels.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center text-gray-500">
-                        習熟度は登録されていません。
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
           </TabsContent>
 
           <TabsContent value="job-history" className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -1456,61 +1345,6 @@ export function SettingsPage() {
                 disabled={!canSaveSkillMaster || isSavingSkillMaster}
               >
                 {isSavingSkillMaster ? "保存中" : "保存"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={proficiencyLevelDialogOpen} onOpenChange={setProficiencyLevelDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>習熟度を編集</DialogTitle>
-              <DialogDescription>
-                習熟度の名称と表示順を変更します。
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="proficiency-level-name">名称</Label>
-                <Input
-                  id="proficiency-level-name"
-                  value={proficiencyLevelForm.name}
-                  onChange={(e) =>
-                    setProficiencyLevelForm({ ...proficiencyLevelForm, name: e.target.value })
-                  }
-                  placeholder="中級"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="proficiency-level-sort-order">表示順</Label>
-                <Input
-                  id="proficiency-level-sort-order"
-                  type="number"
-                  value={proficiencyLevelForm.sortOrder}
-                  onChange={(e) =>
-                    setProficiencyLevelForm({ ...proficiencyLevelForm, sortOrder: Number(e.target.value) })
-                  }
-                  placeholder="2"
-                />
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setProficiencyLevelDialogOpen(false)}
-              >
-                キャンセル
-              </Button>
-              <Button
-                type="button"
-                onClick={handleSaveProficiencyLevel}
-                disabled={!canSaveProficiencyLevel || isSavingProficiencyLevel}
-              >
-                {isSavingProficiencyLevel ? "保存中" : "保存"}
               </Button>
             </DialogFooter>
           </DialogContent>

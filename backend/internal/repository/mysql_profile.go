@@ -278,6 +278,9 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.migrateIntegerPrimaryKeys(ctx); err != nil {
 		return err
 	}
+	if err := r.dropSkillProficiency(ctx); err != nil {
+		return err
+	}
 	if err := r.dropProfileUserIDColumn(ctx); err != nil {
 		return err
 	}
@@ -385,19 +388,14 @@ func (r *SQLiteProfileRepository) ListSkillOptions(ctx context.Context) (*domain
 		return nil, fmt.Errorf("query skill categories: %w", err)
 	}
 
-	proficiencyLevels, err := r.queries.ListSkillProficiencyLevels(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("query skill proficiency levels: %w", err)
-	}
 	skillMasters, err := r.queries.ListSkillMasters(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("query skill masters: %w", err)
 	}
 
 	return &domain.SkillOptions{
-		Categories:        toDomainSkillCategoryOptions(categories),
-		ProficiencyLevels: toDomainSkillProficiencyLevelOptions(proficiencyLevels),
-		SkillMasters:      toDomainSkillMasters(skillMasters),
+		Categories:   toDomainSkillCategoryOptions(categories),
+		SkillMasters: toDomainSkillMasters(skillMasters),
 	}, nil
 }
 
@@ -427,19 +425,6 @@ func (r *SQLiteProfileRepository) UpdateSkillCategory(ctx context.Context, id st
 	}
 
 	return toDomainSkillCategoryOption(row), nil
-}
-
-func (r *SQLiteProfileRepository) UpdateSkillProficiencyLevel(ctx context.Context, id string, input domain.SkillProficiencyLevelInput) (*domain.SkillOption, error) {
-	row, err := r.queries.UpdateSkillProficiencyLevel(ctx, dbgen.UpdateSkillProficiencyLevelParams{
-		ID:        id,
-		Name:      input.Name,
-		SortOrder: input.SortOrder,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("update skill proficiency level: %w", err)
-	}
-
-	return toDomainSkillProficiencyLevelOption(row), nil
 }
 
 func (r *SQLiteProfileRepository) CreateSkillMaster(ctx context.Context, input domain.SkillMasterInput) (*domain.SkillMaster, error) {
@@ -491,10 +476,9 @@ func (r *SQLiteProfileRepository) ListSkills(ctx context.Context) ([]domain.Skil
 func (r *SQLiteProfileRepository) CreateSkill(ctx context.Context, input domain.SkillInput) (*domain.Skill, error) {
 	now := time.Now().UTC()
 	row, err := r.queries.InsertSkill(ctx, dbgen.InsertSkillParams{
-		ID:                 skillID(now),
-		SkillMasterID:      input.SkillMasterID,
-		Experience:         input.Experience,
-		ProficiencyLevelID: input.ProficiencyLevelID,
+		ID:            skillID(now),
+		SkillMasterID: input.SkillMasterID,
+		Experience:    input.Experience,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("insert skill: %w", err)
@@ -510,10 +494,9 @@ func (r *SQLiteProfileRepository) CreateSkill(ctx context.Context, input domain.
 
 func (r *SQLiteProfileRepository) UpdateSkill(ctx context.Context, id string, input domain.SkillInput) (*domain.Skill, error) {
 	row, err := r.queries.UpdateSkill(ctx, dbgen.UpdateSkillParams{
-		ID:                 id,
-		SkillMasterID:      input.SkillMasterID,
-		Experience:         input.Experience,
-		ProficiencyLevelID: input.ProficiencyLevelID,
+		ID:            id,
+		SkillMasterID: input.SkillMasterID,
+		Experience:    input.Experience,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("update skill: %w", err)
@@ -1864,12 +1847,65 @@ func (r *SQLiteProfileRepository) migrateSkillMasterReference(ctx context.Contex
 	return nil
 }
 
+func (r *SQLiteProfileRepository) dropSkillProficiency(ctx context.Context) error {
+	hasProficiencyColumn, err := r.tableHasColumn(ctx, "skills", "proficiency_level_id")
+	if err != nil {
+		return err
+	}
+	if hasProficiencyColumn {
+		statements := []string{
+			`PRAGMA foreign_keys = OFF`,
+			`DROP TABLE IF EXISTS skills_new`,
+			`CREATE TABLE skills_new (
+				id INTEGER PRIMARY KEY,
+				skill_master_id INTEGER NOT NULL UNIQUE,
+				experience INTEGER NOT NULL,
+				sort_order INTEGER NOT NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				FOREIGN KEY (skill_master_id) REFERENCES skill_masters(id)
+			)`,
+			`INSERT OR IGNORE INTO skills_new (
+				id,
+				skill_master_id,
+				experience,
+				sort_order,
+				created_at,
+				updated_at
+			)
+			SELECT
+				id,
+				skill_master_id,
+				experience,
+				sort_order,
+				created_at,
+				updated_at
+			FROM skills`,
+			`DROP TABLE skills`,
+			`ALTER TABLE skills_new RENAME TO skills`,
+			`CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_skill_master_id_unique ON skills(skill_master_id)`,
+			`PRAGMA foreign_keys = ON`,
+		}
+		for _, statement := range statements {
+			if _, err := r.db.ExecContext(ctx, statement); err != nil {
+				_, _ = r.db.ExecContext(ctx, "PRAGMA foreign_keys = ON")
+				return fmt.Errorf("drop skill proficiency: %w", err)
+			}
+		}
+	}
+
+	if _, err := r.db.ExecContext(ctx, `DROP TABLE IF EXISTS skill_proficiency_levels`); err != nil {
+		return fmt.Errorf("drop skill proficiency levels: %w", err)
+	}
+
+	return nil
+}
+
 func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context) error {
 	tables := []string{
 		"profiles",
 		"profile_qualifications",
 		"skill_categories",
-		"skill_proficiency_levels",
 		"skill_masters",
 		"skills",
 		"job_employment_types",
@@ -1963,7 +1999,6 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 		`DROP TABLE IF EXISTS skills_new`,
 		`DROP TABLE IF EXISTS skill_masters_new`,
 		`DROP TABLE IF EXISTS skill_categories_new`,
-		`DROP TABLE IF EXISTS skill_proficiency_levels_new`,
 		`DROP TABLE IF EXISTS job_histories_new`,
 		`DROP TABLE IF EXISTS job_employment_types_new`,
 		`DROP TABLE IF EXISTS projects_new`,
@@ -1971,7 +2006,6 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 		`DROP TABLE IF EXISTS _profile_id_map`,
 		`DROP TABLE IF EXISTS _qualification_id_map`,
 		`DROP TABLE IF EXISTS _skill_category_id_map`,
-		`DROP TABLE IF EXISTS _skill_proficiency_id_map`,
 		`DROP TABLE IF EXISTS _skill_master_id_map`,
 		`DROP TABLE IF EXISTS _skill_id_map`,
 		`DROP TABLE IF EXISTS _job_employment_type_id_map`,
@@ -1986,9 +2020,6 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 		`CREATE TEMP TABLE _skill_category_id_map AS
 		SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, name ASC, id ASC) AS new_id
 		FROM skill_categories`,
-		`CREATE TEMP TABLE _skill_proficiency_id_map AS
-		SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, name ASC, id ASC) AS new_id
-		FROM skill_proficiency_levels`,
 		skillMasterIDMapStatement,
 		`CREATE TEMP TABLE _skill_id_map AS
 		SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, id ASC) AS new_id
@@ -2080,17 +2111,6 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 		SELECT _skill_category_id_map.new_id, skill_categories.name, skill_categories.icon, skill_categories.sort_order, skill_categories.created_at, skill_categories.updated_at
 		FROM skill_categories
 		JOIN _skill_category_id_map ON _skill_category_id_map.old_id = skill_categories.id`,
-		`CREATE TABLE skill_proficiency_levels_new (
-			id INTEGER PRIMARY KEY,
-			name TEXT NOT NULL UNIQUE,
-			sort_order INTEGER NOT NULL,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`,
-		`INSERT INTO skill_proficiency_levels_new
-		SELECT _skill_proficiency_id_map.new_id, skill_proficiency_levels.name, skill_proficiency_levels.sort_order, skill_proficiency_levels.created_at, skill_proficiency_levels.updated_at
-		FROM skill_proficiency_levels
-		JOIN _skill_proficiency_id_map ON _skill_proficiency_id_map.old_id = skill_proficiency_levels.id`,
 		`CREATE TABLE skill_masters_new (
 				id INTEGER PRIMARY KEY,
 				name TEXT NOT NULL UNIQUE,
@@ -2115,26 +2135,22 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 			id INTEGER PRIMARY KEY,
 			skill_master_id INTEGER NOT NULL UNIQUE,
 			experience INTEGER NOT NULL,
-			proficiency_level_id INTEGER NOT NULL,
 			sort_order INTEGER NOT NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (skill_master_id) REFERENCES skill_masters(id),
-			FOREIGN KEY (proficiency_level_id) REFERENCES skill_proficiency_levels(id)
+			FOREIGN KEY (skill_master_id) REFERENCES skill_masters(id)
 		)`,
 		`INSERT OR IGNORE INTO skills_new
 		SELECT
 			_skill_id_map.new_id,
 			_skill_master_id_map.new_id,
 			skills.experience,
-			_skill_proficiency_id_map.new_id,
 			skills.sort_order,
 			skills.created_at,
 			skills.updated_at
 		FROM skills
 		JOIN _skill_id_map ON _skill_id_map.old_id = skills.id
-		JOIN _skill_master_id_map ON _skill_master_id_map.old_id = skills.skill_master_id
-		JOIN _skill_proficiency_id_map ON _skill_proficiency_id_map.old_id = skills.proficiency_level_id`,
+		JOIN _skill_master_id_map ON _skill_master_id_map.old_id = skills.skill_master_id`,
 		`CREATE TABLE job_employment_types_new (
 			id INTEGER PRIMARY KEY,
 			name TEXT NOT NULL UNIQUE,
@@ -2233,7 +2249,6 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 		`DROP TABLE skills`,
 		`DROP TABLE skill_masters`,
 		`DROP TABLE skill_categories`,
-		`DROP TABLE skill_proficiency_levels`,
 		`DROP TABLE job_histories`,
 		`DROP TABLE job_employment_types`,
 		`DROP TABLE project_skill_masters`,
@@ -2241,7 +2256,6 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 		`ALTER TABLE profiles_new RENAME TO profiles`,
 		`ALTER TABLE profile_qualifications_new RENAME TO profile_qualifications`,
 		`ALTER TABLE skill_categories_new RENAME TO skill_categories`,
-		`ALTER TABLE skill_proficiency_levels_new RENAME TO skill_proficiency_levels`,
 		`ALTER TABLE skill_masters_new RENAME TO skill_masters`,
 		`ALTER TABLE skills_new RENAME TO skills`,
 		`ALTER TABLE job_employment_types_new RENAME TO job_employment_types`,
@@ -2364,13 +2378,13 @@ func (r *SQLiteProfileRepository) saveProfileLinks(ctx context.Context, tx *sql.
 func (r *SQLiteProfileRepository) cleanupSeededSkills(ctx context.Context) error {
 	if _, err := r.db.ExecContext(ctx, `
 		DELETE FROM skills
-		WHERE (id = 1 AND skill_master_id = 1 AND experience = 3 AND proficiency_level_id = 3 AND sort_order = 1)
-			OR (id = 2 AND skill_master_id = 4 AND experience = 3 AND proficiency_level_id = 3 AND sort_order = 2)
-			OR (id = 3 AND skill_master_id = 6 AND experience = 2 AND proficiency_level_id = 2 AND sort_order = 3)
-			OR (id = 4 AND skill_master_id = 7 AND experience = 2 AND proficiency_level_id = 2 AND sort_order = 4)
-			OR (id = 5 AND skill_master_id = 9 AND experience = 2 AND proficiency_level_id = 2 AND sort_order = 5)
-			OR (id = 6 AND skill_master_id = 10 AND experience = 1 AND proficiency_level_id = 1 AND sort_order = 6)
-			OR (id = 7 AND skill_master_id = 11 AND experience = 4 AND proficiency_level_id = 3 AND sort_order = 7)
+		WHERE (id = 1 AND skill_master_id = 1 AND experience = 3 AND sort_order = 1)
+			OR (id = 2 AND skill_master_id = 4 AND experience = 3 AND sort_order = 2)
+			OR (id = 3 AND skill_master_id = 6 AND experience = 2 AND sort_order = 3)
+			OR (id = 4 AND skill_master_id = 7 AND experience = 2 AND sort_order = 4)
+			OR (id = 5 AND skill_master_id = 9 AND experience = 2 AND sort_order = 5)
+			OR (id = 6 AND skill_master_id = 10 AND experience = 1 AND sort_order = 6)
+			OR (id = 7 AND skill_master_id = 11 AND experience = 4 AND sort_order = 7)
 	`); err != nil {
 		return fmt.Errorf("cleanup seeded skills: %w", err)
 	}
@@ -2584,23 +2598,6 @@ func toDomainSkillCategoryOption(row dbgen.SkillCategory) *domain.SkillOption {
 	}
 }
 
-func toDomainSkillProficiencyLevelOptions(rows []dbgen.SkillProficiencyLevel) []domain.SkillOption {
-	options := make([]domain.SkillOption, 0, len(rows))
-	for _, row := range rows {
-		options = append(options, *toDomainSkillProficiencyLevelOption(row))
-	}
-
-	return options
-}
-
-func toDomainSkillProficiencyLevelOption(row dbgen.SkillProficiencyLevel) *domain.SkillOption {
-	return &domain.SkillOption{
-		ID:        row.ID,
-		Name:      row.Name,
-		SortOrder: row.SortOrder,
-	}
-}
-
 func toDomainSkillMasters(rows []dbgen.ListSkillMastersRow) []domain.SkillMaster {
 	skillMasters := make([]domain.SkillMaster, 0, len(rows))
 	for _, row := range rows {
@@ -2630,15 +2627,13 @@ func toDomainSkills(rows []dbgen.ListSkillsRow) []domain.Skill {
 	skills := make([]domain.Skill, 0, len(rows))
 	for _, row := range rows {
 		skills = append(skills, domain.Skill{
-			ID:                 row.ID,
-			SkillMasterID:      row.SkillMasterID,
-			Name:               row.Name,
-			CategoryID:         row.CategoryID,
-			CategoryName:       row.CategoryName,
-			Experience:         row.Experience,
-			ProficiencyLevelID: row.ProficiencyLevelID,
-			ProficiencyName:    row.ProficiencyName,
-			SortOrder:          row.SortOrder,
+			ID:            row.ID,
+			SkillMasterID: row.SkillMasterID,
+			Name:          row.Name,
+			CategoryID:    row.CategoryID,
+			CategoryName:  row.CategoryName,
+			Experience:    row.Experience,
+			SortOrder:     row.SortOrder,
 		})
 	}
 
@@ -2647,15 +2642,13 @@ func toDomainSkills(rows []dbgen.ListSkillsRow) []domain.Skill {
 
 func toDomainSkill(row dbgen.GetSkillRow) *domain.Skill {
 	return &domain.Skill{
-		ID:                 row.ID,
-		SkillMasterID:      row.SkillMasterID,
-		Name:               row.Name,
-		CategoryID:         row.CategoryID,
-		CategoryName:       row.CategoryName,
-		Experience:         row.Experience,
-		ProficiencyLevelID: row.ProficiencyLevelID,
-		ProficiencyName:    row.ProficiencyName,
-		SortOrder:          row.SortOrder,
+		ID:            row.ID,
+		SkillMasterID: row.SkillMasterID,
+		Name:          row.Name,
+		CategoryID:    row.CategoryID,
+		CategoryName:  row.CategoryName,
+		Experience:    row.Experience,
+		SortOrder:     row.SortOrder,
 	}
 }
 
