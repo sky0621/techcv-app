@@ -13,6 +13,8 @@ import { Checkbox } from "../ui/checkbox";
 type Project = {
   id: string;
   name: string;
+  jobHistoryId: string;
+  jobHistory: string;
   companyId: string;
   company: string;
   startYear: number;
@@ -32,6 +34,7 @@ type Project = {
 
 type ProjectForm = {
   name: string;
+  jobHistoryId: string;
   companyId: string;
   startDate: string;
   endDate: string;
@@ -49,12 +52,28 @@ type JobCompany = {
   url: string;
 };
 
+type JobHistory = {
+  id: string;
+  companyId: string;
+  company: string;
+  displayName: string;
+  startYear: number;
+  startMonth: number;
+  endYear: number | null;
+  endMonth: number | null;
+  employmentType: string;
+};
+
 type ProjectsResponse = {
   projects: Project[];
 };
 
 type JobHistoryOptionsResponse = {
   companies: JobCompany[];
+};
+
+type JobHistoriesResponse = {
+  jobHistories: JobHistory[];
 };
 
 type ProjectResponse = {
@@ -93,6 +112,7 @@ type SkillOptionsResponse = {
 
 const emptyForm: ProjectForm = {
   name: "",
+  jobHistoryId: "",
   companyId: "",
   startDate: "",
   endDate: "",
@@ -153,6 +173,7 @@ function parseYearMonth(value: string) {
 
 export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [jobHistories, setJobHistories] = useState<JobHistory[]>([]);
   const [companies, setCompanies] = useState<JobCompany[]>([]);
   const [projectPhases, setProjectPhases] = useState<ProjectPhase[]>([]);
   const [skillCategories, setSkillCategories] = useState<SkillCategory[]>([]);
@@ -173,8 +194,15 @@ export function ProjectsPage() {
       setError("");
 
       try {
-        const [projectsResponse, jobHistoryOptionsResponse, projectOptionsResponse, skillOptionsResponse] = await Promise.all([
+        const [
+          projectsResponse,
+          jobHistoriesResponse,
+          jobHistoryOptionsResponse,
+          projectOptionsResponse,
+          skillOptionsResponse,
+        ] = await Promise.all([
           fetch("/api/projects", { signal: controller.signal }),
+          fetch("/api/job-histories", { signal: controller.signal }),
           fetch("/api/job-histories/options", { signal: controller.signal }),
           fetch("/api/projects/options", { signal: controller.signal }),
           fetch("/api/skills/options", { signal: controller.signal }),
@@ -185,6 +213,9 @@ export function ProjectsPage() {
         if (!jobHistoryOptionsResponse.ok) {
           throw new Error("会社設定の取得に失敗しました");
         }
+        if (!jobHistoriesResponse.ok) {
+          throw new Error("職歴の取得に失敗しました");
+        }
         if (!projectOptionsResponse.ok) {
           throw new Error("案件設定の取得に失敗しました");
         }
@@ -193,10 +224,12 @@ export function ProjectsPage() {
         }
 
         const projectsData = (await projectsResponse.json()) as ProjectsResponse;
+        const jobHistoriesData = (await jobHistoriesResponse.json()) as JobHistoriesResponse;
         const jobHistoryOptionsData = (await jobHistoryOptionsResponse.json()) as JobHistoryOptionsResponse;
         const projectOptionsData = (await projectOptionsResponse.json()) as ProjectOptionsResponse;
         const skillOptionsData = (await skillOptionsResponse.json()) as SkillOptionsResponse;
         setProjects(projectsData.projects ?? []);
+        setJobHistories(jobHistoriesData.jobHistories ?? []);
         setCompanies(jobHistoryOptionsData.companies ?? []);
         setProjectPhases(projectOptionsData.phases ?? []);
         setSkillCategories(skillOptionsData.categories ?? []);
@@ -236,6 +269,7 @@ export function ProjectsPage() {
     setEditingProject(project);
     setFormData({
       name: project.name,
+      jobHistoryId: project.jobHistoryId,
       companyId: project.companyId,
       startDate: formatYearMonth(project.startYear, project.startMonth),
       endDate:
@@ -334,6 +368,22 @@ export function ProjectsPage() {
   const getSkillMasterName = (skillMasterId: string) =>
     skillMasters.find((skillMaster) => skillMaster.id === skillMasterId)?.name ?? skillMasterId;
 
+  const formatJobHistoryLabel = (jobHistory: JobHistory) => {
+    const name = jobHistory.displayName || jobHistory.company || "名称未設定";
+
+    return `${name} / ${formatYearMonth(jobHistory.startYear, jobHistory.startMonth)} 〜 ${formatEndYearMonth(jobHistory.endYear, jobHistory.endMonth)}`;
+  };
+
+  const handleJobHistoryChange = (jobHistoryId: string) => {
+    const jobHistory = jobHistories.find((candidate) => candidate.id === jobHistoryId);
+
+    setFormData({
+      ...formData,
+      jobHistoryId,
+      companyId: jobHistory?.companyId || formData.companyId,
+    });
+  };
+
   const togglePhase = (phase: string) => {
     const current = formData.phases;
     setFormData({
@@ -402,6 +452,11 @@ export function ProjectsPage() {
                         {project.company} • {formatYearMonth(project.startYear, project.startMonth)} 〜{" "}
                         {formatEndYearMonth(project.endYear, project.endMonth)}
                       </CardDescription>
+                      {project.jobHistory && (
+                        <div className="mt-1 text-sm text-gray-500">
+                          職歴: {project.jobHistory}
+                        </div>
+                      )}
                       <p className="text-sm text-gray-700 mt-2">{project.description}</p>
                       <div className="mt-3 space-y-2">
                         <div className="flex items-center gap-2 text-sm">
@@ -480,6 +535,31 @@ export function ProjectsPage() {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="ECサイトリニューアル"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="jobHistory">職歴</Label>
+                <Select
+                  value={formData.jobHistoryId}
+                  onValueChange={handleJobHistoryChange}
+                  disabled={jobHistories.length === 0}
+                >
+                  <SelectTrigger id="jobHistory">
+                    <SelectValue placeholder="職歴を選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jobHistories.map((jobHistory) => (
+                      <SelectItem key={jobHistory.id} value={jobHistory.id}>
+                        {formatJobHistoryLabel(jobHistory)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!isLoading && jobHistories.length === 0 && (
+                  <p className="text-sm text-amber-700">
+                    先に職歴を登録すると、案件と紐づけられます。
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">

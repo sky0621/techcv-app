@@ -281,6 +281,9 @@ func (r *SQLiteProfileRepository) applySchema(ctx context.Context, schemaPath st
 	if err := r.dropSkillProficiency(ctx); err != nil {
 		return err
 	}
+	if err := r.addProjectJobHistoryIDColumn(ctx); err != nil {
+		return err
+	}
 	if err := r.dropProfileUserIDColumn(ctx); err != nil {
 		return err
 	}
@@ -618,6 +621,7 @@ func (r *SQLiteProfileRepository) CreateProject(ctx context.Context, input domai
 	row, err := queries.InsertProject(ctx, dbgen.InsertProjectParams{
 		ID:           projectID(now),
 		Name:         input.Name,
+		JobHistoryID: input.JobHistoryID,
 		CompanyID:    input.CompanyID,
 		StartYear:    input.StartYear,
 		StartMonth:   input.StartMonth,
@@ -664,6 +668,7 @@ func (r *SQLiteProfileRepository) UpdateProject(ctx context.Context, id string, 
 	row, err := queries.UpdateProject(ctx, dbgen.UpdateProjectParams{
 		ID:           id,
 		Name:         input.Name,
+		JobHistoryID: input.JobHistoryID,
 		CompanyID:    input.CompanyID,
 		StartYear:    input.StartYear,
 		StartMonth:   input.StartMonth,
@@ -1901,6 +1906,22 @@ func (r *SQLiteProfileRepository) dropSkillProficiency(ctx context.Context) erro
 	return nil
 }
 
+func (r *SQLiteProfileRepository) addProjectJobHistoryIDColumn(ctx context.Context) error {
+	hasJobHistoryIDColumn, err := r.tableHasColumn(ctx, "projects", "job_history_id")
+	if err != nil {
+		return err
+	}
+	if hasJobHistoryIDColumn {
+		return nil
+	}
+
+	if _, err := r.db.ExecContext(ctx, `ALTER TABLE projects ADD COLUMN job_history_id INTEGER REFERENCES job_histories(id) ON DELETE SET NULL`); err != nil {
+		return fmt.Errorf("add projects.job_history_id column: %w", err)
+	}
+
+	return nil
+}
+
 func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context) error {
 	tables := []string{
 		"profiles",
@@ -2208,6 +2229,7 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 		`CREATE TABLE projects_new (
 			id INTEGER PRIMARY KEY,
 			name TEXT NOT NULL,
+			job_history_id INTEGER,
 			company_id INTEGER NOT NULL,
 			start_year INTEGER NOT NULL,
 			start_month INTEGER NOT NULL,
@@ -2222,12 +2244,14 @@ func (r *SQLiteProfileRepository) migrateIntegerPrimaryKeys(ctx context.Context)
 			sort_order INTEGER NOT NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (job_history_id) REFERENCES job_histories(id) ON DELETE SET NULL,
 			FOREIGN KEY (company_id) REFERENCES job_companies(id)
 		)`,
 		fmt.Sprintf(`INSERT INTO projects_new
 		SELECT
 			_project_id_map.new_id,
 			projects.name,
+			NULL,
 			%s,
 			projects.start_year,
 			projects.start_month,
@@ -2713,6 +2737,8 @@ func toDomainProject(row dbgen.Project) (*domain.Project, error) {
 	return &domain.Project{
 		ID:           row.ID,
 		Name:         row.Name,
+		JobHistoryID: row.JobHistoryID,
+		JobHistory:   row.JobHistory,
 		CompanyID:    row.CompanyID,
 		Company:      row.Company,
 		StartYear:    row.StartYear,

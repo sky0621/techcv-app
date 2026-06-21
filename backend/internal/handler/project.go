@@ -196,6 +196,7 @@ type projectPhaseResponse struct {
 
 type projectRequest struct {
 	Name          string   `json:"name"`
+	JobHistoryID  string   `json:"jobHistoryId"`
 	CompanyID     string   `json:"companyId"`
 	StartYear     int64    `json:"startYear"`
 	StartMonth    int64    `json:"startMonth"`
@@ -213,6 +214,8 @@ type projectRequest struct {
 type projectPayload struct {
 	ID            string   `json:"id"`
 	Name          string   `json:"name"`
+	JobHistoryID  string   `json:"jobHistoryId"`
+	JobHistory    string   `json:"jobHistory"`
 	CompanyID     string   `json:"companyId"`
 	Company       string   `json:"company"`
 	StartYear     int64    `json:"startYear"`
@@ -255,6 +258,8 @@ func toProjectPayload(value domain.Project) projectPayload {
 	return projectPayload{
 		ID:            value.ID,
 		Name:          value.Name,
+		JobHistoryID:  value.JobHistoryID,
+		JobHistory:    value.JobHistory,
 		CompanyID:     value.CompanyID,
 		Company:       value.Company,
 		StartYear:     value.StartYear,
@@ -276,6 +281,7 @@ func toProjectPayload(value domain.Project) projectPayload {
 func toProjectInput(request projectRequest) domain.ProjectInput {
 	return domain.ProjectInput{
 		Name:          strings.TrimSpace(request.Name),
+		JobHistoryID:  strings.TrimSpace(request.JobHistoryID),
 		CompanyID:     strings.TrimSpace(request.CompanyID),
 		StartYear:     request.StartYear,
 		StartMonth:    request.StartMonth,

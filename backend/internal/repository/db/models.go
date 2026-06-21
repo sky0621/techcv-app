@@ -68,6 +68,8 @@ type ProfileQualification struct {
 type Project struct {
 	ID           string
 	Name         string
+	JobHistoryID string
+	JobHistory   string
 	CompanyID    string
 	Company      string
 	StartYear    int64

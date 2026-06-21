@@ -27,6 +27,8 @@ const getProject = `-- name: GetProject :one
 SELECT
   projects.id,
   projects.name,
+  COALESCE(CAST(projects.job_history_id AS TEXT), '') AS job_history_id,
+  COALESCE(job_histories.display_name, job_history_companies.name, '') AS job_history,
   CAST(projects.company_id AS TEXT) AS company_id,
   job_companies.name AS company,
   projects.start_year,
@@ -44,6 +46,8 @@ SELECT
   projects.updated_at
 FROM projects
 JOIN job_companies ON job_companies.id = projects.company_id
+LEFT JOIN job_histories ON job_histories.id = projects.job_history_id
+LEFT JOIN job_companies AS job_history_companies ON job_history_companies.id = job_histories.company_id
 WHERE projects.id = ?
 `
 
@@ -53,6 +57,8 @@ func (q *Queries) GetProject(ctx context.Context, id string) (Project, error) {
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
+		&i.JobHistoryID,
+		&i.JobHistory,
 		&i.CompanyID,
 		&i.Company,
 		&i.StartYear,
@@ -76,6 +82,7 @@ const insertProject = `-- name: InsertProject :one
 INSERT INTO projects (
   id,
   name,
+  job_history_id,
   company_id,
   start_year,
   start_month,
@@ -92,6 +99,7 @@ INSERT INTO projects (
 SELECT
   ?,
   ?,
+  NULLIF(?, ''),
   ?,
   ?,
   ?,
@@ -108,6 +116,8 @@ FROM projects
 RETURNING
   id,
   name,
+  COALESCE(CAST(job_history_id AS TEXT), '') AS job_history_id,
+  '' AS job_history,
   CAST(company_id AS TEXT) AS company_id,
   '' AS company,
   start_year,
@@ -128,6 +138,7 @@ RETURNING
 type InsertProjectParams struct {
 	ID           string
 	Name         string
+	JobHistoryID string
 	CompanyID    string
 	StartYear    int64
 	StartMonth   int64
@@ -145,6 +156,7 @@ func (q *Queries) InsertProject(ctx context.Context, arg InsertProjectParams) (P
 	row := q.db.QueryRowContext(ctx, insertProject,
 		arg.ID,
 		arg.Name,
+		arg.JobHistoryID,
 		arg.CompanyID,
 		arg.StartYear,
 		arg.StartMonth,
@@ -161,6 +173,8 @@ func (q *Queries) InsertProject(ctx context.Context, arg InsertProjectParams) (P
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
+		&i.JobHistoryID,
+		&i.JobHistory,
 		&i.CompanyID,
 		&i.Company,
 		&i.StartYear,
@@ -184,6 +198,8 @@ const listProjects = `-- name: ListProjects :many
 SELECT
   projects.id,
   projects.name,
+  COALESCE(CAST(projects.job_history_id AS TEXT), '') AS job_history_id,
+  COALESCE(job_histories.display_name, job_history_companies.name, '') AS job_history,
   CAST(projects.company_id AS TEXT) AS company_id,
   job_companies.name AS company,
   projects.start_year,
@@ -201,6 +217,8 @@ SELECT
   projects.updated_at
 FROM projects
 JOIN job_companies ON job_companies.id = projects.company_id
+LEFT JOIN job_histories ON job_histories.id = projects.job_history_id
+LEFT JOIN job_companies AS job_history_companies ON job_history_companies.id = job_histories.company_id
 ORDER BY projects.sort_order ASC, projects.start_year DESC, projects.start_month DESC, projects.name ASC
 `
 
@@ -216,6 +234,8 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
+			&i.JobHistoryID,
+			&i.JobHistory,
 			&i.CompanyID,
 			&i.Company,
 			&i.StartYear,
@@ -438,6 +458,7 @@ const updateProject = `-- name: UpdateProject :one
 UPDATE projects
 SET
   name = ?,
+  job_history_id = NULLIF(?, ''),
   company_id = ?,
   start_year = ?,
   start_month = ?,
@@ -454,6 +475,8 @@ WHERE id = ?
 RETURNING
   id,
   name,
+  COALESCE(CAST(job_history_id AS TEXT), '') AS job_history_id,
+  '' AS job_history,
   CAST(company_id AS TEXT) AS company_id,
   '' AS company,
   start_year,
@@ -473,6 +496,7 @@ RETURNING
 
 type UpdateProjectParams struct {
 	Name         string
+	JobHistoryID string
 	CompanyID    string
 	StartYear    int64
 	StartMonth   int64
@@ -490,6 +514,7 @@ type UpdateProjectParams struct {
 func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error) {
 	row := q.db.QueryRowContext(ctx, updateProject,
 		arg.Name,
+		arg.JobHistoryID,
 		arg.CompanyID,
 		arg.StartYear,
 		arg.StartMonth,
@@ -507,6 +532,8 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
+		&i.JobHistoryID,
+		&i.JobHistory,
 		&i.CompanyID,
 		&i.Company,
 		&i.StartYear,

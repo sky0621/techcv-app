@@ -3,6 +3,8 @@ package domain
 type Project struct {
 	ID            string
 	Name          string
+	JobHistoryID  string
+	JobHistory    string
 	CompanyID     string
 	Company       string
 	StartYear     int64
@@ -22,6 +24,7 @@ type Project struct {
 
 type ProjectInput struct {
 	Name          string
+	JobHistoryID  string
 	CompanyID     string
 	StartYear     int64
 	StartMonth    int64

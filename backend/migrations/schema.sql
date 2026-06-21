@@ -120,6 +120,7 @@ CREATE TABLE IF NOT EXISTS job_histories (
 CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
+    job_history_id INTEGER,
     company_id INTEGER NOT NULL,
     start_year INTEGER NOT NULL,
     start_month INTEGER NOT NULL,
@@ -134,6 +135,7 @@ CREATE TABLE IF NOT EXISTS projects (
     sort_order INTEGER NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (job_history_id) REFERENCES job_histories(id) ON DELETE SET NULL,
     FOREIGN KEY (company_id) REFERENCES job_companies(id)
 );
 

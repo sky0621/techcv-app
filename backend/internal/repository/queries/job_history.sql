@@ -10,12 +10,14 @@ SELECT
   job_histories.end_month,
   job_histories.employment_type_id,
   job_employment_types.name AS employment_type,
-  job_histories.project_count,
+  COUNT(projects.id) AS project_count,
   job_histories.created_at,
   job_histories.updated_at
 FROM job_histories
 LEFT JOIN job_companies ON job_companies.id = job_histories.company_id
 JOIN job_employment_types ON job_employment_types.id = job_histories.employment_type_id
+LEFT JOIN projects ON projects.job_history_id = job_histories.id
+GROUP BY job_histories.id
 ORDER BY job_histories.start_year DESC, job_histories.start_month DESC, COALESCE(job_companies.name, '') ASC;
 
 -- name: GetJobHistory :one
@@ -30,13 +32,15 @@ SELECT
   job_histories.end_month,
   job_histories.employment_type_id,
   job_employment_types.name AS employment_type,
-  job_histories.project_count,
+  COUNT(projects.id) AS project_count,
   job_histories.created_at,
   job_histories.updated_at
 FROM job_histories
 LEFT JOIN job_companies ON job_companies.id = job_histories.company_id
 JOIN job_employment_types ON job_employment_types.id = job_histories.employment_type_id
-WHERE job_histories.id = ?;
+LEFT JOIN projects ON projects.job_history_id = job_histories.id
+WHERE job_histories.id = ?
+GROUP BY job_histories.id;
 
 -- name: InsertJobHistory :one
 INSERT INTO job_histories (
